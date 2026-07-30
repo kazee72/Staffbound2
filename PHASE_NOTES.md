@@ -52,3 +52,99 @@ yet — per SPEC.md phase 1 scope.
 - Confirm dash can't be spammed faster than its cooldown.
 - Confirm the mage stays within the viewport bounds (can't walk/dash off
   screen).
+
+## Phase 2
+
+Ported `reference/full-reference.html` (the complete vanilla-JS/Canvas
+single-player prototype) into the Vite+TypeScript+Phaser 3 project as
+faithfully as practical, replacing the Phase 1 placeholder scene with a full
+playable single-player loop. Kept the Phase 1 pixel-art mage sprite and
+movement/dash foundation, and layered combat/enemies/spells/leveling/skill
+tree on top.
+
+### What was built
+- `src/game/types.ts` — shared `World` state shape (player, enemies,
+  projectiles, effects, particles, popups, wisps, decoys, cooldowns, skill
+  points) + `createWorld()`, mirroring the reference's single `state` object.
+- `src/game/skillTree.ts` — the full 61-node Grimoire, ported verbatim:
+  `BRANCHES` (6 branches, angles -90/-30/30/90/150/210), `LOCAL` (10-node
+  per-branch layout with tiers/offsets/prereqs), `VOID_EXTRA` (Void's 11th
+  node), `CONTENT` (every node's real name/description), the radial
+  constellation coordinate math (`RADII`, `CX`/`CY`), `NODE_BY_ID`,
+  `hasNode`/`availableSP`/`buySkill` purchase logic.
+- `src/game/player.ts` — every derived-stat getter from the reference
+  (`cooldownMult`, `critChance`, `critDmgMult`, `maxHP`, `moveSpeed`,
+  `regenPerSec`, `healingMult`, `lifestealPct`, `damageReduction`,
+  `dashCooldownMax`, `xpMult`), `healPlayer`, `resetAllCooldowns`,
+  `xpForLevel`/`gainXP` (level-up flash + 1 skill point per level).
+- `src/game/enemies.ts` — `ETYPES` (slime/skel/wisp/wraith exact base
+  stats), day-scaling formulas, edge spawning, Elder Wraith boss spawn
+  (HP/day scaling, 90s interval).
+- `src/game/combat.ts` — `damageEnemy` (crit rolls, burn/slow/freeze
+  application) and `killEnemy` (XP grant, slain counter, Wildfire Spread /
+  Verdant Bloom pulse / Reaper's Mark cooldown reset / Absolute Zero shatter
+  on-kill chain effects).
+- `src/game/spells.ts` — `castBolt` (auto-target nearest enemy) plus every
+  node-gated spell: Fire Nova, Ice Lance, Frost Armor, Arcane Burst, Thorned
+  Vines, Shadow Bolt, Spirit Wisp companions — each behind the same
+  `hasNode()` gate as the reference, `updateSpellTimers` ticking all
+  cooldowns each frame.
+- `src/game/simulation.ts` — per-frame player movement (accel 1000,
+  friction 0.86/frame), `tryDash` (150px dash, 0.28s i-frames, 0.18s dash
+  window, dashCooldownMax from Warden nodes, Umbral Step decoy spawn),
+  `damagePlayer` (Undying capstone), projectile/decoy/enemy/effect/particle
+  update loops, boss telegraphed stomp AoE.
+- `src/game/waves.ts` — day timer (`elapsed/60`), `PLACES` flavor list,
+  spawn interval formula `max(0.32, 1.5 - day*0.09)` + day>=3 extra-spawn
+  chance, boss timer.
+- `src/game/visuals.ts` — particle `burst()` and `spawnPopup()` helpers.
+- `src/ui/UIManager.ts` + `src/ui/hud.css` — full DOM overlay layered above
+  the Phaser canvas: HUD (HP/XP bars, day line, GRIMOIRE button + SP badge,
+  dash indicator), start overlay, game-over overlay (days/slain/level +
+  random flavor line), and the full radial Grimoire overlay with SVG
+  connector lines (lit when prerequisite owned), tooltips, and
+  locked/available/affordable/bought node styling — CSS variables and class
+  names mirror the reference 1:1.
+- `index.html` — added the Cinzel/EB Garamond/JetBrains Mono Google Fonts
+  `<link>` tags matching the reference.
+- `src/scenes/GameScene.ts` — rewritten to wire movement/dash into the new
+  `World` sim, run the full update loop each frame (spell timers,
+  projectiles, decoys, enemies, effects, particles, spawns), render enemies/
+  projectiles/effects/particles/damage-popups via a Phaser `Graphics` +
+  pooled `Text` objects, keep the Phase 1 mage sprite rendering, and toggle
+  the Grimoire (G key / button) **without pausing the underlying sim loop**
+  — noted in code that this is intentional groundwork for Phase 4
+  multiplayer, where the Grimoire must stay non-pausing.
+- Ambient firefly background particles ported from the reference's
+  `bgCanvas` layer into a dedicated low-depth `Graphics` object.
+
+### Verified
+- `npm run build` (`tsc --noEmit && vite build`) completes with **zero
+  TypeScript errors**.
+- `npm run dev` booted (`http://localhost:5173` and friends, confirmed
+  HTTP 200 via curl), exercised via the browser tool (start screen → BEGIN
+  THE JOURNEY → live combat with HUD updating and enemies visible → G opens
+  the Grimoire showing the radial tree with connector lines and tooltips →
+  Escape closes it) with **zero console/runtime errors**, then the dev
+  server(s) were killed — nothing left running.
+- Node-count check: extracted all node ids programmatically from both the
+  reference and the ported `SKILL_NODES` array — **both total exactly 61**,
+  and the sorted id lists are identical.
+
+### What a human should manually test in a browser
+- Run `npm run dev`, open the printed local URL.
+- Confirm movement/dash still feels the same as Phase 1 (accel/friction
+  glide, 150px dash burst, ~3.4s cooldown, i-frame flicker).
+- Confirm the bolt spell auto-fires at the nearest enemy as soon as one
+  spawns, with no input required.
+- Confirm the day counter in the HUD advances (`Day 1 — the fallen
+  kingdom`, etc.) and enemies visibly get tougher/tankier as days pass.
+- Confirm the Elder Wraith boss spawns around the ~90s mark with a visible
+  telegraphed stomp warning ring about 1s before it lands.
+- Confirm pressing `G` (or the GRIMOIRE button) opens the radial skill tree
+  overlay with all 6 branches laid out around the "YOUR PATH" core.
+- Confirm clicking an affordable/available node purchases it, updates its
+  connector lines to "lit", and immediately reflects its gameplay effect
+  (e.g. buying `F_B` Ember Rounds should start Fire Nova casting).
+- Confirm the game-over overlay appears on death, shows days survived / foes
+  slain / level reached, and `WALK AGAIN` cleanly restarts a fresh run.

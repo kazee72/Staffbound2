@@ -1,0 +1,460 @@
+/* HOLLOWMERE HUD/overlay styling — ported from reference/full-reference.html's <style> block,
+   adapted for a DOM overlay layered above the Phaser canvas. */
+:root {
+  --night: #0b0d16;
+  --night2: #12141f;
+  --panel: #181b2a;
+  --panel2: #1e2235;
+  --line: #333a5c;
+  --text: #e9e4d8;
+  --dim: #8789a3;
+  --gold: #c9a869;
+  --gold-bright: #eeda9e;
+  --ember: #e2793d;
+  --frost: #8ec9e8;
+  --arcane: #9d8ce0;
+  --verdant: #8bc48a;
+  --umbral: #c4728f;
+  --warden: #c9a869;
+  --hp: #c15b5b;
+}
+
+#app {
+  background: var(--night);
+}
+
+#ui-root {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  font-family: 'EB Garamond', serif;
+  color: var(--text);
+  pointer-events: none;
+}
+#ui-root h1,
+#ui-root h2,
+#ui-root h3,
+#ui-root .disp {
+  font-family: 'Cinzel', serif;
+}
+#ui-root .mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+#vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 50%, rgba(0, 0, 0, 0) 60%, rgba(0, 0, 0, 0.55) 100%);
+}
+
+#flashEl {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  font-family: 'Cinzel', serif;
+  font-size: clamp(18px, 3.6vw, 32px);
+  font-weight: 800;
+  letter-spacing: 3px;
+}
+
+/* HUD */
+#hud {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 6;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 12px 16px;
+  pointer-events: none;
+}
+.hudleft {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 220px;
+}
+.hudlabel {
+  font-size: 9.5px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.bar {
+  width: 100%;
+  height: 11px;
+  background: #20233a;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid #2c3050;
+}
+.barfill {
+  height: 100%;
+  transition: width 0.15s ease;
+}
+#hpfill {
+  background: linear-gradient(90deg, #8a3a3a, var(--hp));
+}
+#xpfill2 {
+  background: linear-gradient(90deg, var(--arcane), #c7bdf5);
+}
+.hudrow {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10.5px;
+  color: var(--dim);
+  margin-top: 2px;
+}
+.hudrow b {
+  color: var(--text);
+}
+#dayline {
+  font-size: 11px;
+  color: var(--gold);
+  margin-top: 4px;
+  font-style: italic;
+}
+.hudright {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+#grimoireBtn {
+  pointer-events: auto;
+  background: var(--panel);
+  border: 1.5px solid var(--gold);
+  color: var(--gold-bright);
+  font-family: 'Cinzel', serif;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  padding: 8px 14px;
+  border-radius: 7px;
+  cursor: pointer;
+  position: relative;
+}
+#grimoireBtn:hover {
+  box-shadow: 0 0 16px rgba(201, 168, 105, 0.5);
+}
+#spBadge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: var(--umbral);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  border-radius: 50%;
+  width: 19px;
+  height: 19px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 8px rgba(196, 114, 143, 0.8);
+}
+#dashind {
+  font-size: 10px;
+  color: var(--dim);
+  text-align: right;
+}
+#dashind b {
+  color: var(--frost);
+}
+
+/* overlays */
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 11, 18, 0.92);
+  text-align: center;
+  padding: 26px;
+  pointer-events: auto;
+}
+.hidden {
+  display: none !important;
+}
+.bigtitle {
+  font-family: 'Cinzel', serif;
+  font-size: clamp(22px, 4vw, 36px);
+  font-weight: 800;
+  letter-spacing: 3px;
+  color: var(--gold-bright);
+  text-shadow: 0 0 24px rgba(238, 218, 158, 0.4);
+  margin: 0 0 8px 0;
+}
+.sub {
+  color: var(--dim);
+  font-size: 14px;
+  margin-bottom: 18px;
+  font-style: italic;
+}
+.key {
+  display: inline-block;
+  border: 1px solid var(--dim);
+  border-radius: 4px;
+  padding: 1px 7px;
+  margin: 0 2px;
+  color: var(--text);
+  font-size: 11.5px;
+  font-family: 'JetBrains Mono', monospace;
+}
+#startBtn,
+#retryBtn {
+  margin-top: 14px;
+  background: transparent;
+  border: 1.5px solid var(--gold);
+  color: var(--gold-bright);
+  font-family: 'Cinzel', serif;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 11px 30px;
+  border-radius: 7px;
+  cursor: pointer;
+  letter-spacing: 2px;
+}
+#startBtn:hover,
+#retryBtn:hover {
+  background: var(--gold);
+  color: #1a1508;
+  box-shadow: 0 0 26px rgba(201, 168, 105, 0.55);
+}
+#goStats {
+  display: flex;
+  gap: 22px;
+  margin: 10px 0 4px 0;
+}
+#goStats div {
+  text-align: center;
+}
+#goStats .v {
+  font-family: 'Cinzel', serif;
+  font-size: 22px;
+  color: var(--gold-bright);
+}
+#goStats .l {
+  font-size: 10.5px;
+  color: var(--dim);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Grimoire (skill tree) */
+#grimoireOverlay {
+  z-index: 25;
+  background: rgba(8, 9, 14, 0.97);
+  padding: 0;
+}
+#grimHeader {
+  width: 100%;
+  padding: 14px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+}
+#grimHeader .disp {
+  color: var(--gold-bright);
+  letter-spacing: 3px;
+  font-size: 16px;
+}
+#grimSP {
+  color: var(--gold);
+  font-size: 13px;
+}
+#closeGrim {
+  background: none;
+  border: 1px solid var(--dim);
+  color: var(--dim);
+  border-radius: 6px;
+  padding: 5px 12px;
+  cursor: pointer;
+  font-family: 'Cinzel', serif;
+  font-size: 11px;
+}
+#closeGrim:hover {
+  color: var(--text);
+  border-color: var(--text);
+}
+#treewrap {
+  width: 100%;
+  flex: 1;
+  overflow: auto;
+  padding: 20px;
+}
+#treeinner {
+  position: relative;
+  width: 1000px;
+  height: 1000px;
+  margin: 0 auto;
+}
+#treeinner svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+#treeinner svg line {
+  stroke: var(--line);
+  stroke-width: 2;
+}
+#treeinner svg line.lit {
+  stroke-width: 2.5;
+}
+#treeinner svg line.spoke {
+  stroke: #22263a;
+  stroke-width: 1.5;
+  stroke-dasharray: 2 4;
+}
+.core {
+  position: absolute;
+  left: 500px;
+  top: 500px;
+  width: 64px;
+  height: 64px;
+  margin-left: -32px;
+  margin-top: -32px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #2b2f4a, #141625);
+  border: 2px solid var(--gold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Cinzel', serif;
+  font-size: 9px;
+  color: var(--gold-bright);
+  text-align: center;
+  box-shadow: 0 0 26px rgba(201, 168, 105, 0.35);
+  z-index: 3;
+}
+.branchlabel {
+  position: absolute;
+  font-family: 'Cinzel', serif;
+  font-size: 11px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  z-index: 3;
+  text-shadow: 0 0 10px currentColor;
+}
+.node {
+  position: absolute;
+  width: 52px;
+  height: 52px;
+  margin-left: -26px;
+  margin-top: -26px;
+  border-radius: 50%;
+  background: var(--panel);
+  border: 2px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Cinzel', serif;
+  font-size: 8.5px;
+  font-weight: 700;
+  text-align: center;
+  color: var(--dim);
+  line-height: 1.15;
+  padding: 4px;
+  cursor: pointer;
+  z-index: 2;
+  transition: all 0.15s;
+}
+.node.capstone {
+  width: 66px;
+  height: 66px;
+  margin-left: -33px;
+  margin-top: -33px;
+  font-size: 9.5px;
+}
+.node.locked {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.node.available {
+  color: var(--text);
+}
+.node.affordable {
+  box-shadow: 0 0 14px currentColor;
+  color: var(--text);
+}
+.node.bought {
+  color: #0d0e16;
+  font-weight: 800;
+}
+#tooltip {
+  position: fixed;
+  z-index: 60;
+  max-width: 240px;
+  background: #101220;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 11px 13px;
+  font-size: 12.5px;
+  color: var(--text);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.1s;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.55);
+  font-family: 'EB Garamond', serif;
+}
+#tooltip .ttname {
+  font-family: 'Cinzel', serif;
+  font-weight: 700;
+  font-size: 12.5px;
+  margin-bottom: 4px;
+}
+#tooltip .ttdesc {
+  color: var(--dim);
+  margin-bottom: 6px;
+  line-height: 1.35;
+}
+#tooltip .ttcost {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  color: var(--gold);
+}
+
+.popup {
+  position: absolute;
+  pointer-events: none;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  animation: floatUp 0.8s ease-out forwards;
+}
+@keyframes floatUp {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -46px);
+  }
+}
+
+#footnote {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 6px;
+  z-index: 6;
+  text-align: center;
+  color: var(--dim);
+  font-size: 9.5px;
+  font-style: italic;
+  opacity: 0.55;
+  pointer-events: none;
+}

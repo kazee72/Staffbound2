@@ -1,30 +1,29 @@
 import Phaser from 'phaser';
 import { MAGE_TEXTURE_KEY } from '../game/mageSprite';
+import { createWorld } from '../game/types';
+import type { World } from '../game/types';
+import { xpForLevel } from '../game/player';
+import { updateSpellTimers } from '../game/spells';
+import { updateSpawns } from '../game/waves';
+import {
+  updatePlayer,
+  updateProjectiles,
+  updateDecoys,
+  updateEnemies,
+  updateEffects,
+  updateParticles,
+  tryDash,
+  type InputState,
+} from '../game/simulation';
+import { UIManager } from '../ui/UIManager';
 
-/**
- * Movement/dash tuning, matched to reference/prototype.html's feel:
- *   - accel = 1000 px/s^2 toward input direction
- *   - velocity *= 0.86 per frame (~60fps) as friction/drag
- *   - base move speed cap ~230 (prototype clamps speed indirectly via the
- *     accel/friction balance settling near this magnitude)
- *   - dash: fixed-distance teleport-style dash (150px) with 0.28s i-frames,
- *     0.18s "dashing" window, and a 3.4s cooldown.
- */
-const ACCEL = 1000;
-const FRICTION = 0.86; // multiplicative drag applied per ~60fps frame
-const MAX_SPEED = 230;
-const DASH_DISTANCE = 150;
-const DASH_IFRAMES = 0.28; // seconds of invulnerability
-const DASH_ACTIVE = 0.18; // seconds the "dashing" flag stays true (for visuals/anim)
-const DASH_COOLDOWN = 3.4; // seconds
-
-interface PlayerState {
-  vx: number;
+interface Firefly {
+  x: number;
+  y: number;
   vy: number;
-  facing: { x: number; y: number };
-  invuln: number;
-  dashing: number;
-  dashCd: number;
+  sway: number;
+  r: number;
+  hue: number;
 }
 
 export class GameScene extends Phaser.Scene {
@@ -35,17 +34,20 @@ export class GameScene extends Phaser.Scene {
   private keyS!: Phaser.Input.Keyboard.Key;
   private keyD!: Phaser.Input.Keyboard.Key;
   private keySpace!: Phaser.Input.Keyboard.Key;
+  private keyG!: Phaser.Input.Keyboard.Key;
+  private keyEsc!: Phaser.Input.Keyboard.Key;
 
-  private player: PlayerState = {
-    vx: 0,
-    vy: 0,
-    facing: { x: 0, y: 1 },
-    invuln: 0,
-    dashing: 0,
-    dashCd: 0,
-  };
+  private world!: World;
+  private ui!: UIManager;
 
-  private debugText!: Phaser.GameObjects.Text;
+  private fxGraphics!: Phaser.GameObjects.Graphics;
+  private bgGraphics!: Phaser.GameObjects.Graphics;
+  private gridGraphics!: Phaser.GameObjects.Graphics;
+
+  private fireflies: Firefly[] = [];
+
+  // Pool of damage-popup text objects.
+  private popupTexts: Phaser.GameObjects.Text[] = [];
 
   constructor() {
     super('Game');
@@ -54,7 +56,17 @@ export class GameScene extends Phaser.Scene {
   create(): void {
     const { width, height } = this.scale;
 
-    this.mage = this.add.sprite(width / 2, height / 2, MAGE_TEXTURE_KEY);
+    this.world = createWorld(width, height, (text, color) => this.ui.flash(text, color));
+
+    this.gridGraphics = this.add.graphics().setDepth(0);
+    this.drawGrid();
+
+    this.bgGraphics = this.add.graphics().setDepth(1);
+    this.initFireflies();
+
+    this.fxGraphics = this.add.graphics().setDepth(5);
+
+    this.mage = this.add.sprite(width / 2, height / 2, MAGE_TEXTURE_KEY).setDepth(6);
     this.mage.setScale(1.5);
 
     this.cursors = this.input.keyboard!.createCursorKeys();
@@ -63,109 +75,292 @@ export class GameScene extends Phaser.Scene {
     this.keyS = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.S);
     this.keyD = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.D);
     this.keySpace = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+    this.keyG = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.G);
+    this.keyEsc = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
 
-    this.keySpace.on('down', () => this.tryDash());
-
-    this.debugText = this.add.text(8, 8, '', {
-      fontFamily: 'monospace',
-      fontSize: '14px',
-      color: '#d4f0ff',
+    this.keySpace.on('down', () => {
+      if (this.world.running && !this.world.grimoireOpen) tryDash(this.world);
     });
-    this.debugText.setScrollFactor(0);
-    this.debugText.setDepth(1000);
+    this.keyG.on('down', () => this.toggleGrimoire());
+    this.keyEsc.on('down', () => {
+      if (this.world.grimoireOpen) this.toggleGrimoire();
+    });
 
-    // Keep the mage centered on resize (viewport already resizes the canvas
-    // itself via the Scale Manager RESIZE mode configured in main.ts).
+    // DOM UI overlay, layered above the canvas.
+    const parentEl = document.getElementById('app')!;
+    this.ui = new UIManager(parentEl);
+    this.ui.onStart = () => this.startRun();
+    this.ui.onRetry = () => this.startRun();
+    this.ui.onToggleGrimoire = () => this.toggleGrimoire();
+
     this.scale.on('resize', (gameSize: Phaser.Structs.Size) => {
-      // Clamp the mage's position into the new bounds so it never ends up
-      // off-screen after a shrink.
-      this.mage.x = Phaser.Math.Clamp(this.mage.x, 16, gameSize.width - 16);
-      this.mage.y = Phaser.Math.Clamp(this.mage.y, 16, gameSize.height - 16);
+      this.world.W = gameSize.width;
+      this.world.H = gameSize.height;
+      this.drawGrid();
+      this.initFireflies();
     });
+  }
+
+  private startRun(): void {
+    this.ui.hideStart();
+    this.ui.hideGameOver();
+    const { width, height } = this.scale;
+    this.world.purchased.clear();
+    Object.assign(this.world, {
+      running: true,
+      grimoireOpen: false,
+      player: {
+        x: width / 2,
+        y: height / 2,
+        vx: 0,
+        vy: 0,
+        hp: 100,
+        invuln: 1,
+        facing: { x: 0, y: -1 },
+        dashCd: 0,
+        dashing: 0,
+        adrenaline: 0,
+        undyingCd: 0,
+        r: 9,
+      },
+      level: 1,
+      xp: 0,
+      xpNext: xpForLevel(1),
+      sp: 0,
+      spSpent: 0,
+      slain: 0,
+      elapsed: 0,
+      enemies: [],
+      projectiles: [],
+      effects: [],
+      particles: [],
+      popups: [],
+      wisps: [],
+      decoys: [],
+      cd: { bolt: 0.3, boltCastCount: 0, fireNova: 0, iceLance: 0, frostArmor: 0, frostArmorActive: 0, arcaneBurst: 0, vines: 0, shadowBolt: 0 },
+      spawnTimer: 1,
+      bossTimer: 90,
+    });
+    this.ui.renderTree(this.world);
+    this.ui.setGrimoireVisible(false);
+  }
+
+  private toggleGrimoire(): void {
+    if (!this.world.running) return;
+    this.world.grimoireOpen = !this.world.grimoireOpen;
+    this.ui.setGrimoireVisible(this.world.grimoireOpen);
   }
 
   update(_time: number, deltaMs: number): void {
     const dt = Math.min(0.033, deltaMs / 1000);
-    this.updatePlayer(dt);
-    this.updateDebugText();
-  }
+    this.drawFireflies(dt);
 
-  private updatePlayer(dt: number): void {
-    const p = this.player;
+    if (this.world.running && !this.world.grimoireOpen) {
+      const input: InputState = {
+        left: this.cursors.left.isDown || this.keyA.isDown,
+        right: this.cursors.right.isDown || this.keyD.isDown,
+        up: this.cursors.up.isDown || this.keyW.isDown,
+        down: this.cursors.down.isDown || this.keyS.isDown,
+      };
+      this.world.elapsed += dt;
+      updatePlayer(this.world, input, dt);
+      updateSpellTimers(this.world, dt);
+      updateProjectiles(this.world, dt);
+      updateDecoys(this.world, dt);
+      updateEnemies(this.world, dt);
+      updateEffects(this.world, dt);
+      updateParticles(this.world, dt);
+      updateSpawns(this.world, dt);
+      this.ui.updateHUD(this.world);
+      if (this.world.grimoireOpen) this.ui.updateNodeStates(this.world);
+      else this.ui.updateNodeStates(this.world);
 
-    let ax = 0;
-    let ay = 0;
-    if (this.cursors.left.isDown || this.keyA.isDown) ax -= 1;
-    if (this.cursors.right.isDown || this.keyD.isDown) ax += 1;
-    if (this.cursors.up.isDown || this.keyW.isDown) ay -= 1;
-    if (this.cursors.down.isDown || this.keyS.isDown) ay += 1;
-
-    const inputLen = Math.hypot(ax, ay) || 1;
-    p.vx += (ax / inputLen) * ACCEL * dt;
-    p.vy += (ay / inputLen) * ACCEL * dt;
-
-    // Friction/drag — expressed as a per-second decay so it's frame-rate
-    // independent while still matching the prototype's per-frame 0.86 feel
-    // at ~60fps.
-    const frictionThisFrame = Math.pow(FRICTION, dt * 60);
-    p.vx *= frictionThisFrame;
-    p.vy *= frictionThisFrame;
-
-    const speed = Math.hypot(p.vx, p.vy);
-    if (speed > MAX_SPEED) {
-      const scale = MAX_SPEED / speed;
-      p.vx *= scale;
-      p.vy *= scale;
+      if (!this.world.running) {
+        // damagePlayer flipped running=false this frame -> game over.
+        this.ui.showGameOver(this.world);
+      }
     }
 
-    const { width, height } = this.scale;
-    this.mage.x = Phaser.Math.Clamp(this.mage.x + p.vx * dt, 14, width - 14);
-    this.mage.y = Phaser.Math.Clamp(this.mage.y + p.vy * dt, 14, height - 14);
-
-    if (Math.hypot(p.vx, p.vy) > 8) {
-      const len = Math.hypot(p.vx, p.vy);
-      p.facing = { x: p.vx / len, y: p.vy / len };
-    }
-
-    if (p.invuln > 0) p.invuln -= dt;
-    if (p.dashing > 0) p.dashing -= dt;
-    if (p.dashCd > 0) p.dashCd -= dt;
-
-    // Simple visual feedback while i-frames are active (flicker).
-    this.mage.setAlpha(p.invuln > 0 ? (Math.floor(this.time.now / 60) % 2 === 0 ? 0.4 : 0.9) : 1);
+    if (this.world.running) this.renderScene();
   }
 
-  private tryDash(): void {
-    const p = this.player;
-    if (p.dashCd > 0) return;
+  // ---------------- rendering ----------------
 
-    let dx = p.vx;
-    let dy = p.vy;
-    if (Math.hypot(dx, dy) < 10) {
-      dx = p.facing.x;
-      dy = p.facing.y;
+  private drawGrid(): void {
+    const { W, H } = this.world ?? { W: this.scale.width, H: this.scale.height };
+    this.gridGraphics.clear();
+    this.gridGraphics.lineStyle(1, 0xc9a869, 0.04);
+    for (let x = 0; x < W; x += 50) {
+      this.gridGraphics.lineBetween(x, 0, x, H);
     }
-    const len = Math.hypot(dx, dy) || 1;
-    dx /= len;
-    dy /= len;
-
-    const { width, height } = this.scale;
-    this.mage.x = Phaser.Math.Clamp(this.mage.x + dx * DASH_DISTANCE, 14, width - 14);
-    this.mage.y = Phaser.Math.Clamp(this.mage.y + dy * DASH_DISTANCE, 14, height - 14);
-
-    p.invuln = DASH_IFRAMES;
-    p.dashing = DASH_ACTIVE;
-    p.dashCd = DASH_COOLDOWN;
-
-    console.log(`[dash] triggered, cooldown ${DASH_COOLDOWN}s, i-frames ${DASH_IFRAMES}s`);
+    for (let y = 0; y < H; y += 50) {
+      this.gridGraphics.lineBetween(0, y, W, y);
+    }
   }
 
-  private updateDebugText(): void {
-    const p = this.player;
-    const dashLabel = p.dashCd > 0 ? `${p.dashCd.toFixed(1)}s` : 'ready';
-    const iframeLabel = p.invuln > 0 ? 'INVULN' : '';
-    this.debugText.setText(
-      `dash: ${dashLabel}  ${iframeLabel}\nWASD move, Space dash`,
-    );
+  private initFireflies(): void {
+    const { W, H } = this.world ?? { W: this.scale.width, H: this.scale.height };
+    const count = Math.round((W * H) / 22000);
+    this.fireflies = new Array(Math.max(24, count)).fill(0).map(() => ({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      vy: -(6 + Math.random() * 10),
+      sway: Math.random() * Math.PI * 2,
+      r: 1 + Math.random() * 1.8,
+      hue: Math.random() < 0.5 ? 0xc9a869 : 0x8ec9e8,
+    }));
+  }
+
+  private drawFireflies(dt: number): void {
+    const { H } = this.world;
+    this.bgGraphics.clear();
+    const t = this.time.now;
+    this.fireflies.forEach((f) => {
+      f.y += f.vy * dt;
+      f.sway += 0.02;
+      const x = f.x + Math.sin(f.sway) * 14;
+      const alpha = 0.35 + 0.25 * Math.sin(t / 500 + f.sway);
+      this.bgGraphics.fillStyle(f.hue, Math.max(0, alpha));
+      this.bgGraphics.fillCircle(x, f.y, f.r);
+      if (f.y < -10) {
+        f.y = H + 10;
+        f.x = Math.random() * this.world.W;
+      }
+    });
+  }
+
+  private renderScene(): void {
+    const g = this.fxGraphics;
+    g.clear();
+    const world = this.world;
+
+    // effects (rings/ground)
+    world.effects.forEach((fx) => {
+      if (fx.type === 'ring') {
+        const r = fx.maxR * (fx.t / fx.life);
+        const alpha = Math.max(0, 1 - fx.t / fx.life);
+        g.lineStyle(4, Phaser.Display.Color.HexStringToColor(fx.color).color, alpha);
+        g.strokeCircle(fx.x, fx.y, Math.max(0, r));
+      } else if (fx.type === 'ground') {
+        g.fillStyle(Phaser.Display.Color.HexStringToColor(fx.color).color, 0.18);
+        g.fillCircle(fx.x, fx.y, fx.r);
+      }
+    });
+
+    // decoys
+    world.decoys.forEach((d) => {
+      g.fillStyle(0xc4728f, 0.6);
+      g.fillCircle(d.x, d.y, 10);
+    });
+
+    // wisps
+    world.wisps.forEach((w) => {
+      if (w.x === undefined || w.y === undefined) return;
+      g.fillStyle(0x8bc48a, 1);
+      g.fillCircle(w.x, w.y, 6);
+    });
+
+    // enemies
+    world.enemies.forEach((e) => this.drawEnemy(g, e));
+
+    // projectiles
+    world.projectiles.forEach((pr) => {
+      const color = Phaser.Display.Color.HexStringToColor(pr.color).color;
+      g.fillStyle(color, 1);
+      g.fillCircle(pr.x, pr.y, pr.mini ? 3 : pr.r);
+    });
+
+    // player sprite
+    this.drawPlayer();
+
+    // particles
+    world.particles.forEach((pt) => {
+      const a = Math.max(0, pt.life / pt.maxLife);
+      const color = Phaser.Display.Color.HexStringToColor(pt.color).color;
+      g.fillStyle(color, a);
+      g.fillCircle(pt.x, pt.y, pt.size * a + 0.6);
+    });
+
+    this.drawPopups();
+  }
+
+  private drawEnemy(g: Phaser.GameObjects.Graphics, e: World['enemies'][number]): void {
+    const world = this.world;
+    const frozen = e.frozenUntil > world.elapsed;
+    const color = frozen ? 0xa9d8ef : Phaser.Display.Color.HexStringToColor(e.color).color;
+    g.fillStyle(color, 1);
+    if (e.type === 'slime') {
+      g.fillEllipse(e.x, e.y, e.r * 2, e.r * 1.6);
+    } else if (e.type === 'skel') {
+      g.fillRect(e.x - e.r * 0.6, e.y - e.r, e.r * 1.2, e.r * 2);
+      g.fillCircle(e.x, e.y - e.r * 1.1, e.r * 0.55);
+    } else if (e.type === 'wisp') {
+      const points: Phaser.Math.Vector2[] = [];
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2;
+        points.push(new Phaser.Math.Vector2(e.x + Math.cos(a) * e.r, e.y + Math.sin(a) * e.r));
+        points.push(new Phaser.Math.Vector2(e.x + Math.cos(a + 0.3) * e.r * 0.4, e.y + Math.sin(a + 0.3) * e.r * 0.4));
+      }
+      g.fillPoints(points, true);
+    } else {
+      g.fillCircle(e.x, e.y, e.r);
+      g.fillStyle(0xeeda9e, 1);
+      g.fillCircle(e.x - e.r * 0.3, e.y - e.r * 0.2, 2.4);
+      g.fillCircle(e.x + e.r * 0.3, e.y - e.r * 0.2, 2.4);
+    }
+    if (e.marked > world.elapsed) {
+      g.lineStyle(2, 0xc4728f, 1);
+      g.strokeCircle(e.x, e.y, e.r + 4);
+    }
+    if (e.isBoss || e.hp < e.maxHp) {
+      const w = e.isBoss ? 60 : 28;
+      g.fillStyle(0x1a1c2c, 1);
+      g.fillRect(e.x - w / 2, e.y - e.r - 12, w, 5);
+      g.fillStyle(e.isBoss ? 0xc4728f : 0xc15b5b, 1);
+      g.fillRect(e.x - w / 2, e.y - e.r - 12, w * Math.max(0, e.hp / e.maxHp), 5);
+    }
+    if (e.telegraph && e.telegraph > 0) {
+      g.lineStyle(3, 0xc4728f, 0.35 * (1 - e.telegraph));
+      g.strokeCircle(e.x, e.y, 150 * (1 - e.telegraph));
+    }
+  }
+
+  private drawPlayer(): void {
+    const p = this.world.player;
+    this.mage.setPosition(Math.round(p.x), Math.round(p.y));
+    const blink = p.invuln > 0 && Math.floor(this.world.elapsed * 16) % 2 === 0;
+    this.mage.setAlpha(blink ? 0.4 : 1);
+
+    // frost armor ring + ambient glow via the fx graphics, drawn behind the sprite depth-wise is
+    // acceptable given the sprite renders on its own GameObject above fxGraphics depth.
+    const g = this.fxGraphics;
+    g.fillStyle(0x000000, 0.35);
+    g.fillEllipse(p.x, p.y + 10, 18, 6);
+    if (this.world.cd.frostArmorActive > 0) {
+      g.lineStyle(1.5, 0x8ec9e8, 1);
+      g.strokeCircle(p.x, p.y, 13);
+    }
+  }
+
+  private drawPopups(): void {
+    const world = this.world;
+    // Recycle/allocate pooled Text objects to match world.popups length.
+    while (this.popupTexts.length < world.popups.length) {
+      const t = this.add.text(0, 0, '', { fontFamily: 'JetBrains Mono, monospace', fontSize: '12px' }).setDepth(7);
+      t.setOrigin(0.5, 0.5);
+      this.popupTexts.push(t);
+    }
+    world.popups.forEach((u, i) => {
+      const t = this.popupTexts[i];
+      t.setText(u.text);
+      t.setColor(u.color);
+      t.setFontSize(u.big ? 15 : 12);
+      t.setPosition(u.x, u.y);
+      t.setAlpha(Math.max(0, u.life / 0.8));
+      t.setVisible(true);
+    });
+    for (let i = world.popups.length; i < this.popupTexts.length; i++) {
+      this.popupTexts[i].setVisible(false);
+    }
   }
 }
