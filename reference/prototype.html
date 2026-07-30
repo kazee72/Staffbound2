@@ -1,0 +1,1155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>HOLLOWMERE</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;800&family=EB+Garamond:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --night:#0b0d16; --night2:#12141f; --panel:#181b2a; --panel2:#1e2235; --line:#333a5c;
+    --text:#e9e4d8; --dim:#8789a3;
+    --gold:#c9a869; --gold-bright:#eeda9e;
+    --ember:#e2793d; --frost:#8ec9e8; --arcane:#9d8ce0; --verdant:#8bc48a; --umbral:#c4728f; --warden:#c9a869;
+    --hp:#c15b5b;
+  }
+  *{ box-sizing:border-box; }
+  html,body{
+    margin:0; width:100%; height:100%; overflow:hidden;
+    background:var(--night);
+    font-family:'EB Garamond', serif; color:var(--text);
+  }
+  h1,h2,h3,.disp{ font-family:'Cinzel', serif; }
+  .mono{ font-family:'JetBrains Mono', monospace; }
+  #wrap{ position:fixed; inset:0; }
+  #frame{
+    position:absolute; inset:0; background:var(--night); overflow:hidden;
+  }
+  #bgCanvas, #gameCanvas{ position:absolute; inset:0; width:100%; height:100%; }
+  #bgCanvas{ z-index:0; }
+  #gameCanvas{ z-index:1; }
+  #vignette{
+    position:absolute; inset:0; z-index:5; pointer-events:none;
+    background:radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0) 60%, rgba(0,0,0,0.55) 100%);
+  }
+  #flashEl{
+    position:absolute; inset:0; z-index:30; pointer-events:none; display:flex; align-items:center; justify-content:center;
+    opacity:0; font-family:'Cinzel',serif; font-size:clamp(18px,3.6vw,32px); font-weight:800; letter-spacing:3px;
+  }
+
+  /* HUD */
+  #hud{ position:absolute; top:0; left:0; right:0; z-index:6; display:flex; justify-content:space-between; align-items:flex-start; padding:12px 16px; pointer-events:none; }
+  .hudleft{ display:flex; flex-direction:column; gap:6px; width:220px; }
+  .hudlabel{ font-size:9.5px; letter-spacing:1.5px; text-transform:uppercase; color:var(--dim); }
+  .bar{ width:100%; height:11px; background:#20233a; border-radius:6px; overflow:hidden; border:1px solid #2c3050; }
+  .barfill{ height:100%; transition:width 0.15s ease; }
+  #hpfill{ background:linear-gradient(90deg,#8a3a3a,var(--hp)); }
+  #xpfill2{ background:linear-gradient(90deg,var(--arcane),#c7bdf5); }
+  .hudrow{ display:flex; justify-content:space-between; font-size:10.5px; color:var(--dim); margin-top:2px; }
+  .hudrow b{ color:var(--text); }
+  #dayline{ font-size:11px; color:var(--gold); margin-top:4px; font-style:italic; }
+  .hudright{ display:flex; flex-direction:column; align-items:flex-end; gap:8px; }
+  #grimoireBtn{
+    pointer-events:auto; background:var(--panel); border:1.5px solid var(--gold); color:var(--gold-bright);
+    font-family:'Cinzel',serif; font-size:11px; letter-spacing:1.5px; padding:8px 14px; border-radius:7px; cursor:pointer;
+    position:relative;
+  }
+  #grimoireBtn:hover{ box-shadow:0 0 16px rgba(201,168,105,0.5); }
+  #spBadge{
+    position:absolute; top:-8px; right:-8px; background:var(--umbral); color:#fff; font-size:10px; font-weight:800;
+    border-radius:50%; width:19px; height:19px; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 0 8px rgba(196,114,143,0.8); display:none;
+  }
+  #dashind{ font-size:10px; color:var(--dim); text-align:right; }
+  #dashind b{ color:var(--frost); }
+
+  /* overlays */
+  .overlay{
+    position:absolute; inset:0; z-index:20; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:rgba(10,11,18,0.92); text-align:center; padding:26px;
+  }
+  .hidden{ display:none !important; }
+  .bigtitle{ font-family:'Cinzel',serif; font-size:clamp(22px,4vw,36px); font-weight:800; letter-spacing:3px; color:var(--gold-bright);
+    text-shadow:0 0 24px rgba(238,218,158,0.4); margin:0 0 8px 0; }
+  .sub{ color:var(--dim); font-size:14px; margin-bottom:18px; font-style:italic; }
+  .key{ display:inline-block; border:1px solid var(--dim); border-radius:4px; padding:1px 7px; margin:0 2px; color:var(--text); font-size:11.5px; font-family:'JetBrains Mono',monospace;}
+  #startBtn, #retryBtn{
+    margin-top:14px; background:transparent; border:1.5px solid var(--gold); color:var(--gold-bright);
+    font-family:'Cinzel',serif; font-size:14px; font-weight:700; padding:11px 30px; border-radius:7px; cursor:pointer; letter-spacing:2px;
+  }
+  #startBtn:hover, #retryBtn:hover{ background:var(--gold); color:#1a1508; box-shadow:0 0 26px rgba(201,168,105,0.55); }
+  #goStats{ display:flex; gap:22px; margin:10px 0 4px 0; }
+  #goStats div{ text-align:center; }
+  #goStats .v{ font-family:'Cinzel',serif; font-size:22px; color:var(--gold-bright); }
+  #goStats .l{ font-size:10.5px; color:var(--dim); text-transform:uppercase; letter-spacing:1px; }
+
+  /* Grimoire (skill tree) */
+  #grimoireOverlay{ z-index:25; background:rgba(8,9,14,0.97); padding:0; }
+  #grimHeader{ width:100%; padding:14px 20px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); }
+  #grimHeader .disp{ color:var(--gold-bright); letter-spacing:3px; font-size:16px; }
+  #grimSP{ color:var(--gold); font-size:13px; }
+  #closeGrim{ background:none; border:1px solid var(--dim); color:var(--dim); border-radius:6px; padding:5px 12px; cursor:pointer; font-family:'Cinzel',serif; font-size:11px; }
+  #closeGrim:hover{ color:var(--text); border-color:var(--text); }
+  #treewrap{ width:100%; flex:1; overflow:auto; padding:20px; }
+  #treeinner{ position:relative; width:1000px; height:1000px; margin:0 auto; }
+  #treeinner svg{ position:absolute; inset:0; width:100%; height:100%; }
+  #treeinner svg line{ stroke:var(--line); stroke-width:2; }
+  #treeinner svg line.lit{ stroke-width:2.5; }
+  #treeinner svg line.spoke{ stroke:#22263a; stroke-width:1.5; stroke-dasharray:2 4; }
+  .core{
+    position:absolute; left:500px; top:500px; width:64px; height:64px; margin-left:-32px; margin-top:-32px;
+    border-radius:50%; background:radial-gradient(circle,#2b2f4a,#141625); border:2px solid var(--gold);
+    display:flex; align-items:center; justify-content:center; font-family:'Cinzel',serif; font-size:9px; color:var(--gold-bright);
+    text-align:center; box-shadow:0 0 26px rgba(201,168,105,0.35); z-index:3;
+  }
+  .branchlabel{ position:absolute; font-family:'Cinzel',serif; font-size:11px; letter-spacing:2.5px; text-transform:uppercase; z-index:3; text-shadow:0 0 10px currentColor; }
+  .node{
+    position:absolute; width:52px; height:52px; margin-left:-26px; margin-top:-26px; border-radius:50%;
+    background:var(--panel); border:2px solid var(--line); display:flex; align-items:center; justify-content:center;
+    font-family:'Cinzel',serif; font-size:8.5px; font-weight:700; text-align:center; color:var(--dim); line-height:1.15; padding:4px;
+    cursor:pointer; z-index:2; transition:all 0.15s;
+  }
+  .node.capstone{ width:66px; height:66px; margin-left:-33px; margin-top:-33px; font-size:9.5px; }
+  .node.locked{ opacity:0.4; cursor:not-allowed; }
+  .node.available{ color:var(--text); }
+  .node.affordable{ box-shadow:0 0 14px currentColor; color:var(--text); }
+  .node.bought{ color:#0d0e16; font-weight:800; }
+  #tooltip{
+    position:fixed; z-index:60; max-width:240px; background:#101220; border:1px solid var(--line); border-radius:8px;
+    padding:11px 13px; font-size:12.5px; color:var(--text); pointer-events:none; opacity:0; transition:opacity 0.1s;
+    box-shadow:0 12px 30px rgba(0,0,0,0.55); font-family:'EB Garamond',serif;
+  }
+  #tooltip .ttname{ font-family:'Cinzel',serif; font-weight:700; font-size:12.5px; margin-bottom:4px; }
+  #tooltip .ttdesc{ color:var(--dim); margin-bottom:6px; line-height:1.35; }
+  #tooltip .ttcost{ font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--gold); }
+
+  .popup{ position:absolute; pointer-events:none; font-weight:700; font-family:'JetBrains Mono',monospace; animation:floatUp 0.8s ease-out forwards; }
+  @keyframes floatUp{ 0%{ opacity:1; transform:translate(-50%,0);} 100%{ opacity:0; transform:translate(-50%,-46px);} }
+
+  #footnote{
+    position:absolute; left:0; right:0; bottom:6px; z-index:6; text-align:center;
+    color:var(--dim); font-size:9.5px; font-style:italic; opacity:0.55; pointer-events:none;
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="frame">
+    <canvas id="bgCanvas"></canvas>
+    <canvas id="gameCanvas"></canvas>
+    <div id="vignette"></div>
+    <div id="flashEl"></div>
+
+    <div id="hud">
+      <div class="hudleft">
+        <div class="hudlabel">life</div>
+        <div class="bar"><div class="barfill" id="hpfill" style="width:100%"></div></div>
+        <div class="hudrow"><span id="hptext">100 / 100</span><span>lvl <b id="lvlTxt">1</b></span></div>
+        <div class="bar" style="height:6px;"><div class="barfill" id="xpfill2" style="width:0%"></div></div>
+        <div id="dayline">Day 1 &mdash; the fallen kingdom</div>
+      </div>
+      <div class="hudright">
+        <button id="grimoireBtn">GRIMOIRE <span id="spBadge">0</span></button>
+        <div class="hudrow"><span>slain</span><b id="slainTxt" style="margin-left:6px;">0</b></div>
+        <div id="dashind">dash <b id="dashTxt">ready</b></div>
+      </div>
+    </div>
+
+    <div class="overlay" id="startOverlay">
+      <div class="bigtitle">HOLLOWMERE</div>
+      <div class="sub">a long road, an old grimoire, and whatever still lurks in the dark</div>
+      <div style="font-size:12.5px;color:var(--dim);max-width:420px;line-height:1.6;">
+        Move with <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> or arrow keys.
+        Press <span class="key">Space</span> to dash through danger.
+        Your spells cast themselves &mdash; survive, grow stronger, and open your <b style="color:var(--gold);">Grimoire</b> to shape how.
+      </div>
+      <button id="startBtn">BEGIN THE JOURNEY</button>
+    </div>
+
+    <div class="overlay hidden" id="gameOverOverlay">
+      <div class="bigtitle" style="color:var(--hp);">YOUR JOURNEY ENDS HERE</div>
+      <div class="sub" id="goFlavor">the road was long, but not long enough</div>
+      <div id="goStats">
+        <div><div class="v" id="goDay">1</div><div class="l">days survived</div></div>
+        <div><div class="v" id="goSlain">0</div><div class="l">foes slain</div></div>
+        <div><div class="v" id="goLvl">1</div><div class="l">level reached</div></div>
+      </div>
+      <button id="retryBtn">WALK AGAIN</button>
+    </div>
+
+    <div class="overlay hidden" id="grimoireOverlay" style="flex-direction:column;">
+      <div id="grimHeader">
+        <div class="disp">THE GRIMOIRE</div>
+        <div id="grimSP"><span id="spAvail">0</span> unspent skill points</div>
+        <button id="closeGrim">CLOSE &nbsp;(G)</button>
+      </div>
+      <div id="treewrap">
+        <div id="treeinner">
+          <svg id="treeSVG"></svg>
+          <div class="core">YOUR<br>PATH</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tooltip"></div>
+    <div id="footnote">a session-only tale &mdash; no record of this journey is kept once the page is closed</div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const bgCanvas = $('bgCanvas'), gameCanvas = $('gameCanvas');
+  const bgCtx = bgCanvas.getContext('2d'), ctx = gameCanvas.getContext('2d');
+  let W = window.innerWidth, H = window.innerHeight;
+
+  function fitCanvas(canvas, context){
+    const dpr = window.devicePixelRatio || 1;
+    const w = window.innerWidth, h = window.innerHeight;
+    canvas.width = Math.round(w*dpr);
+    canvas.height = Math.round(h*dpr);
+    context.setTransform(dpr,0,0,dpr,0,0);
+    context.imageSmoothingEnabled = false;
+    return {w,h};
+  }
+  function handleResize(){
+    const dims = fitCanvas(gameCanvas, ctx);
+    fitCanvas(bgCanvas, bgCtx);
+    W = dims.w; H = dims.h;
+    initFireflies();
+  }
+
+  const fmt = n => {
+    if(n<1000) return Math.round(n).toString();
+    const units=['K','M','B','T']; const t=Math.min(units.length-1,Math.floor(Math.log10(n)/3));
+    return (n/Math.pow(1000,t+1)).toFixed(1)+units[t];
+  };
+  const rand = (a,b)=>a+Math.random()*(b-a);
+  const dist2 = (x1,y1,x2,y2)=>{ const dx=x1-x2,dy=y1-y2; return dx*dx+dy*dy; };
+  const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+
+  // ---------- pixel-art mage sprite (16x16) ----------
+  const MAGE_PALETTE = {
+    G:'#c9a869', H:'#241f38', h:'#3a3159', S:'#e8c4a0', E:'#181320',
+    R:'#2b2740', r:'#423a63', B:'#eeda9e', W:'#7a5a35', O:'#8ec9e8',
+  };
+  const MAGE_SPRITE = [
+    ['.','.','.','.','.','G','G','.','.','.','.','.','.','.','.','.'],
+    ['.','.','.','.','H','H','H','H','.','.','.','.','.','.','.','.'],
+    ['.','.','.','H','H','H','H','H','H','.','.','.','.','.','.','.'],
+    ['.','.','H','H','h','h','h','h','H','H','.','.','.','.','.','.'],
+    ['.','.','H','H','H','H','H','H','H','H','.','.','.','.','.','.'],
+    ['.','H','H','H','H','H','H','H','H','H','H','.','.','O','.','.'],
+    ['.','.','S','S','S','S','S','S','S','.','.','.','W','.','.','.'],
+    ['.','.','S','E','S','S','S','E','S','.','.','.','W','.','.','.'],
+    ['.','.','S','S','S','S','S','S','S','.','.','.','W','.','.','.'],
+    ['.','.','.','R','R','R','R','R','.','.','.','.','W','.','.','.'],
+    ['.','R','R','R','R','R','R','R','R','R','.','.','W','.','.','.'],
+    ['.','R','R','B','B','B','B','B','R','R','W','.','.','.','.','.'],
+    ['R','R','R','R','r','r','R','R','R','R','R','.','.','.','.','.'],
+    ['R','R','R','R','r','r','R','R','R','R','R','.','.','.','.','.'],
+    ['R','R','R','R','r','r','R','R','R','R','R','.','.','.','.','.'],
+    ['.','R','R','.','.','.','.','.','R','R','.','.','.','.','.','.'],
+  ];
+
+  // ============================================================
+  // SKILL TREE DATA
+  // ============================================================
+  const BRANCHES = [
+    {code:'F', name:'Ember',   color:'#e2793d', angle:-90},
+    {code:'R', name:'Rime',    color:'#8ec9e8', angle:-30},
+    {code:'V', name:'Void',    color:'#9d8ce0', angle:30},
+    {code:'S', name:'Umbral',  color:'#c4728f', angle:90},
+    {code:'N', name:'Verdant', color:'#8bc48a', angle:150},
+    {code:'B', name:'Warden',  color:'#c9a869', angle:210},
+  ];
+  const LOCAL = [
+    {id:'A', tier:0, off:0,   pre:[]},
+    {id:'B', tier:1, off:0,   pre:['A']},
+    {id:'C1',tier:2, off:-20, pre:['B']},
+    {id:'G', tier:2, off:0,   pre:['B']},
+    {id:'C2',tier:2, off:20,  pre:['B']},
+    {id:'D', tier:3, off:0,   pre:['C1','C2']},
+    {id:'H', tier:3, off:30,  pre:['D'], radius:330},
+    {id:'E1',tier:4, off:-13, pre:['D']},
+    {id:'E2',tier:4, off:13,  pre:['D']},
+    {id:'F', tier:5, off:0,   pre:['E1','E2']},
+  ];
+  const VOID_EXTRA = [ {id:'X', tier:1, off:40, pre:['A']} ];
+  const RADII = [90,165,240,315,390,465];
+  const COST_BY_TIER = [1,1,2,3,3,5];
+
+  const CONTENT = {
+    F:{ A:{name:'Kindled Spark', desc:'Your bolts smolder: +20% damage, and apply a burn dealing 3 dmg/s for 3s.'},
+        B:{name:'Ember Rounds', desc:'Burn damage is doubled. Unlocks Fire Nova, a blast of flame that erupts around you every few seconds.'},
+        C1:{name:'Combustion', desc:'Fire Nova radius increased by 40%.'},
+        G:{name:'Flash Fire', desc:'Fire Nova sears the air itself, granting a burst of speed the instant it erupts.'},
+        C2:{name:'Molten Core', desc:'Fire Nova erupts 25% more often.'},
+        D:{name:'Wildfire Spread', desc:'Enemies that die while burning ignite those nearby.'},
+        H:{name:'Cinderheart', desc:'Fire magic toughens your resolve. +15% max health.'},
+        E1:{name:'Inferno', desc:'Fire Nova damage increased by 80%.'},
+        E2:{name:'Scorched Earth', desc:'Fire Nova leaves the ground burning, harming anything that lingers.'},
+        F:{name:'Wildfire', desc:'Capstone. Fire kills always ignite nearby foes \u2014 the blaze never truly stops spreading.'} },
+    R:{ A:{name:'Chill Touch', desc:'Your bolts chill enemies, slowing them by 20% for 2s.'},
+        B:{name:'Frostbite', desc:'Chill is far stronger. Unlocks Ice Lance, a piercing shard that freezes enemies solid.'},
+        C1:{name:'Deep Freeze', desc:'Freeze duration is doubled.'},
+        G:{name:'Frostbitten Focus', desc:'Deal 15% more damage to enemies you\u2019ve chilled or frozen.'},
+        C2:{name:'Glacial Path', desc:'Ice Lance pierces two additional enemies.'},
+        D:{name:'Brittle', desc:'Frozen enemies take 50% more damage from everything.'},
+        H:{name:'Glacial Resolve', desc:'The cold sharpens you. +15% max health.'},
+        E1:{name:'Permafrost', desc:'All slowing effects are 50% stronger.'},
+        E2:{name:'Winter\u2019s Veil', desc:'Unlocks Frost Armor, a periodic shield that absorbs damage and chills attackers.'},
+        F:{name:'Absolute Zero', desc:'Capstone. Frozen enemies shatter on death, dealing heavy damage in a burst and refreezing survivors.'} },
+    V:{ A:{name:'Focused Mind', desc:'Cast your bolt 20% more often.'},
+        B:{name:'Twin Casting', desc:'Fire an additional bolt with every cast.'},
+        X:{name:'Quick Study', desc:'You learn from every battle. +30% experience gained from slain foes.'},
+        C1:{name:'Piercing Sigil', desc:'Bolts pierce through one additional enemy.'},
+        G:{name:'Arcane Reservoir', desc:'Each bolt has a 10% chance to cost no cooldown at all.'},
+        C2:{name:'Homing Rune', desc:'Bolts gently curve toward the nearest foe.'},
+        D:{name:'Overcharge', desc:'Every fifth cast is empowered, dealing triple damage.'},
+        H:{name:'Mind Over Matter', desc:'A disciplined mind, a durable body. +15% max health.'},
+        E1:{name:'Mirror Image', desc:'Unlocks Arcane Burst, a ring of bolts fired in every direction.'},
+        E2:{name:'Ley Line Tap', desc:'All spell cooldowns reduced by 20%.'},
+        F:{name:'Overload', desc:'Capstone. Empowered casts also release a spray of homing bolts.'} },
+    N:{ A:{name:'Verdant Touch', desc:'Slaying a foe restores a little of your health.'},
+        B:{name:'Life Bloom', desc:'Health regeneration doubled. Unlocks Thorned Vines, roots that snare nearby foes.'},
+        C1:{name:'Bramble Ward', desc:'Rooted enemies bleed steadily from thorns.'},
+        G:{name:'Photosynthesis', desc:'The wilds sustain you. Passive health regeneration further increased.'},
+        C2:{name:'Wildkeeper\u2019s Bond', desc:'Summon a Spirit Wisp that fights at your side.'},
+        D:{name:'Deep Roots', desc:'Thorned Vines cover more ground, and your Wisp acts faster.'},
+        H:{name:'Hearty Growth', desc:'Roots run deep. +15% max health.'},
+        E1:{name:'Second Wind', desc:'All healing you receive is increased by 50%.'},
+        E2:{name:'Wild Growth', desc:'Summon a second Spirit Wisp.'},
+        F:{name:'Verdant Bloom', desc:'Capstone. Every kill releases a healing pulse that mends you and your wisps, and harms nearby foes.'} },
+    S:{ A:{name:'Cold Reading', desc:'Gain an 8% chance for any hit to land as a critical strike.'},
+        B:{name:'Marked for Death', desc:'Critical strikes mark their target. Unlocks Shadow Bolt, dealing heavy bonus damage to marked foes.'},
+        C1:{name:'Executioner', desc:'Critical strikes deal 50% more damage.'},
+        G:{name:'Opportunist', desc:'An eye for weakness. +5% additional critical strike chance.'},
+        C2:{name:'Umbral Step', desc:'Your dash leaves a shadow behind that detonates a moment later.'},
+        D:{name:'Death\u2019s Embrace', desc:'Slaying a marked foe refunds part of your dash cooldown.'},
+        H:{name:'Grim Vigor', desc:'The dark sustains you. +15% max health.'},
+        E1:{name:'Vampiric Sigil', desc:'A portion of all damage you deal returns to you as health.'},
+        E2:{name:'Twilight Veil', desc:'Your dash\u2019s detonation deals significantly more damage.'},
+        F:{name:'Reaper\u2019s Mark', desc:'Capstone. Slaying a marked foe resets every spell\u2019s cooldown.'} },
+    B:{ A:{name:'Traveler\u2019s Legs', desc:'Move 15% faster.'},
+        B:{name:'Iron Skin', desc:'Increase max health by 25% and reduce your dash\u2019s cooldown.'},
+        C1:{name:'Sure Footing', desc:'Reduce your dash\u2019s cooldown further.'},
+        G:{name:'Momentum', desc:'Always in motion. +10% additional move speed.'},
+        C2:{name:'Thick Hide', desc:'Reduce all incoming damage by 15%.'},
+        D:{name:'Adrenaline', desc:'Gain a burst of speed for 3s after dashing.'},
+        H:{name:'Bulwark', desc:'Stand firm. Reduce all incoming damage by another 10%.'},
+        E1:{name:'Vitality', desc:'Increase max health by another 50%.'},
+        E2:{name:'Battle Focus', desc:'Health regeneration greatly increased.'},
+        F:{name:'Undying', desc:'Capstone. Once per minute, a killing blow instead leaves you at 1 health.'} },
+  };
+
+  const SKILL_NODES = [];
+  const CX=500, CY=500;
+  BRANCHES.forEach(br=>{
+    const rad = br.angle*Math.PI/180;
+    const locals = br.code==='V' ? LOCAL.concat(VOID_EXTRA) : LOCAL;
+    locals.forEach(loc=>{
+      const a = rad + loc.off*Math.PI/180;
+      const r = loc.radius!==undefined ? loc.radius : RADII[loc.tier];
+      const x = CX + r*Math.cos(a), y = CY + r*Math.sin(a);
+      SKILL_NODES.push({
+        id: br.code+'_'+loc.id, branch:br.code, color:br.color, tier:loc.tier,
+        x, y, cost: loc.cost!==undefined ? loc.cost : COST_BY_TIER[loc.tier], pre: loc.pre.map(p=>br.code+'_'+p),
+        capstone: loc.id==='F',
+        ...CONTENT[br.code][loc.id]
+      });
+    });
+  });
+  const NODE_BY_ID = {}; SKILL_NODES.forEach(n=>NODE_BY_ID[n.id]=n);
+
+  // ============================================================
+  // STATE
+  // ============================================================
+  const purchased = new Set();
+  const hasNode = id => purchased.has(id);
+
+  const state = {
+    running:false, paused:false,
+    player:{ x:W/2, y:H/2, vx:0, vy:0, hp:100, invuln:0, facing:{x:0,y:-1},
+      dashCd:0, dashing:0, adrenaline:0, undyingCd:0 },
+    level:1, xp:0, xpNext:24,
+    sp:0, spSpent:0,
+    slain:0, runStart:0, elapsed:0,
+    enemies:[], projectiles:[], effects:[], particles:[], popups:[], xpGems:[], wisps:[], decoys:[],
+    cd:{ bolt:0, boltCastCount:0, fireNova:0, iceLance:0, frostArmor:0, frostArmorActive:0, arcaneBurst:0, vines:0, shadowBolt:0 },
+    spawnTimer:0, bossTimer:20,
+  };
+
+  const PLACES = ['the fallen kingdom','a quiet forest road','the ruined chapel','an old battlefield',
+    'the frozen pass','a forgotten library','the sunken village','the mountain shrine','a wayside grave','the last watchtower'];
+
+  // ---------- derived stats ----------
+  const cooldownMult = () => 1 - (hasNode('V_E2')?0.2:0);
+  const critChance = () => (hasNode('S_A')?0.08:0) + (hasNode('S_G')?0.05:0);
+  const critDmgMult = () => 1.5 + (hasNode('S_C1')?0.5:0);
+  const maxHP = () => 100*(1+(hasNode('B_B')?0.25:0)+(hasNode('B_E1')?0.5:0)
+    +(hasNode('F_H')?0.15:0)+(hasNode('R_H')?0.15:0)+(hasNode('V_H')?0.15:0)+(hasNode('N_H')?0.15:0)+(hasNode('S_H')?0.15:0));
+  const moveSpeed = () => 230*(1+(hasNode('B_A')?0.15:0)+(hasNode('B_G')?0.10:0))*(state.player.adrenaline>0?1.25:1);
+  const regenPerSec = () => 0.4 + (hasNode('B_E2')?1.6:0) + (hasNode('N_G')?0.6:0);
+  const healingMult = () => 1+(hasNode('N_E1')?0.5:0);
+  const lifestealPct = () => hasNode('S_E1')?0.08:0;
+  const damageReduction = () => (hasNode('B_C2')?0.15:0) + (hasNode('B_H')?0.10:0);
+  const dashCooldownMax = () => 3.4*(1-((hasNode('B_B')?0.15:0)+(hasNode('B_C1')?0.25:0)));
+  const xpMult = () => 1 + (hasNode('V_X')?0.3:0);
+
+  function healPlayer(amount){
+    state.player.hp = Math.min(maxHP(), state.player.hp + amount*healingMult());
+  }
+
+  function resetAllCooldowns(){
+    state.cd.fireNova=0; state.cd.iceLance=0; state.cd.frostArmor=0; state.cd.arcaneBurst=0; state.cd.vines=0; state.cd.shadowBolt=0;
+    state.player.dashCd=0;
+  }
+
+  // ============================================================
+  // SKILL POINTS / LEVELING
+  // ============================================================
+  function xpForLevel(lvl){ return Math.floor((14 + lvl*12 + lvl*lvl*1.55)); }
+  function gainXP(amount){
+    state.xp += amount*xpMult();
+    while(state.xp >= state.xpNext){
+      state.xp -= state.xpNext;
+      state.level++; state.sp++;
+      state.xpNext = xpForLevel(state.level);
+      flash('LEVEL '+state.level, 'var(--gold-bright)');
+    }
+  }
+  function availableSP(){ return state.sp - state.spSpent; }
+
+  function buySkill(id){
+    const n = NODE_BY_ID[id];
+    if(!n || hasNode(id)) return;
+    if(!n.pre.every(p=>hasNode(p))) return;
+    if(availableSP() < n.cost) return;
+    purchased.add(id); state.spSpent += n.cost;
+    flash(n.name.toUpperCase(), n.color);
+    renderTree();
+  }
+
+  // ============================================================
+  // ENEMY DEFS
+  // ============================================================
+  const ETYPES = {
+    slime:  {hp:18, dmg:6,  spd:70,  xp:4,  r:9,  color:'#7fae6e', minDay:1},
+    skel:   {hp:30, dmg:10, spd:95,  xp:6,  r:10, color:'#d8d3c4', minDay:1},
+    wisp:   {hp:10, dmg:4,  spd:150, xp:5,  r:7,  color:'#8ec9e8', minDay:1, wobble:true},
+    wraith: {hp:70, dmg:16, spd:80,  xp:13, r:12, color:'#8b6fae', minDay:2},
+  };
+  function currentDay(){ return Math.floor(state.elapsed/60)+1; }
+
+  function spawnEnemy(forceType){
+    const day = currentDay();
+    const pool = Object.keys(ETYPES).filter(k=>day>=ETYPES[k].minDay);
+    const type = forceType || pool[(Math.random()*pool.length)|0];
+    const base = ETYPES[type];
+    const scale = 1 + (day-1)*0.32;
+    const edge = (Math.random()*4)|0;
+    let x,y;
+    if(edge===0){ x=-30; y=rand(0,H); } else if(edge===1){ x=W+30; y=rand(0,H); }
+    else if(edge===2){ x=rand(0,W); y=-30; } else { x=rand(0,W); y=H+30; }
+    state.enemies.push({
+      type, x, y, hp:base.hp*scale, maxHp:base.hp*scale, dmg:base.dmg*(1+(day-1)*0.18), spd:base.spd,
+      r:base.r, color:base.color, xpValue:base.xp, wobble:base.wobble, seed:Math.random()*100,
+      burning:0, burnT:0, frozenUntil:0, slowUntil:0, slowAmt:0, marked:0,
+    });
+  }
+
+  function spawnBoss(){
+    const day = currentDay();
+    state.enemies.push({
+      type:'boss', x:W/2, y:-50, hp:550+day*160, maxHp:550+day*160, dmg:22, spd:52, r:22,
+      color:'#5b3f73', xpValue:80, seed:0, burning:0, burnT:0, frozenUntil:0, slowUntil:0, slowAmt:0, marked:0,
+      stompT:4, telegraph:0, isBoss:true,
+    });
+    flash('AN ELDER WRAITH STIRS', 'var(--umbral)');
+  }
+
+  // ============================================================
+  // DAMAGE / DEATH
+  // ============================================================
+  function damageEnemy(e, amount, opts={}){
+    let dmg = amount;
+    let crit=false;
+    if(opts.allowCrit!==false && Math.random()<critChance()){ crit=true; dmg*=critDmgMult(); }
+    if(e.frozenUntil>state.elapsed && hasNode('R_D')) dmg *= 1.5;
+    if(hasNode('R_G') && (e.frozenUntil>state.elapsed || e.slowUntil>state.elapsed)) dmg *= 1.15;
+    e.hp -= dmg;
+    if(crit) e.marked = state.elapsed+4;
+    if(lifestealPct()>0) healPlayer(dmg*lifestealPct());
+    spawnPopup(e.x, e.y-10, (crit?'CRIT ':'')+Math.round(dmg), crit?'#eeda9e':(opts.color||'#e9e4d8'), crit);
+    if(opts.burn){ e.burning = state.elapsed+3; e.burnT = e.burnT||0; }
+    if(opts.slow){
+      const amt = opts.slow*(hasNode('R_E1')?1.5:1);
+      e.slowUntil = state.elapsed + (opts.slowDur||2);
+      e.slowAmt = Math.max(e.slowAmt, Math.min(0.85, amt));
+    }
+    if(opts.freeze){
+      e.frozenUntil = state.elapsed + opts.freeze;
+    }
+    if(e.hp<=0) killEnemy(e);
+  }
+
+  function killEnemy(e){
+    e.dead = true;
+    gainXP(e.xpValue);
+    state.slain++;
+    burst(e.x, e.y, e.color, e.isBoss?40:14, e.isBoss?260:150);
+    if(hasNode('N_A')) healPlayer(3);
+    if(hasNode('N_F')){
+      healPlayer(6);
+      state.wisps.forEach(()=>{});
+      state.enemies.forEach(o=>{ if(!o.dead && dist2(o.x,o.y,e.x,e.y)<100*100) damageEnemy(o, 14, {allowCrit:false}); });
+    }
+    if(e.marked>state.elapsed && hasNode('S_F')) resetAllCooldowns();
+    if((e.burning>state.elapsed) && (hasNode('F_D')||hasNode('F_F'))){
+      state.enemies.forEach(o=>{ if(!o.dead && o!==e && dist2(o.x,o.y,e.x,e.y)<140*140){
+        damageEnemy(o, 10, {allowCrit:false, burn:true});
+      }});
+    }
+    if(e.frozenUntil>state.elapsed && hasNode('R_F')){
+      state.enemies.forEach(o=>{ if(!o.dead && o!==e && dist2(o.x,o.y,e.x,e.y)<100*100){
+        damageEnemy(o, 20, {allowCrit:false}); o.frozenUntil = state.elapsed+1.5;
+      }});
+    }
+  }
+
+  // ============================================================
+  // PLAYER SPELLS
+  // ============================================================
+  function nearestEnemy(x,y){
+    let best=null, bd=Infinity;
+    for(const e of state.enemies){ if(e.dead) continue; const d=dist2(x,y,e.x,e.y); if(d<bd){ bd=d; best=e; } }
+    return best;
+  }
+
+  function fireProjectile(x,y,dx,dy,speed,dmg,color,pierce,opts={}){
+    const len=Math.hypot(dx,dy)||1;
+    state.projectiles.push({ x,y, vx:dx/len*speed, vy:dy/len*speed, dmg, color, pierce, r:opts.r||5,
+      homing:opts.homing, life:opts.life||2, burn:opts.burn, slow:opts.slow, freeze:opts.freeze, mini:opts.mini });
+  }
+
+  function castBolt(){
+    const p = state.player;
+    const count = 1+(hasNode('V_B')?1:0);
+    state.cd.boltCastCount++;
+    const empowered = hasNode('V_D') && state.cd.boltCastCount%5===0;
+    for(let i=0;i<count;i++){
+      const target = nearestEnemy(p.x,p.y);
+      if(!target) break;
+      const ang = Math.atan2(target.y-p.y, target.x-p.x) + (i-((count-1)/2))*0.18;
+      let dmg = 8+state.level*0.6;
+      if(hasNode('F_A')) dmg *= 1.2;
+      if(empowered) dmg *= 3;
+      fireProjectile(p.x,p.y, Math.cos(ang),Math.sin(ang), 480, dmg, '#9d8ce0',
+        (hasNode('V_C1')?1:0), { homing:hasNode('V_C2'), burn:hasNode('F_A'), slow:hasNode('R_A')?0.2:0 });
+      if(empowered && hasNode('V_F')){
+        for(let k=0;k<4;k++){
+          const a2 = Math.random()*Math.PI*2;
+          fireProjectile(p.x,p.y, Math.cos(a2),Math.sin(a2), 380, dmg*0.4, '#c7bdf5', 0, {homing:true, mini:true});
+        }
+      }
+    }
+    if(hasNode('V_G') && Math.random()<0.1) state.cd.bolt = 0;
+  }
+
+  function castFireNova(){
+    const p = state.player;
+    const radius = 110+(hasNode('F_C1')?45:0);
+    const dmg = (22+state.level*0.5)*(hasNode('F_E1')?1.8:1);
+    state.effects.push({type:'ring', x:p.x, y:p.y, r:0, maxR:radius, color:'#e2793d', life:0.4, t:0});
+    state.enemies.forEach(e=>{ if(!e.dead && dist2(e.x,e.y,p.x,p.y)<radius*radius) damageEnemy(e,dmg,{burn:true,color:'#e2793d'}); });
+    if(hasNode('F_E2')) state.effects.push({type:'ground', x:p.x, y:p.y, r:radius*0.8, color:'#e2793d', life:4, t:0, dmg:6});
+    if(hasNode('F_G')) state.player.adrenaline = Math.max(state.player.adrenaline, 1.5);
+    burst(p.x,p.y,'#e2793d',20,180);
+  }
+
+  function castIceLance(){
+    const p = state.player;
+    const target = nearestEnemy(p.x,p.y);
+    if(!target) return;
+    const dmg = 16+state.level*0.4;
+    const freeze = 1.2+(hasNode('R_C1')?1.2:0);
+    const pierce = 2+(hasNode('R_C2')?2:0);
+    const ang = Math.atan2(target.y-p.y, target.x-p.x);
+    fireProjectile(p.x,p.y, Math.cos(ang),Math.sin(ang), 420, dmg, '#8ec9e8', pierce, {freeze, slow:0.4, r:6});
+  }
+
+  function castFrostArmor(){
+    const p = state.player;
+    state.cd.frostArmorActive = 5;
+    flash('FROST ARMOR', 'var(--frost)');
+    burst(p.x,p.y,'#8ec9e8',18,120);
+  }
+
+  function castArcaneBurst(){
+    const p = state.player;
+    const dmg = 14+state.level*0.4;
+    const n = 10;
+    for(let i=0;i<n;i++){
+      const a = (i/n)*Math.PI*2;
+      fireProjectile(p.x,p.y, Math.cos(a),Math.sin(a), 340, dmg, '#c7bdf5', 1, {});
+    }
+    burst(p.x,p.y,'#9d8ce0',16,140);
+  }
+
+  function castVines(){
+    const p = state.player;
+    const radius = 130+(hasNode('N_D')?60:0);
+    state.effects.push({type:'ring', x:p.x, y:p.y, r:0, maxR:radius, color:'#8bc48a', life:0.5, t:0});
+    state.enemies.forEach(e=>{
+      if(!e.dead && dist2(e.x,e.y,p.x,p.y)<radius*radius){
+        e.slowUntil = state.elapsed+2.5; e.slowAmt = Math.max(e.slowAmt, 0.9);
+        if(hasNode('N_C1')) e.rootBleed = state.elapsed+2.5;
+      }
+    });
+  }
+
+  function castShadowBolt(){
+    const p = state.player;
+    const target = nearestEnemy(p.x,p.y);
+    if(!target) return;
+    let dmg = 18+state.level*0.5;
+    if(target.marked>state.elapsed) dmg*=2;
+    const ang = Math.atan2(target.y-p.y, target.x-p.x);
+    fireProjectile(p.x,p.y, Math.cos(ang),Math.sin(ang), 500, dmg, '#c4728f', 0, {});
+  }
+
+  function updateWisps(dt){
+    const want = hasNode('N_C2') ? (1+(hasNode('N_E2')?1:0)) : 0;
+    while(state.wisps.length<want) state.wisps.push({angle:Math.random()*Math.PI*2, cd:0});
+    while(state.wisps.length>want) state.wisps.pop();
+    const p = state.player;
+    state.wisps.forEach((w,i)=>{
+      w.angle += dt*1.2;
+      w.x = p.x + Math.cos(w.angle+i*2.4)*46;
+      w.y = p.y + Math.sin(w.angle+i*2.4)*46;
+      w.cd -= dt;
+      if(w.cd<=0){
+        const interval = 2.2*(hasNode('N_D')?0.7:1)*cooldownMult();
+        w.cd = interval;
+        const target = nearestEnemy(w.x,w.y);
+        if(target){
+          const ang = Math.atan2(target.y-w.y, target.x-w.x);
+          fireProjectile(w.x,w.y, Math.cos(ang),Math.sin(ang), 400, 10+state.level*0.3, '#8bc48a', 0, {});
+        }
+      }
+    });
+  }
+
+  // ============================================================
+  // DASH
+  // ============================================================
+  function tryDash(){
+    const p = state.player;
+    if(p.dashCd>0) return;
+    let dx=p.vx, dy=p.vy;
+    if(Math.hypot(dx,dy)<10){ dx=p.facing.x; dy=p.facing.y; }
+    const len = Math.hypot(dx,dy)||1;
+    dx/=len; dy/=len;
+    const dist=150;
+    const startX=p.x, startY=p.y;
+    p.x = clamp(p.x+dx*dist, 16, W-16);
+    p.y = clamp(p.y+dy*dist, 16, H-16);
+    p.invuln = 0.28; p.dashing = 0.18;
+    p.dashCd = dashCooldownMax();
+    if(hasNode('B_D')) p.adrenaline = 3;
+    burst(startX,startY,'#c9a869',10,80);
+    if(hasNode('S_C2')){
+      state.decoys.push({x:startX,y:startY,t:0.6, boosted:hasNode('S_E2')});
+    }
+  }
+
+  // ============================================================
+  // VISUAL HELPERS
+  // ============================================================
+  function burst(x,y,color,n=14,spd=140,life=0.55){
+    for(let i=0;i<n;i++){
+      const a=Math.random()*Math.PI*2, s=spd*(0.3+Math.random()*0.9);
+      state.particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life,maxLife:life,color,size:rand(2,4)});
+    }
+  }
+  function spawnPopup(x,y,text,color,big){
+    state.popups.push({x,y,text,color,life:0.8,vy:-40,big});
+  }
+  function flash(text,color){
+    const el=$('flashEl');
+    el.textContent=text; el.style.color=color;
+    el.style.textShadow='0 0 24px currentColor, 0 0 46px currentColor';
+    el.style.transition='none'; el.style.opacity='1';
+    requestAnimationFrame(()=>{ el.style.transition='opacity 1.3s ease'; el.style.opacity='0'; });
+  }
+
+  // ============================================================
+  // MAIN UPDATE
+  // ============================================================
+  const keys = {};
+  window.addEventListener('keydown', e=>{
+    const k = e.key.toLowerCase();
+    keys[k]=true;
+    if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)) e.preventDefault();
+    if(k===' ') tryDash();
+    if(k==='g') toggleGrimoire();
+    if(k==='escape' && state.grimoireOpen) toggleGrimoire();
+  });
+  window.addEventListener('keyup', e=> keys[e.key.toLowerCase()]=false);
+
+  function updatePlayer(dt){
+    const p = state.player;
+    let ax=0, ay=0;
+    if(keys['arrowleft']||keys['a']) ax-=1;
+    if(keys['arrowright']||keys['d']) ax+=1;
+    if(keys['arrowup']||keys['w']) ay-=1;
+    if(keys['arrowdown']||keys['s']) ay+=1;
+    const len=Math.hypot(ax,ay)||1;
+    const accel=1000;
+    p.vx += (ax/len)*accel*dt; p.vy += (ay/len)*accel*dt;
+    p.vx *= 0.86; p.vy *= 0.86;
+    p.x = clamp(p.x+p.vx*dt, 14, W-14);
+    p.y = clamp(p.y+p.vy*dt, 14, H-14);
+    if(Math.hypot(p.vx,p.vy)>8) p.facing = {x:p.vx/Math.hypot(p.vx,p.vy), y:p.vy/Math.hypot(p.vx,p.vy)};
+    if(p.invuln>0) p.invuln-=dt;
+    if(p.dashing>0) p.dashing-=dt;
+    if(p.dashCd>0) p.dashCd-=dt;
+    if(p.adrenaline>0) p.adrenaline-=dt;
+    if(p.undyingCd>0) p.undyingCd-=dt;
+    healPlayer(regenPerSec()*dt);
+    if(state.cd.frostArmorActive>0) state.cd.frostArmorActive-=dt;
+  }
+
+  function updateSpellTimers(dt){
+    const cm = cooldownMult();
+    state.cd.bolt -= dt;
+    if(state.cd.bolt<=0){ state.cd.bolt = 0.55*(1-(hasNode('V_A')?0.2:0))*cm; castBolt(); }
+
+    if(hasNode('F_B')){ state.cd.fireNova-=dt; if(state.cd.fireNova<=0){ state.cd.fireNova = 6*(1-(hasNode('F_C2')?0.25:0))*cm; castFireNova(); } }
+    if(hasNode('R_B')){ state.cd.iceLance-=dt; if(state.cd.iceLance<=0){ state.cd.iceLance = 5*cm; castIceLance(); } }
+    if(hasNode('R_E2')){ state.cd.frostArmor-=dt; if(state.cd.frostArmor<=0){ state.cd.frostArmor = 14*cm; castFrostArmor(); } }
+    if(hasNode('V_E1')){ state.cd.arcaneBurst-=dt; if(state.cd.arcaneBurst<=0){ state.cd.arcaneBurst = 8*cm; castArcaneBurst(); } }
+    if(hasNode('N_B')){ state.cd.vines-=dt; if(state.cd.vines<=0){ state.cd.vines = 10*cm; castVines(); } }
+    if(hasNode('S_B')){ state.cd.shadowBolt-=dt; if(state.cd.shadowBolt<=0){ state.cd.shadowBolt = 4*cm; castShadowBolt(); } }
+    updateWisps(dt);
+  }
+
+  function updateProjectiles(dt){
+    for(let i=state.projectiles.length-1;i>=0;i--){
+      const pr = state.projectiles[i];
+      if(pr.homing){
+        const t = nearestEnemy(pr.x,pr.y);
+        if(t){
+          const ang = Math.atan2(t.y-pr.y,t.x-pr.x);
+          const curAng = Math.atan2(pr.vy,pr.vx);
+          let diff = ang-curAng; while(diff>Math.PI)diff-=2*Math.PI; while(diff<-Math.PI)diff+=2*Math.PI;
+          const turn = clamp(diff, -3*dt, 3*dt);
+          const na = curAng+turn; const spd=Math.hypot(pr.vx,pr.vy);
+          pr.vx=Math.cos(na)*spd; pr.vy=Math.sin(na)*spd;
+        }
+      }
+      pr.x+=pr.vx*dt; pr.y+=pr.vy*dt; pr.life-=dt;
+      let hit=false;
+      for(const e of state.enemies){
+        if(e.dead) continue;
+        if(dist2(pr.x,pr.y,e.x,e.y) < (pr.r+e.r)*(pr.r+e.r)){
+          damageEnemy(e, pr.dmg, {burn:pr.burn, slow:pr.slow, freeze:pr.freeze, color:pr.color});
+          hit=true;
+          if(pr.pierce>0){ pr.pierce--; } else { state.projectiles.splice(i,1); }
+          break;
+        }
+      }
+      if(!hit && (pr.life<=0 || pr.x<-50||pr.x>W+50||pr.y<-50||pr.y>H+50)) state.projectiles.splice(i,1);
+    }
+  }
+
+  function updateDecoys(dt){
+    for(let i=state.decoys.length-1;i>=0;i--){
+      const d = state.decoys[i];
+      d.t-=dt;
+      if(d.t<=0){
+        const dmg = 25*(1+state.level*0.03)*(d.boosted?1.6:1);
+        state.enemies.forEach(e=>{ if(!e.dead && dist2(e.x,e.y,d.x,d.y)<95*95) damageEnemy(e,dmg,{allowCrit:false}); });
+        burst(d.x,d.y,'#c4728f',20,180);
+        state.decoys.splice(i,1);
+      }
+    }
+  }
+
+  function updateEnemies(dt){
+    const p = state.player;
+    for(let i=state.enemies.length-1;i>=0;i--){
+      const e = state.enemies[i];
+      if(e.dead){ state.enemies.splice(i,1); continue; }
+      let spd = e.spd;
+      if(e.slowUntil>state.elapsed) spd *= (1-e.slowAmt);
+      if(e.frozenUntil>state.elapsed) spd = 0;
+      if(e.rootBleed>state.elapsed) damageEnemy(e, 4*dt, {allowCrit:false});
+      if(e.burning>state.elapsed) damageEnemy(e, 3*dt, {allowCrit:false});
+
+      if(e.isBoss){
+        e.stompT -= dt;
+        if(e.stompT<=1 && e.telegraph<=0) e.telegraph = 1;
+        if(e.telegraph>0){
+          e.telegraph -= dt;
+          if(e.telegraph<=0){
+            if(dist2(p.x,p.y,e.x,e.y)<150*150 && p.invuln<=0) damagePlayer(e.dmg*1.3);
+            state.effects.push({type:'ring', x:e.x,y:e.y, r:0, maxR:150, color:'#c4728f', life:0.3, t:0});
+            e.stompT = 4;
+          }
+        }
+      }
+
+      const dx=p.x-e.x, dy=p.y-e.y; const dl=Math.hypot(dx,dy)||1;
+      let mx=dx/dl, my=dy/dl;
+      if(e.wobble){ const wob=Math.sin(state.elapsed*6+e.seed)*0.6; mx += -my*wob; my += mx*wob; }
+      e.x += mx*spd*dt; e.y += my*spd*dt;
+
+      const pr2 = (p.r||13)+e.r;
+      if(dist2(p.x,p.y,e.x,e.y) < pr2*pr2 && p.invuln<=0 && p.dashing<=0){
+        damagePlayer(e.dmg*dt*(1-damageReduction()));
+      }
+    }
+  }
+
+  function damagePlayer(amount){
+    const p = state.player;
+    p.hp -= amount;
+    if(p.hp<=0){
+      if(hasNode('B_F') && p.undyingCd<=0){
+        p.hp = 1; p.undyingCd = 60; p.invuln = 1.5;
+        flash('UNDYING', 'var(--gold-bright)');
+      } else {
+        p.hp = 0; endRun();
+      }
+    }
+  }
+
+  function updateEffects(dt){
+    for(let i=state.effects.length-1;i>=0;i--){
+      const fx = state.effects[i]; fx.t+=dt;
+      if(fx.type==='ground'){
+        if(Math.floor(fx.t*4)!==Math.floor((fx.t-dt)*4)){
+          state.enemies.forEach(e=>{ if(!e.dead && dist2(e.x,e.y,fx.x,fx.y)<fx.r*fx.r) damageEnemy(e, fx.dmg*0.25, {allowCrit:false,burn:true}); });
+        }
+      }
+      if(fx.t>=fx.life) state.effects.splice(i,1);
+    }
+  }
+
+  function updateParticles(dt){
+    for(let i=state.particles.length-1;i>=0;i--){
+      const pt=state.particles[i]; pt.x+=pt.vx*dt; pt.y+=pt.vy*dt; pt.vx*=0.92; pt.vy*=0.92; pt.life-=dt;
+      if(pt.life<=0) state.particles.splice(i,1);
+    }
+    for(let i=state.popups.length-1;i>=0;i--){
+      const u=state.popups[i]; u.y+=u.vy*dt*0.02*60; u.life-=dt;
+      if(u.life<=0) state.popups.splice(i,1);
+    }
+  }
+
+  function updateSpawns(dt){
+    const day = currentDay();
+    state.spawnTimer -= dt;
+    const interval = Math.max(0.32, 1.5 - day*0.09);
+    if(state.spawnTimer<=0){
+      state.spawnTimer = interval;
+      spawnEnemy();
+      if(day>=3 && Math.random()<0.25) spawnEnemy();
+    }
+    state.bossTimer -= dt;
+    if(state.bossTimer<=0){ state.bossTimer = 90; spawnBoss(); }
+  }
+
+  // ============================================================
+  // RENDER
+  // ============================================================
+  function drawPlayer(){
+    const p = state.player;
+    const px = Math.round(p.x), py = Math.round(p.y);
+    ctx.save(); ctx.translate(px,py);
+    const blink = p.invuln>0 && Math.floor(state.elapsed*16)%2===0;
+    ctx.globalAlpha = blink?0.4:1;
+    ctx.beginPath(); ctx.ellipse(0,10,9,3,0,0,Math.PI*2);
+    ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.fill();
+    if(state.cd.frostArmorActive>0){
+      ctx.beginPath(); ctx.arc(0,0,13,0,Math.PI*2);
+      ctx.strokeStyle='#8ec9e8'; ctx.lineWidth=1.5; ctx.shadowColor='#8ec9e8'; ctx.shadowBlur=10; ctx.stroke();
+    }
+    // soft ambient glow behind the sprite
+    ctx.beginPath(); ctx.arc(0,0,11,0,Math.PI*2);
+    ctx.fillStyle='rgba(157,140,224,0.16)'; ctx.shadowColor='#9d8ce0'; ctx.shadowBlur=14; ctx.fill();
+    // crisp pixel-art body (no blur/smoothing so edges stay sharp)
+    ctx.shadowBlur = 0;
+    const ps = 1.5, gridOff = 8;
+    for(let r=0;r<16;r++){
+      const row = MAGE_SPRITE[r];
+      for(let c=0;c<16;c++){
+        const code = row[c];
+        if(code==='.') continue;
+        ctx.fillStyle = MAGE_PALETTE[code];
+        ctx.fillRect(Math.round((c-gridOff)*ps), Math.round((r-gridOff)*ps), Math.ceil(ps), Math.ceil(ps));
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawEnemy(e){
+    ctx.save(); ctx.translate(e.x,e.y);
+    ctx.shadowColor=e.color; ctx.shadowBlur = e.isBoss?22:12;
+    if(e.frozenUntil>state.elapsed){ ctx.shadowColor='#8ec9e8'; }
+    ctx.fillStyle = e.frozenUntil>state.elapsed ? '#a9d8ef' : e.color;
+    if(e.type==='slime'){ ctx.beginPath(); ctx.ellipse(0,0,e.r,e.r*0.8,0,0,Math.PI*2); ctx.fill(); }
+    else if(e.type==='skel'){ ctx.fillRect(-e.r*0.6,-e.r,e.r*1.2,e.r*2); ctx.beginPath(); ctx.arc(0,-e.r*1.1,e.r*0.55,0,Math.PI*2); ctx.fill(); }
+    else if(e.type==='wisp'){ ctx.beginPath(); for(let i=0;i<5;i++){ const a=i/5*Math.PI*2; ctx.lineTo(Math.cos(a)*e.r, Math.sin(a)*e.r); ctx.lineTo(Math.cos(a+0.3)*e.r*0.4, Math.sin(a+0.3)*e.r*0.4); } ctx.closePath(); ctx.fill(); }
+    else { ctx.beginPath(); ctx.arc(0,0,e.r,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='#eeda9e'; ctx.beginPath(); ctx.arc(-e.r*0.3,-e.r*0.2,2.4,0,Math.PI*2); ctx.arc(e.r*0.3,-e.r*0.2,2.4,0,Math.PI*2); ctx.fill(); }
+    if(e.marked>state.elapsed){ ctx.strokeStyle='#c4728f'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,0,e.r+4,0,Math.PI*2); ctx.stroke(); }
+    ctx.restore();
+    if(e.isBoss || e.hp<e.maxHp){
+      const w=e.isBoss?60:28;
+      ctx.fillStyle='#1a1c2c'; ctx.fillRect(e.x-w/2,e.y-e.r-12,w,5);
+      ctx.fillStyle=e.isBoss?'#c4728f':'#c15b5b'; ctx.fillRect(e.x-w/2,e.y-e.r-12,w*Math.max(0,e.hp/e.maxHp),5);
+    }
+    if(e.telegraph>0){
+      ctx.save(); ctx.globalAlpha=0.35*(1-e.telegraph);
+      ctx.strokeStyle='#c4728f'; ctx.lineWidth=3;
+      ctx.beginPath(); ctx.arc(e.x,e.y,150*(1-e.telegraph),0,Math.PI*2); ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  function drawScene(){
+    ctx.clearRect(0,0,W,H);
+    ctx.strokeStyle='rgba(201,168,105,0.04)'; ctx.lineWidth=1;
+    for(let x=0;x<W;x+=50){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+    for(let y=0;y<H;y+=50){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+
+    state.effects.forEach(fx=>{
+      if(fx.type==='ring'){
+        const r = fx.maxR*(fx.t/fx.life);
+        ctx.save(); ctx.globalAlpha = Math.max(0,1-fx.t/fx.life);
+        ctx.strokeStyle=fx.color; ctx.lineWidth=4; ctx.shadowColor=fx.color; ctx.shadowBlur=16;
+        ctx.beginPath(); ctx.arc(fx.x,fx.y,r,0,Math.PI*2); ctx.stroke(); ctx.restore();
+      } else if(fx.type==='ground'){
+        ctx.save(); ctx.globalAlpha=0.18;
+        ctx.fillStyle=fx.color; ctx.beginPath(); ctx.arc(fx.x,fx.y,fx.r,0,Math.PI*2); ctx.fill(); ctx.restore();
+      }
+    });
+
+    state.decoys.forEach(d=>{
+      ctx.save(); ctx.globalAlpha=0.6;
+      ctx.fillStyle='#c4728f'; ctx.shadowColor='#c4728f'; ctx.shadowBlur=12;
+      ctx.beginPath(); ctx.arc(d.x,d.y,10,0,Math.PI*2); ctx.fill(); ctx.restore();
+    });
+
+    state.wisps.forEach(w=>{
+      ctx.save(); ctx.translate(w.x,w.y);
+      ctx.fillStyle='#8bc48a'; ctx.shadowColor='#8bc48a'; ctx.shadowBlur=10;
+      ctx.beginPath(); ctx.arc(0,0,6,0,Math.PI*2); ctx.fill(); ctx.restore();
+    });
+
+    state.enemies.forEach(drawEnemy);
+
+    state.projectiles.forEach(pr=>{
+      ctx.save(); ctx.fillStyle=pr.color; ctx.shadowColor=pr.color; ctx.shadowBlur=pr.mini?6:10;
+      ctx.beginPath(); ctx.arc(pr.x,pr.y,pr.mini?3:pr.r,0,Math.PI*2); ctx.fill(); ctx.restore();
+    });
+
+    drawPlayer();
+
+    state.particles.forEach(pt=>{
+      const a=Math.max(0,pt.life/pt.maxLife);
+      ctx.globalAlpha=a; ctx.fillStyle=pt.color; ctx.shadowColor=pt.color; ctx.shadowBlur=8;
+      ctx.beginPath(); ctx.arc(pt.x,pt.y,pt.size*a+0.6,0,Math.PI*2); ctx.fill();
+    });
+    ctx.globalAlpha=1; ctx.shadowBlur=0;
+
+    state.popups.forEach(u=>{
+      ctx.globalAlpha=Math.max(0,u.life/0.8);
+      ctx.fillStyle=u.color; ctx.font=(u.big?'bold 15px':'bold 12px')+" 'JetBrains Mono', monospace";
+      ctx.textAlign='center'; ctx.fillText(u.text,u.x,u.y);
+    });
+    ctx.globalAlpha=1;
+  }
+
+  // ============================================================
+  // AMBIENT FIREFLIES BACKGROUND
+  // ============================================================
+  let fireflies=[];
+  function initFireflies(){
+    const count = Math.round((W*H)/22000);
+    fireflies = new Array(Math.max(24,count)).fill(0).map(()=>({
+      x:Math.random()*W, y:Math.random()*H,
+      vy:-(6+Math.random()*10), sway:Math.random()*Math.PI*2, r:1+Math.random()*1.8,
+      hue: Math.random()<0.5 ? '#c9a869' : '#8ec9e8'
+    }));
+  }
+  function drawBg(t){
+    bgCtx.clearRect(0,0,W,H);
+    fireflies.forEach(f=>{
+      f.y += f.vy*0.016; f.sway += 0.02;
+      const x = f.x + Math.sin(f.sway)*14;
+      const alpha = 0.35+0.25*Math.sin(t/500+f.sway);
+      bgCtx.globalAlpha = alpha;
+      bgCtx.fillStyle = f.hue; bgCtx.shadowColor=f.hue; bgCtx.shadowBlur=8;
+      bgCtx.beginPath(); bgCtx.arc(x,f.y,f.r,0,Math.PI*2); bgCtx.fill();
+      if(f.y<-10){ f.y=H+10; f.x=Math.random()*W; }
+    });
+    bgCtx.globalAlpha=1; bgCtx.shadowBlur=0;
+    requestAnimationFrame(drawBg);
+  }
+  window.addEventListener('resize', handleResize);
+
+  // ============================================================
+  // HUD
+  // ============================================================
+  function updateHUD(){
+    const p = state.player;
+    $('hpfill').style.width = Math.max(0,p.hp/maxHP()*100)+'%';
+    $('hptext').textContent = Math.max(0,Math.round(p.hp))+' / '+Math.round(maxHP());
+    $('lvlTxt').textContent = state.level;
+    $('xpfill2').style.width = (state.xp/state.xpNext*100)+'%';
+    $('dayline').textContent = 'Day '+currentDay()+' \u2014 '+PLACES[(currentDay()-1)%PLACES.length];
+    $('slainTxt').textContent = state.slain;
+    $('dashTxt').textContent = p.dashCd>0 ? p.dashCd.toFixed(1)+'s' : 'ready';
+    const sp = availableSP();
+    $('spBadge').style.display = sp>0 ? 'flex':'none';
+    $('spBadge').textContent = sp;
+  }
+
+  // ============================================================
+  // SKILL TREE RENDER
+  // ============================================================
+  function renderTree(){
+    const svg = $('treeSVG');
+    let lines='';
+    SKILL_NODES.forEach(n=>{
+      n.pre.forEach(p=>{
+        const pn=NODE_BY_ID[p];
+        const lit = hasNode(p) ? ' class="lit"' : '';
+        lines += `<line x1="${pn.x}" y1="${pn.y}" x2="${n.x}" y2="${n.y}" style="${lit?'':''}stroke:${hasNode(p)?n.color:'#333a5c'}"${lit}></line>`;
+      });
+      if(n.tier===0){
+        lines += `<line class="spoke" x1="${CX}" y1="${CY}" x2="${n.x}" y2="${n.y}"></line>`;
+      }
+    });
+    svg.innerHTML = lines;
+
+    document.querySelectorAll('#treeinner .node, #treeinner .branchlabel').forEach(e=>e.remove());
+    const inner = $('treeinner');
+    BRANCHES.forEach(br=>{
+      const rad = br.angle*Math.PI/180;
+      const lx = CX+55*Math.cos(rad), ly = CY+55*Math.sin(rad);
+      const lab = document.createElement('div');
+      lab.className='branchlabel'; lab.style.left=lx+'px'; lab.style.top=ly+'px';
+      lab.style.transform='translate(-50%,-50%)'; lab.style.color=br.color;
+      lab.textContent = br.name;
+      inner.appendChild(lab);
+    });
+    SKILL_NODES.forEach(n=>{
+      const bought=hasNode(n.id), preOk=n.pre.every(p=>hasNode(p)), afford=availableSP()>=n.cost;
+      const div=document.createElement('div');
+      div.className='node'+(n.capstone?' capstone':'')+(bought?' bought':!preOk?' locked':afford?' affordable':' available');
+      div.style.left=n.x+'px'; div.style.top=n.y+'px';
+      div.style.borderColor = bought||afford ? n.color : 'var(--line)';
+      if(bought){ div.style.background = n.color; div.style.boxShadow='0 0 16px '+n.color; }
+      div.textContent = bought ? '\u2713' : n.name;
+      div.addEventListener('click', ()=>{ if(preOk && !bought) buySkill(n.id); });
+      div.addEventListener('mouseenter', e=>showTip(e,n,bought,preOk));
+      div.addEventListener('mousemove', positionTip);
+      div.addEventListener('mouseleave', ()=> $('tooltip').style.opacity='0');
+      inner.appendChild(div);
+    });
+    $('spAvail').textContent = availableSP();
+  }
+  function showTip(e,n,bought,preOk){
+    const tt=$('tooltip');
+    tt.innerHTML = `<div class="ttname" style="color:${n.color}">${n.name}${n.capstone?' \u2014 Capstone':''}</div><div class="ttdesc">${n.desc}</div>`+
+      (bought?'<div style="color:#8bc48a;font-weight:700;">unlocked</div>':(preOk?`<div class="ttcost">${n.cost} skill point${n.cost>1?'s':''}</div>`:'<div style="color:#c15b5b;">requires earlier nodes in this path</div>'));
+    tt.style.opacity='1'; positionTip(e);
+  }
+  function positionTip(e){ const tt=$('tooltip'); tt.style.left=(e.clientX+16)+'px'; tt.style.top=(e.clientY+16)+'px'; }
+
+  function updateNodeStates(){
+    document.querySelectorAll('#treeinner .node').forEach((div,i)=>{
+      const n=SKILL_NODES[i]; if(!n) return;
+      const bought=hasNode(n.id), preOk=n.pre.every(p=>hasNode(p)), afford=availableSP()>=n.cost;
+      div.className='node'+(n.capstone?' capstone':'')+(bought?' bought':!preOk?' locked':afford?' affordable':' available');
+    });
+    $('spAvail').textContent = availableSP();
+  }
+
+  // ============================================================
+  // GAME FLOW
+  // ============================================================
+  function toggleGrimoire(){
+    if(!state.running) return;
+    state.grimoireOpen = !state.grimoireOpen;
+    $('grimoireOverlay').classList.toggle('hidden', !state.grimoireOpen);
+    if(state.grimoireOpen) renderTree();
+  }
+  $('grimoireBtn').addEventListener('click', toggleGrimoire);
+  $('closeGrim').addEventListener('click', toggleGrimoire);
+
+  function startRun(){
+    $('startOverlay').classList.add('hidden');
+    $('gameOverOverlay').classList.add('hidden');
+    purchased.clear();
+    Object.assign(state, {
+      running:true, paused:false, grimoireOpen:false,
+      player:{ x:W/2,y:H/2, vx:0,vy:0, hp:100, invuln:1, facing:{x:0,y:-1}, dashCd:0, dashing:0, adrenaline:0, undyingCd:0, r:9 },
+      level:1, xp:0, xpNext:xpForLevel(1),
+      sp:0, spSpent:0, slain:0, elapsed:0,
+      enemies:[], projectiles:[], effects:[], particles:[], popups:[], xpGems:[], wisps:[], decoys:[],
+      cd:{ bolt:0.3, boltCastCount:0, fireNova:0, iceLance:0, frostArmor:0, frostArmorActive:0, arcaneBurst:0, vines:0, shadowBolt:0 },
+      spawnTimer:1, bossTimer:90,
+    });
+    renderTree();
+  }
+
+  function endRun(){
+    state.running=false;
+    $('goDay').textContent = currentDay();
+    $('goSlain').textContent = state.slain;
+    $('goLvl').textContent = state.level;
+    const flavors = ['the road was long, but not long enough','one more spell might have saved you','the grimoire remembers, even if you cannot','some doors should stay closed'];
+    $('goFlavor').textContent = flavors[(Math.random()*flavors.length)|0];
+    $('gameOverOverlay').classList.remove('hidden');
+  }
+
+  $('startBtn').addEventListener('click', startRun);
+  $('retryBtn').addEventListener('click', startRun);
+
+  // ============================================================
+  // MAIN LOOP
+  // ============================================================
+  let last = performance.now();
+  function loop(now){
+    const dt = Math.min(0.033, (now-last)/1000);
+    last = now;
+    if(state.running && !state.grimoireOpen){
+      state.elapsed += dt;
+      updatePlayer(dt);
+      updateSpellTimers(dt);
+      updateProjectiles(dt);
+      updateDecoys(dt);
+      updateEnemies(dt);
+      updateEffects(dt);
+      updateParticles(dt);
+      updateSpawns(dt);
+      updateHUD();
+      updateNodeStates();
+    }
+    if(state.running) drawScene();
+    requestAnimationFrame(loop);
+  }
+  handleResize(); requestAnimationFrame(drawBg);
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
