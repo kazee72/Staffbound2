@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { MAGE_TEXTURE_KEY } from '../game/mageSprite';
+import { FOREST_GRASS_KEY, FOREST_TREE_KEY, FOREST_BUSH_KEY, generateForestTextures } from '../game/forestBackground';
 import { createWorld } from '../game/types';
 import type { World } from '../game/types';
 import { xpForLevel } from '../game/player';
@@ -42,7 +43,8 @@ export class GameScene extends Phaser.Scene {
 
   private fxGraphics!: Phaser.GameObjects.Graphics;
   private bgGraphics!: Phaser.GameObjects.Graphics;
-  private gridGraphics!: Phaser.GameObjects.Graphics;
+  private grassLayer!: Phaser.GameObjects.TileSprite;
+  private decorLayer!: Phaser.GameObjects.Layer;
 
   private fireflies: Firefly[] = [];
 
@@ -58,8 +60,13 @@ export class GameScene extends Phaser.Scene {
 
     this.world = createWorld(width, height, (text, color) => this.ui.flash(text, color));
 
-    this.gridGraphics = this.add.graphics().setDepth(0);
-    this.drawGrid();
+    generateForestTextures(this);
+    this.grassLayer = this.add
+      .tileSprite(0, 0, width, height, FOREST_GRASS_KEY)
+      .setOrigin(0, 0)
+      .setDepth(0);
+    this.decorLayer = this.add.layer().setDepth(0.5);
+    this.scatterForestDecor(width, height);
 
     this.bgGraphics = this.add.graphics().setDepth(1);
     this.initFireflies();
@@ -96,7 +103,8 @@ export class GameScene extends Phaser.Scene {
     this.scale.on('resize', (gameSize: Phaser.Structs.Size) => {
       this.world.W = gameSize.width;
       this.world.H = gameSize.height;
-      this.drawGrid();
+      this.grassLayer.setSize(gameSize.width, gameSize.height);
+      this.scatterForestDecor(gameSize.width, gameSize.height);
       this.initFireflies();
     });
   }
@@ -186,15 +194,34 @@ export class GameScene extends Phaser.Scene {
 
   // ---------------- rendering ----------------
 
-  private drawGrid(): void {
-    const { W, H } = this.world ?? { W: this.scale.width, H: this.scale.height };
-    this.gridGraphics.clear();
-    this.gridGraphics.lineStyle(1, 0xc9a869, 0.04);
-    for (let x = 0; x < W; x += 50) {
-      this.gridGraphics.lineBetween(x, 0, x, H);
-    }
-    for (let y = 0; y < H; y += 50) {
-      this.gridGraphics.lineBetween(0, y, W, y);
+  /**
+   * Scatters pixel-art trees/bushes around the play field's edges (kept clear
+   * of the center where the player starts) to sell the "forest" backdrop.
+   * Deterministic per viewport size so it doesn't look like it's dancing
+   * around on resize.
+   */
+  private scatterForestDecor(width: number, height: number): void {
+    this.decorLayer.removeAll(true);
+    let seed = 4242;
+    const rand = () => {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      return (seed % 10000) / 10000;
+    };
+    const cx = width / 2;
+    const cy = height / 2;
+    const clearRadius = 160; // keep the immediate spawn area clear of trees
+    const count = Math.max(18, Math.round((width * height) / 55000));
+    for (let i = 0; i < count; i++) {
+      const x = rand() * width;
+      const y = rand() * height;
+      if (Math.hypot(x - cx, y - cy) < clearRadius) continue;
+      const isTree = rand() > 0.35;
+      const key = isTree ? FOREST_TREE_KEY : FOREST_BUSH_KEY;
+      const scale = isTree ? 1.4 + rand() * 0.8 : 1.3 + rand() * 0.7;
+      const spr = this.add.image(x, y, key).setOrigin(0.5, 1).setScale(scale);
+      spr.setAlpha(0.85 + rand() * 0.15);
+      spr.setTint(rand() > 0.5 ? 0xffffff : 0xd8e4d0);
+      this.decorLayer.add(spr);
     }
   }
 

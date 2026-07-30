@@ -37,7 +37,7 @@ export const LOCAL: LocalNode[] = [
   { id: 'G', tier: 2, off: 0, pre: ['B'] },
   { id: 'C2', tier: 2, off: 20, pre: ['B'] },
   { id: 'D', tier: 3, off: 0, pre: ['C1', 'C2'] },
-  { id: 'H', tier: 3, off: 30, pre: ['D'], radius: 330 },
+  { id: 'H', tier: 3, off: 30, pre: ['D'], radius: 530 },
   { id: 'E1', tier: 4, off: -13, pre: ['D'] },
   { id: 'E2', tier: 4, off: 13, pre: ['D'] },
   { id: 'F', tier: 5, off: 0, pre: ['E1', 'E2'] },
@@ -45,7 +45,11 @@ export const LOCAL: LocalNode[] = [
 
 export const VOID_EXTRA: LocalNode[] = [{ id: 'X', tier: 1, off: 40, pre: ['A'] }];
 
-export const RADII = [90, 165, 240, 315, 390, 465];
+// Expanded ("bigger") layout: tiers spaced out further from the hub than the
+// original reference so the full 61-node constellation has breathing room
+// instead of feeling cramped. See CX/CY/treeinner sizing in hud.css, which
+// scales in step with these radii.
+export const RADII = [145, 265, 385, 505, 625, 745];
 export const COST_BY_TIER = [1, 1, 2, 3, 3, 5];
 
 interface ContentEntry {
@@ -129,8 +133,8 @@ export const CONTENT: Record<string, Record<string, ContentEntry>> = {
   },
 };
 
-export const CX = 500;
-export const CY = 500;
+export const CX = 800;
+export const CY = 800;
 
 export const SKILL_NODES: SkillNode[] = [];
 BRANCHES.forEach((br) => {

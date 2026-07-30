@@ -148,3 +148,53 @@ tree on top.
   (e.g. buying `F_B` Ember Rounds should start Fire Nova casting).
 - Confirm the game-over overlay appears on death, shows days survived / foes
   slain / level reached, and `WALK AGAIN` cleanly restarts a fresh run.
+
+## Phase 2.1 — visual polish (skill tree spacing + forest background)
+
+Two follow-up visual tweaks requested after playtesting Phase 2:
+
+### What was built
+- **Expanded Grimoire layout**: tier radii increased from
+  `[90,165,240,315,390,465]` to `[145,265,385,505,625,745]` (the Warden
+  capstone's manual `radius:330` override bumped to `530` to match), the
+  hub moved from `(500,500)` to `(800,800)`, and `#treeinner` grown from
+  1000x1000 to 1600x1600 in `hud.css` to match. Node/capstone/core circle
+  sizes and font sizes were scaled up proportionally (`.node` 52px→76px,
+  `.node.capstone` 66px→96px, `.core` 64px→88px) and the branch-label
+  placement radius in `UIManager.ts` increased from 55 to 85 so labels don't
+  crowd the now-larger hub. Net effect: the full 61-node constellation has
+  real breathing room between nodes and connector lines instead of
+  overlapping/cramped circles.
+- **Pixel-art forest background**: new `src/game/forestBackground.ts`
+  procedurally generates three low-res pixel-art textures at boot (idempotent,
+  cached in Phaser's texture manager) — a tileable 32x32 grass tile with
+  subtle two-tone dithering + scattered "blade" pixels, a ~24x34 layered pine
+  tree (trunk + three tapering canopy tiers with light/dark shading), and a
+  ~14x10 rounded bush. `GameScene.ts` replaced the old faint grid-line
+  background with a `TileSprite` of the grass texture sized to the viewport
+  (resizes/re-tiles on window resize) plus a `Layer` of tree/bush `Image`
+  objects scattered with a seeded deterministic PRNG (stable across resizes
+  at the same viewport size, keeps a clear radius around the player's spawn
+  point so decor doesn't spawn on top of the mage).
+
+### Verified
+- `npm run build` (`tsc --noEmit && vite build`) completes with **zero
+  TypeScript errors**.
+- Exercised live via the browser tool: confirmed the play field now shows a
+  dark pixel-art forest (grass texture + scattered pine trees/bushes) instead
+  of a flat background, and confirmed the Grimoire overlay's nodes are
+  clearly separated with visible gaps and non-overlapping connector lines
+  (checked via a screenshot of the open panel). `#treewrap` scrollable area
+  measured 1640x1640 in the live DOM, consistent with the new 1600x1600
+  `#treeinner` + padding.
+
+### What a human should manually test in a browser
+- Confirm the forest background reads clearly at both small and large
+  window sizes (resize the browser and check trees/bushes don't clip weirdly
+  or leave gaps at the tiled grass seams).
+- Confirm the forest decor doesn't visually interfere with reading enemies/
+  projectiles/HUD during actual combat (it's intentionally dim/desaturated
+  behind the action, but sanity-check at a glance).
+- Open the Grimoire (`G`) and confirm all 6 branches are comfortably spread
+  out with no overlapping nodes, and that scrolling to the outer capstone
+  nodes still works smoothly.

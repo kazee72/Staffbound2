@@ -297,8 +297,8 @@
 }
 #treeinner {
   position: relative;
-  width: 1000px;
-  height: 1000px;
+  width: 1600px;
+  height: 1600px;
   margin: 0 auto;
 }
 #treeinner svg {
@@ -321,12 +321,12 @@
 }
 .core {
   position: absolute;
-  left: 500px;
-  top: 500px;
-  width: 64px;
-  height: 64px;
-  margin-left: -32px;
-  margin-top: -32px;
+  left: 800px;
+  top: 800px;
+  width: 88px;
+  height: 88px;
+  margin-left: -44px;
+  margin-top: -44px;
   border-radius: 50%;
   background: radial-gradient(circle, #2b2f4a, #141625);
   border: 2px solid var(--gold);
@@ -334,27 +334,27 @@
   align-items: center;
   justify-content: center;
   font-family: 'Cinzel', serif;
-  font-size: 9px;
+  font-size: 12px;
   color: var(--gold-bright);
   text-align: center;
-  box-shadow: 0 0 26px rgba(201, 168, 105, 0.35);
+  box-shadow: 0 0 32px rgba(201, 168, 105, 0.35);
   z-index: 3;
 }
 .branchlabel {
   position: absolute;
   font-family: 'Cinzel', serif;
-  font-size: 11px;
-  letter-spacing: 2.5px;
+  font-size: 15px;
+  letter-spacing: 3.5px;
   text-transform: uppercase;
   z-index: 3;
   text-shadow: 0 0 10px currentColor;
 }
 .node {
   position: absolute;
-  width: 52px;
-  height: 52px;
-  margin-left: -26px;
-  margin-top: -26px;
+  width: 76px;
+  height: 76px;
+  margin-left: -38px;
+  margin-top: -38px;
   border-radius: 50%;
   background: var(--panel);
   border: 2px solid var(--line);
@@ -362,22 +362,22 @@
   align-items: center;
   justify-content: center;
   font-family: 'Cinzel', serif;
-  font-size: 8.5px;
+  font-size: 11px;
   font-weight: 700;
   text-align: center;
   color: var(--dim);
-  line-height: 1.15;
-  padding: 4px;
+  line-height: 1.2;
+  padding: 6px;
   cursor: pointer;
   z-index: 2;
   transition: all 0.15s;
 }
 .node.capstone {
-  width: 66px;
-  height: 66px;
-  margin-left: -33px;
-  margin-top: -33px;
-  font-size: 9.5px;
+  width: 96px;
+  height: 96px;
+  margin-left: -48px;
+  margin-top: -48px;
+  font-size: 12.5px;
 }
 .node.locked {
   opacity: 0.4;

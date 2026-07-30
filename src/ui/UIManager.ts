@@ -176,8 +176,8 @@ export class UIManager {
     // Branch labels (static, drawn once)
     BRANCHES.forEach((br) => {
       const rad = (br.angle * Math.PI) / 180;
-      const lx = CX + 55 * Math.cos(rad);
-      const ly = CY + 55 * Math.sin(rad);
+      const lx = CX + 85 * Math.cos(rad);
+      const ly = CY + 85 * Math.sin(rad);
       const lab = document.createElement('div');
       lab.className = 'branchlabel';
       lab.style.left = lx + 'px';
