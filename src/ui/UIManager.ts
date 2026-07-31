@@ -7,8 +7,8 @@
  */
 import './hud.css';
 import type { World } from '../game/types';
-import { availableSP, buySkill, hasNode } from '../game/skillTree';
-import { SKILL_NODES, NODE_BY_ID, BRANCHES, CX, CY, GRID_W, GRID_H, GRID_TOP, colX, gridPath } from '../game/skillTree';
+import { availableSP, buySkill, hasNode, nodeIcon } from '../game/skillTree';
+import { SKILL_NODES, NODE_BY_ID, BRANCHES, CX, CY, TREE_W, TREE_H, RADII, radialPath } from '../game/skillTree';
 import { maxHP } from '../game/player';
 import { currentDay } from '../game/enemies';
 import { PLACES } from '../game/waves';
@@ -219,9 +219,9 @@ export class UIManager {
     this.root.appendChild(this.grimoireOverlay);
     this.treeSVG = this.grimoireOverlay.querySelector('#treeSVG')!;
     this.treeInner = this.grimoireOverlay.querySelector('#treeinner')!;
-    // Size the tree container to the grid layout and place the hub core at CX/CY.
-    this.treeInner.style.width = GRID_W + 'px';
-    this.treeInner.style.height = GRID_H + 'px';
+    // Size the tree container to the radial layout and place the hub core at CX/CY.
+    this.treeInner.style.width = TREE_W + 'px';
+    this.treeInner.style.height = TREE_H + 'px';
     const coreEl = this.grimoireOverlay.querySelector('.core') as HTMLDivElement | null;
     if (coreEl) {
       coreEl.style.left = CX + 'px';
@@ -265,10 +265,13 @@ export class UIManager {
     footnote.textContent = 'a session-only tale — no record of this journey is kept once the page is closed';
     this.root.appendChild(footnote);
 
-    // Branch labels (static, drawn once) — placed at the top of each branch's column.
-    BRANCHES.forEach((br, bi) => {
-      const lx = colX(bi);
-      const ly = GRID_TOP - 28;
+    // Branch labels (static, drawn once) — placed radially just beyond the
+    // outermost tier of each branch, at the branch's base angle.
+    BRANCHES.forEach((br) => {
+      const labelR = RADII[6] + 50; // just beyond the outermost tier
+      const ang = (br.angle * Math.PI) / 180;
+      const lx = CX + Math.cos(ang) * labelR;
+      const ly = CY + Math.sin(ang) * labelR;
       const lab = document.createElement('div');
       lab.className = 'branchlabel';
       lab.style.left = lx + 'px';
@@ -440,12 +443,12 @@ export class UIManager {
       n.pre.forEach((p) => {
         const pn = NODE_BY_ID[p];
         const lit = hasNode(world.purchased, p);
-        const d = gridPath(pn.x, pn.y, n.x, n.y);
+        const d = radialPath(pn.x, pn.y, n.x, n.y);
         lines += `<path d="${d}" style="stroke:${lit ? n.color : '#333a5c'};fill:none"${lit ? ' class="lit"' : ''}></path>`;
       });
       if (n.tier === 0) {
-        // Spoke from the hub down to each branch's first node (straight vertical).
-        lines += `<path class="spoke" d="M ${CX} ${CY} L ${CX} ${GRID_TOP - 10} L ${n.x} ${GRID_TOP - 10} L ${n.x} ${n.y}"></path>`;
+        // Radial spoke from the hub center to each branch's first node.
+        lines += `<path class="spoke" d="M ${CX} ${CY} L ${n.x} ${n.y}"></path>`;
       }
     });
     this.treeSVG.innerHTML = lines;
@@ -467,7 +470,8 @@ export class UIManager {
         div.style.background = n.color;
         div.style.boxShadow = '0 0 16px ' + n.color;
       }
-      div.textContent = bought ? '✓' : n.name;
+      // Show icon when unbought, checkmark when bought.
+      div.textContent = bought ? '✓' : nodeIcon(n);
       div.addEventListener('click', () => {
         if (preOk && !bought) {
           buySkill(world, n.id);

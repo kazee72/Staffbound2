@@ -1,6 +1,6 @@
 /** All spell cast functions & their cooldown update loop, ported from reference/full-reference.html */
 import type { EnemyState, Projectile, World } from './types';
-import { cooldownMult, spellDamageMult } from './player';
+import { cooldownMult, spellDamageMult, projectileSpeedMult, healPlayer, maxHP } from './player';
 import { hasNode } from './skillTree';
 import { damageEnemy, damageBoss } from './combat';
 import { burst } from './visuals';
@@ -100,19 +100,22 @@ export function castBolt(world: World): void {
     else if (world.bossFight) baseAng = Math.atan2(world.bossFight.boss.y - p.y, world.bossFight.boss.x - p.x);
   }
   if (baseAng === null) baseAng = p.aimAngle;
+  const projSpeed = 480 * projectileSpeedMult(world);
   for (let i = 0; i < count; i++) {
     const ang = baseAng + (i - (count - 1) / 2) * 0.18;
     let dmg = 8 + world.level * 0.6;
     if (hasNode(world.purchased, 'F_A')) dmg *= 1.2;
     dmg *= spellDamageMult(world);
-    if (empowered) dmg *= 3;
-    fireProjectile(world, p.x, p.y, Math.cos(ang), Math.sin(ang), 480, dmg, '#9d8ce0', hasNode(world.purchased, 'V_C1') ? 1 : 0, {
+    if (empowered) dmg *= hasNode(world.purchased, 'V_J') ? 4 : 3; // Arcane Overflow (V_J): 4x instead of 3x
+    fireProjectile(world, p.x, p.y, Math.cos(ang), Math.sin(ang), projSpeed, dmg, '#9d8ce0', hasNode(world.purchased, 'V_C1') ? 1 : 0, {
       homing: hasNode(world.purchased, 'V_C2'),
       burn: hasNode(world.purchased, 'F_A'),
       slow: hasNode(world.purchased, 'R_A') ? 0.2 : 0,
     });
     if (empowered && hasNode(world.purchased, 'V_F')) {
-      for (let k = 0; k < 4; k++) {
+      // Arcane Overflow (V_J): 6 homing bolts instead of 4
+      const splashCount = hasNode(world.purchased, 'V_J') ? 6 : 4;
+      for (let k = 0; k < splashCount; k++) {
         const a2 = Math.random() * Math.PI * 2;
         fireProjectile(world, p.x, p.y, Math.cos(a2), Math.sin(a2), 380, dmg * 0.4, '#c7bdf5', 0, { homing: true, mini: true });
       }
@@ -124,18 +127,23 @@ export function castBolt(world: World): void {
 export function castFireNova(world: World): void {
   const p = world.player;
   const radius = 110 + (hasNode(world.purchased, 'F_C1') ? 45 : 0);
+  const burnMult = hasNode(world.purchased, 'F_J') ? 1.5 : 1; // Eternal Flame: +50% burn dmg
   const dmg = (22 + world.level * 0.5) * (hasNode(world.purchased, 'F_E1') ? 1.8 : 1) * spellDamageMult(world);
   world.effects.push({ type: 'ring', x: p.x, y: p.y, r: 0, maxR: radius, color: '#e2793d', life: 0.4, t: 0 });
+  // Heat Wave (F_K): extra 30% slow on burning enemies
+  const slowAmt = hasNode(world.purchased, 'F_K') ? 0.3 : 0;
   forEachTargetInRange(
     world,
     p.x,
     p.y,
     radius,
-    (e) => damageEnemy(world, e, dmg, { burn: true, color: '#e2793d' }),
-    () => damageBoss(world, world.bossFight!.boss, dmg, { burn: true, color: '#e2793d' }),
+    (e) => damageEnemy(world, e, dmg, { burn: true, color: '#e2793d', slow: slowAmt, slowDur: 2 }),
+    () => damageBoss(world, world.bossFight!.boss, dmg, { burn: true, color: '#e2793d', slow: slowAmt, slowDur: 2 }),
   );
   if (hasNode(world.purchased, 'F_E2')) {
-    world.effects.push({ type: 'ground', x: p.x, y: p.y, r: radius * 0.8, color: '#e2793d', life: 4, t: 0, dmg: 6 });
+    // Eternal Flame (F_J) doubles ground burn life; Scorched Earth (F_E2) creates the ground patch.
+    const groundLife = hasNode(world.purchased, 'F_J') ? 8 : 4;
+    world.effects.push({ type: 'ground', x: p.x, y: p.y, r: radius * 0.8, color: '#e2793d', life: groundLife, t: 0, dmg: 6 * burnMult });
   }
   if (hasNode(world.purchased, 'F_G')) world.player.adrenaline = Math.max(world.player.adrenaline, 1.5);
   burst(world, p.x, p.y, '#e2793d', 20, 180);
@@ -147,6 +155,7 @@ export function castIceLance(world: World): void {
   const dmgMult = spellDamageMult(world);
   const freeze = 1.2 + (hasNode(world.purchased, 'R_C1') ? 1.2 : 0);
   const pierce = 2 + (hasNode(world.purchased, 'R_C2') ? 2 : 0);
+  const projSpeed = 420 * projectileSpeedMult(world);
   let ang: number;
   if (world.autoAim) {
     const target = nearestEnemy(world, p.x, p.y);
@@ -156,7 +165,19 @@ export function castIceLance(world: World): void {
   } else {
     ang = p.aimAngle;
   }
-  fireProjectile(world, p.x, p.y, Math.cos(ang), Math.sin(ang), 420, dmg * dmgMult, '#8ec9e8', pierce, { freeze, slow: 0.4, r: 6 });
+  fireProjectile(world, p.x, p.y, Math.cos(ang), Math.sin(ang), projSpeed, dmg * dmgMult, '#8ec9e8', pierce, { freeze, slow: 0.4, r: 6 });
+
+  // Avalanche (R_J): drop ice shards on 3 random enemies near the impact.
+  if (hasNode(world.purchased, 'R_J')) {
+    const alive = world.enemies.filter((e) => !e.dead);
+    for (let i = 0; i < 3 && alive.length > 0; i++) {
+      const target = alive[Math.floor(Math.random() * alive.length)];
+      const shardDmg = (12 + world.level * 0.3) * dmgMult;
+      // Spawn a projectile from above the target
+      fireProjectile(world, target.x, target.y - 200, 0, 1, 600, shardDmg, '#8ec9e8', 0, { freeze: 1, slow: 0.4, r: 5 });
+      world.effects.push({ type: 'ring', x: target.x, y: target.y, r: 0, maxR: 30, color: '#8ec9e8', life: 0.3, t: 0 });
+    }
+  }
 }
 
 export function castFrostArmor(world: World): void {
@@ -170,9 +191,10 @@ export function castArcaneBurst(world: World): void {
   const p = world.player;
   const dmg = (14 + world.level * 0.4) * spellDamageMult(world);
   const n = 10;
+  const projSpeed = 340 * projectileSpeedMult(world);
   for (let i = 0; i < n; i++) {
     const a = (i / n) * Math.PI * 2;
-    fireProjectile(world, p.x, p.y, Math.cos(a), Math.sin(a), 340, dmg, '#c7bdf5', 1, {});
+    fireProjectile(world, p.x, p.y, Math.cos(a), Math.sin(a), projSpeed, dmg, '#c7bdf5', 1, {});
   }
   burst(world, p.x, p.y, '#9d8ce0', 16, 140);
 }
@@ -202,6 +224,7 @@ export function castVines(world: World): void {
 export function castShadowBolt(world: World): void {
   const p = world.player;
   const dmg = (18 + world.level * 0.5) * spellDamageMult(world);
+  const projSpeed = 500 * projectileSpeedMult(world);
   let ang: number;
   if (world.autoAim) {
     const target = nearestEnemy(world, p.x, p.y);
@@ -211,7 +234,7 @@ export function castShadowBolt(world: World): void {
   } else {
     ang = p.aimAngle;
   }
-  fireProjectile(world, p.x, p.y, Math.cos(ang), Math.sin(ang), 500, dmg, '#c4728f', 0, { markedBonus: true });
+  fireProjectile(world, p.x, p.y, Math.cos(ang), Math.sin(ang), projSpeed, dmg, '#c4728f', 0, { markedBonus: true });
 }
 
 export function updateWisps(world: World, dt: number): void {
@@ -219,23 +242,27 @@ export function updateWisps(world: World, dt: number): void {
   while (world.wisps.length < want) world.wisps.push({ angle: Math.random() * Math.PI * 2, cd: 0 });
   while (world.wisps.length > want) world.wisps.pop();
   const p = world.player;
+  // Nature's Wrath (N_J): wisps fire 50% faster and pierce 1.
+  const wrathMult = hasNode(world.purchased, 'N_J') ? 0.5 : 1;
+  const wispPierce = hasNode(world.purchased, 'N_J') ? 1 : 0;
+  const wispProjSpeed = 400 * projectileSpeedMult(world);
   world.wisps.forEach((w, i) => {
     w.angle += dt * 1.2;
     w.x = p.x + Math.cos(w.angle + i * 2.4) * 46;
     w.y = p.y + Math.sin(w.angle + i * 2.4) * 46;
     w.cd -= dt;
     if (w.cd <= 0) {
-      const interval = 2.2 * (hasNode(world.purchased, 'N_D') ? 0.7 : 1) * cooldownMult(world);
+      const interval = 2.2 * (hasNode(world.purchased, 'N_D') ? 0.7 : 1) * cooldownMult(world) * wrathMult;
       w.cd = interval;
       const target = nearestEnemy(world, w.x!, w.y!);
       const dmg = (10 + world.level * 0.3) * spellDamageMult(world);
       if (target) {
         const ang = Math.atan2(target.y - w.y!, target.x - w.x!);
-        fireProjectile(world, w.x!, w.y!, Math.cos(ang), Math.sin(ang), 400, dmg, '#8bc48a', 0, {});
+        fireProjectile(world, w.x!, w.y!, Math.cos(ang), Math.sin(ang), wispProjSpeed, dmg, '#8bc48a', wispPierce, {});
       } else if (world.bossFight) {
         const boss = world.bossFight.boss;
         const ang = Math.atan2(boss.y - w.y!, boss.x - w.x!);
-        fireProjectile(world, w.x!, w.y!, Math.cos(ang), Math.sin(ang), 400, dmg, '#8bc48a', 0, {});
+        fireProjectile(world, w.x!, w.y!, Math.cos(ang), Math.sin(ang), wispProjSpeed, dmg, '#8bc48a', wispPierce, {});
       }
     }
   });
@@ -292,5 +319,125 @@ export function updateSpellTimers(world: World, dt: number): void {
       castShadowBolt(world);
     }
   }
+
+  // ---------------- Periodic ultimate effects (tier-6/I nodes) ----------------
+
+  // Time Warp (V_I): every 20s, slow all enemies to 40% for 5s.
+  if (hasNode(world.purchased, 'V_I')) {
+    if (world.cd.timeWarp > 0) {
+      world.cd.timeWarp -= dt;
+    } else {
+      world.cd.timeWarp = 20; // recharge
+      world.flash('TIME WARP', '#9d8ce0');
+      world.enemies.forEach((e) => {
+        if (!e.dead) {
+          e.slowUntil = world.elapsed + 5;
+          e.slowAmt = Math.max(e.slowAmt, 0.6);
+        }
+      });
+      if (world.bossFight) {
+        const boss = world.bossFight.boss;
+        boss.slowUntil = world.elapsed + 5;
+        boss.slowAmt = Math.max(boss.slowAmt, 0.4);
+      }
+    }
+  }
+
+  // Overgrowth (N_I): every 12s, heal 20% max HP and damage nearby enemies.
+  if (hasNode(world.purchased, 'N_I')) {
+    if (world.cd.overgrowth > 0) {
+      world.cd.overgrowth -= dt;
+    } else {
+      world.cd.overgrowth = 12;
+      healPlayer(world, maxHP(world) * 0.2);
+      world.flash('OVERGROWTH', '#8bc48a');
+      const radius = 150;
+      forEachTargetInRange(
+        world,
+        world.player.x,
+        world.player.y,
+        radius,
+        (e) => damageEnemy(world, e, 30 + world.level * 0.5, { allowCrit: false }),
+        () => damageBoss(world, world.bossFight!.boss, 30 + world.level * 0.5, { allowCrit: false }),
+      );
+      world.effects.push({ type: 'ring', x: world.player.x, y: world.player.y, r: 0, maxR: radius, color: '#8bc48a', life: 0.5, t: 0 });
+    }
+  }
+
+  // Shadow Blink (S_I): every 15s, blink to nearest enemy & mark all around.
+  if (hasNode(world.purchased, 'S_I')) {
+    if (world.cd.shadowBlink > 0) {
+      world.cd.shadowBlink -= dt;
+    } else {
+      world.cd.shadowBlink = 15;
+      const target = nearestEnemy(world, world.player.x, world.player.y);
+      if (target) {
+        world.player.x = target.x + 30;
+        world.player.y = target.y + 30;
+        world.player.invuln = 0.5;
+        world.flash('SHADOW BLINK', '#c4728f');
+        world.enemies.forEach((e) => {
+          if (!e.dead && dist2(e.x, e.y, target.x, target.y) < 100 * 100) {
+            e.marked = world.elapsed + 4;
+          }
+        });
+        burst(world, target.x, target.y, '#c4728f', 20, 180);
+      }
+    }
+  }
+
+  // Eternal Frost (R_I): every 25s, freeze all enemies for 4s.
+  if (hasNode(world.purchased, 'R_I')) {
+    if (world.cd.eternalFrost > 0) {
+      world.cd.eternalFrost -= dt;
+    } else {
+      world.cd.eternalFrost = 25;
+      world.flash('ETERNAL FROST', '#8ec9e8');
+      world.enemies.forEach((e) => {
+        if (!e.dead) e.frozenUntil = world.elapsed + 4;
+      });
+      if (world.bossFight) {
+        const boss = world.bossFight.boss;
+        boss.slowUntil = world.elapsed + 4;
+        boss.slowAmt = Math.max(boss.slowAmt, 0.8);
+      }
+    }
+  }
+
+  // Apex Surge (P_I): every 15s, gain +50% dmg & +20% crit for 4s.
+  // cd.apexSurge: positive = active (counts down to 0), negative = recharging (counts up to 0).
+  // Initial value 0 = first trigger.
+  if (hasNode(world.purchased, 'P_I')) {
+    if (world.cd.apexSurge > 0) {
+      world.cd.apexSurge -= dt;
+      if (world.cd.apexSurge < 0) world.cd.apexSurge = -11; // start recharge (11s → total 15s cycle)
+    } else if (world.cd.apexSurge === 0) {
+      // First trigger or recharge complete — fire the surge.
+      world.cd.apexSurge = 4;
+      world.flash('APEX SURGE', '#4fd6c0');
+    } else {
+      // Recharging (negative)
+      world.cd.apexSurge += dt;
+      if (world.cd.apexSurge > 0) world.cd.apexSurge = 0;
+    }
+  }
+
+  // Cull (S_J): every 8s, execute low-HP enemies.
+  if (hasNode(world.purchased, 'S_J')) {
+    if (world.cd.cull > 0) {
+      world.cd.cull -= dt;
+    } else {
+      world.cd.cull = 8;
+      world.enemies.forEach((e) => {
+        if (e.dead) return;
+        const threshold = e.marked > world.elapsed ? 0.3 : 0.2;
+        if (e.hp < e.maxHp * threshold) {
+          damageEnemy(world, e, e.maxHp, { allowCrit: false, color: '#c4728f' });
+          burst(world, e.x, e.y, '#c4728f', 10, 100);
+        }
+      });
+    }
+  }
+
   updateWisps(world, dt);
 }

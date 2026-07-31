@@ -20,6 +20,10 @@ export interface PlayerState {
   adrenaline: number;
   undyingCd: number;
   r: number;
+  /** Phoenix (F_I) — set to 1 when consumed; revives the player once per run. */
+  phoenixCd: number;
+  /** Fortress (B_J) — seconds spent stationary, for standing-still damage reduction. */
+  stillTime: number;
 }
 
 export type EnemyType = 'slime' | 'skel' | 'wisp' | 'wraith';
@@ -216,6 +220,18 @@ export interface Cooldowns {
   arcaneBurst: number;
   vines: number;
   shadowBolt: number;
+  /** Time Warp (V_I) — global enemy-slow timer; while > 0 all enemies move at 40% speed. */
+  timeWarp: number;
+  /** Overgrowth (N_I) — periodic life-bloom timer. */
+  overgrowth: number;
+  /** Shadow Blink (S_I) — periodic auto-dash to nearest enemy & mark. */
+  shadowBlink: number;
+  /** Eternal Frost (R_I) — while > 0 all enemies are frozen. */
+  eternalFrost: number;
+  /** Apex Surge (P_I) — periodic damage/power boost timer. */
+  apexSurge: number;
+  /** Cull (S_J) — periodic execute on low-HP enemies. */
+  cull: number;
 }
 
 export interface SkillNode {
@@ -297,6 +313,8 @@ export function createWorld(W: number, H: number, flash: (text: string, color: s
       adrenaline: 0,
       undyingCd: 0,
       r: 9,
+      phoenixCd: 0,
+      stillTime: 0,
     },
     level: 1,
     xp: 0,
@@ -322,6 +340,12 @@ export function createWorld(W: number, H: number, flash: (text: string, color: s
       arcaneBurst: 0,
       vines: 0,
       shadowBolt: 0,
+      timeWarp: 0,
+      overgrowth: 0,
+      shadowBlink: 0,
+      eternalFrost: 0,
+      apexSurge: 0,
+      cull: 0,
     },
     spawnTimer: 0,
     bossTimer: 20,

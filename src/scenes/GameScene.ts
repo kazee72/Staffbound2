@@ -19,7 +19,7 @@ import {
   type InputState,
 } from '../game/simulation';
 import { UIManager } from '../ui/UIManager';
-import { attachMeta, bankRunEssence, loadMeta, type MetaState } from '../game/metaProgression';
+import { attachMeta, bankRunEssence, loadMeta, metaStartLevel, metaStartHP, type MetaState } from '../game/metaProgression';
 
 interface Firefly {
   x: number;
@@ -154,6 +154,13 @@ export class GameScene extends Phaser.Scene {
     // Attach persistent meta state + reset run-only essence accumulation.
     attachMeta(this.world, this.metaState);
     (this.world as unknown as { runEssence?: number }).runEssence = 0;
+    // Apply meta starting level + starting HP bonuses.
+    const metaLevelBonus = metaStartLevel(this.world);
+    const metaHpBonus = metaStartHP(this.world);
+    const startLvl = 1 + metaLevelBonus;
+    const startHp = 100 + metaHpBonus;
+    // Grant skill points for meta starting levels (1 SP per level above 1).
+    const startSP = metaLevelBonus;
     Object.assign(this.world, {
       running: true,
       grimoireOpen: false,
@@ -163,7 +170,7 @@ export class GameScene extends Phaser.Scene {
         y: height / 2,
         vx: 0,
         vy: 0,
-        hp: 100,
+        hp: startHp,
         invuln: 1,
         facing: { x: 0, y: -1 },
         aimAngle: -Math.PI / 2,
@@ -172,11 +179,13 @@ export class GameScene extends Phaser.Scene {
         adrenaline: 0,
         undyingCd: 0,
         r: 9,
+        phoenixCd: 0,
+        stillTime: 0,
       },
-      level: 1,
+      level: startLvl,
       xp: 0,
-      xpNext: xpForLevel(1),
-      sp: 0,
+      xpNext: xpForLevel(startLvl),
+      sp: startSP,
       spSpent: 0,
       slain: 0,
       elapsed: 0,
@@ -187,7 +196,7 @@ export class GameScene extends Phaser.Scene {
       popups: [],
       wisps: [],
       decoys: [],
-      cd: { bolt: 0.3, boltCastCount: 0, fireNova: 0, iceLance: 0, frostArmor: 0, frostArmorActive: 0, arcaneBurst: 0, vines: 0, shadowBolt: 0 },
+      cd: { bolt: 0.3, boltCastCount: 0, fireNova: 0, iceLance: 0, frostArmor: 0, frostArmorActive: 0, arcaneBurst: 0, vines: 0, shadowBolt: 0, timeWarp: 0, overgrowth: 0, shadowBlink: 0, eternalFrost: 0, apexSurge: 0, cull: 0 },
       spawnTimer: 1,
       bossTimer: 130,
       bossFight: null,

@@ -1,7 +1,14 @@
 /**
- * The full 61-node skill tree ("the Grimoire"), ported verbatim from
- * reference/full-reference.html — BRANCHES / LOCAL / VOID_EXTRA / CONTENT /
- * derived layout math, plus prerequisite + purchase logic.
+ * The expanded skill tree ("the Grimoire") — radial constellation layout.
+ * 7 branches radiate from a central hub at 360/7 ≈ 51.43° angular spacing.
+ * Each branch has 12-13 nodes (tier 0–6), totaling ~88 nodes.
+ *
+ * Layout is airy/breathable: tier radii are very generous so the outermost
+ * capstone+ nodes sit far from center. Node positions are computed radially:
+ *   x = CX + cos(angle) * radius
+ *   y = CY + sin(angle) * radius
+ * Side nodes (C1/C2/G/H/E1/E2/I/J) use an angular offset from the branch's
+ * base angle so they fan out slightly instead of stacking on the same spoke.
  */
 import type { SkillNode, World } from './types';
 
@@ -10,54 +17,53 @@ export interface Branch {
   name: string;
   color: string;
   angle: number;
+  /** Unicode icon used for this branch's nodes (before purchase). */
+  icon: string;
 }
 
 export const BRANCHES: Branch[] = [
-  { code: 'F', name: 'Ember', color: '#e2793d', angle: -90 },
-  { code: 'R', name: 'Rime', color: '#8ec9e8', angle: -90 + 51.42857142857143 },
-  { code: 'V', name: 'Void', color: '#9d8ce0', angle: -90 + 2 * 51.42857142857143 },
-  { code: 'S', name: 'Umbral', color: '#c4728f', angle: -90 + 3 * 51.42857142857143 },
-  { code: 'N', name: 'Verdant', color: '#8bc48a', angle: -90 + 4 * 51.42857142857143 },
-  { code: 'B', name: 'Warden', color: '#c9a869', angle: -90 + 5 * 51.42857142857143 },
-  // 7th branch: raw/basic stat scaling (bolt/spell damage %, cast speed %,
-  // move speed %, crit chance/damage %, cooldown reduction %) rather than
-  // unlocking new spell effects like the other six. Breaks the old perfect
-  // hexagon — all seven branches are now re-spaced evenly at 360/7 ≈
-  // 51.43° apart (see comment above) instead of the original 60°, so the
-  // constellation still reads as balanced/intentional rather than lopsided.
-  { code: 'P', name: 'Potency', color: '#4fd6c0', angle: -90 + 6 * 51.42857142857143 },
+  { code: 'F', name: 'Ember',   color: '#e2793d', angle: -90,                         icon: '🔥' },
+  { code: 'R', name: 'Rime',    color: '#8ec9e8', angle: -90 + 51.42857142857143,     icon: '❄' },
+  { code: 'V', name: 'Void',    color: '#9d8ce0', angle: -90 + 2 * 51.42857142857143, icon: '✦' },
+  { code: 'S', name: 'Umbral',  color: '#c4728f', angle: -90 + 3 * 51.42857142857143, icon: '☾' },
+  { code: 'N', name: 'Verdant', color: '#8bc48a', angle: -90 + 4 * 51.42857142857143, icon: '☘' },
+  { code: 'B', name: 'Warden',  color: '#c9a869', angle: -90 + 5 * 51.42857142857143, icon: '🛡' },
+  { code: 'P', name: 'Potency', color: '#4fd6c0', angle: -90 + 6 * 51.42857142857143, icon: '⚔' },
 ];
 
 interface LocalNode {
   id: string;
   tier: number;
-  off: number;
+  off: number;       // angular offset (degrees) from the branch's base angle
   pre: string[];
-  radius?: number;
-  cost?: number;
+  radius?: number;   // override radius for this specific node
 }
 
+// Per-branch node template. 13 nodes per branch (tier 0–6), with side
+// branches at tiers 2, 3, and 4. Tier 5 = capstone, tier 6 = post-capstone.
+// Void gets an extra side node X (14 total for Void).
 export const LOCAL: LocalNode[] = [
-  { id: 'A', tier: 0, off: 0, pre: [] },
-  { id: 'B', tier: 1, off: 0, pre: ['A'] },
-  { id: 'C1', tier: 2, off: -20, pre: ['B'] },
-  { id: 'G', tier: 2, off: 0, pre: ['B'] },
-  { id: 'C2', tier: 2, off: 20, pre: ['B'] },
-  { id: 'D', tier: 3, off: 0, pre: ['C1', 'C2'] },
-  { id: 'H', tier: 3, off: 30, pre: ['D'], radius: 530 },
-  { id: 'E1', tier: 4, off: -13, pre: ['D'] },
-  { id: 'E2', tier: 4, off: 13, pre: ['D'] },
-  { id: 'F', tier: 5, off: 0, pre: ['E1', 'E2'] },
+  { id: 'A',  tier: 0, off: 0,   pre: [] },
+  { id: 'B',  tier: 1, off: 0,   pre: ['A'] },
+  { id: 'C1', tier: 2, off: -22, pre: ['B'] },
+  { id: 'G',  tier: 2, off: 0,   pre: ['B'] },
+  { id: 'C2', tier: 2, off: 22,  pre: ['B'] },
+  { id: 'D',  tier: 3, off: 0,   pre: ['C1', 'C2'] },
+  { id: 'H',  tier: 3, off: 28,  pre: ['D'] },
+  { id: 'E1', tier: 4, off: -14, pre: ['D'] },
+  { id: 'E2', tier: 4, off: 14,  pre: ['D'] },
+  { id: 'F',  tier: 5, off: 0,   pre: ['E1', 'E2'] },          // capstone
+  { id: 'I',  tier: 6, off: 0,   pre: ['F'] },                  // post-capstone
+  { id: 'J',  tier: 6, off: 30,  pre: ['F'] },                  // post-capstone side
+  { id: 'K',  tier: 4, off: -30, pre: ['E1'] },                // extra side node
 ];
 
-export const VOID_EXTRA: LocalNode[] = [{ id: 'X', tier: 1, off: 40, pre: ['A'] }];
+export const VOID_EXTRA: LocalNode[] = [{ id: 'X', tier: 1, off: 38, pre: ['A'] }];
 
-// Expanded ("bigger") layout: tiers spaced out further from the hub than the
-// original reference so the full 61-node constellation has breathing room
-// instead of feeling cramped. See CX/CY/treeinner sizing in hud.css, which
-// scales in step with these radii.
-export const RADII = [145, 265, 385, 505, 625, 745];
-export const COST_BY_TIER = [1, 1, 2, 3, 3, 5];
+// Breathable, airy radii — significantly larger than the old [145,265,385,505,625,745].
+// 7 tiers (0–6): tier 6 post-capstone nodes sit at radius 780.
+export const RADII = [120, 230, 350, 480, 620, 780, 920];
+export const COST_BY_TIER = [1, 1, 2, 3, 3, 5, 6];
 
 interface ContentEntry {
   name: string;
@@ -75,7 +81,10 @@ export const CONTENT: Record<string, Record<string, ContentEntry>> = {
     H: { name: 'Cinderheart', desc: 'Fire magic toughens your resolve. +15% max health.' },
     E1: { name: 'Inferno', desc: 'Fire Nova damage increased by 80%.' },
     E2: { name: 'Scorched Earth', desc: 'Fire Nova leaves the ground burning, harming anything that lingers.' },
-    F: { name: 'Wildfire', desc: 'Capstone. Fire kills always ignite nearby foes \u2014 the blaze never truly stops spreading.' },
+    F: { name: 'Wildfire', desc: 'Capstone. Fire kills always ignite nearby foes — the blaze never truly stops spreading.' },
+    I: { name: 'Phoenix', desc: 'Once per run, when you would die, you erupt in a massive fire blast that damages all enemies and restores 50% HP.' },
+    J: { name: 'Eternal Flame', desc: 'Your burn effects last twice as long and deal 50% more damage per second.' },
+    K: { name: 'Heat Wave', desc: 'Burning enemies are slowed by an additional 30%.' },
   },
   R: {
     A: { name: 'Chill Touch', desc: 'Your bolts chill enemies, slowing them by 20% for 2s.' },
@@ -88,6 +97,9 @@ export const CONTENT: Record<string, Record<string, ContentEntry>> = {
     E1: { name: 'Permafrost', desc: 'All slowing effects are 50% stronger.' },
     E2: { name: 'Winter\u2019s Veil', desc: 'Unlocks Frost Armor, a periodic shield that absorbs damage and chills attackers.' },
     F: { name: 'Absolute Zero', desc: 'Capstone. Frozen enemies shatter on death, dealing heavy damage in a burst and refreezing survivors.' },
+    I: { name: 'Eternal Frost', desc: 'Every 25 seconds, all enemies on screen freeze solid for 4 seconds.' },
+    J: { name: 'Avalanche', desc: 'Ice Lance now also drops ice shards on 3 random enemies near the impact point.' },
+    K: { name: 'Frostbite Aura', desc: 'Enemies near you are passively chilled, slowing them by 15%.' },
   },
   V: {
     A: { name: 'Focused Mind', desc: 'Cast your bolt 20% more often.' },
@@ -101,6 +113,9 @@ export const CONTENT: Record<string, Record<string, ContentEntry>> = {
     E1: { name: 'Mirror Image', desc: 'Unlocks Arcane Burst, a ring of bolts fired in every direction.' },
     E2: { name: 'Ley Line Tap', desc: 'All spell cooldowns reduced by 20%.' },
     F: { name: 'Overload', desc: 'Capstone. Empowered casts also release a spray of homing bolts.' },
+    I: { name: 'Time Warp', desc: 'Every 20 seconds, all enemies slow to 40% speed for 5 seconds.' },
+    J: { name: 'Arcane Overflow', desc: 'Empowered casts now deal 4x damage instead of 3x, and fire 6 homing bolts.' },
+    K: { name: 'Mana Shield', desc: 'When above 80% HP, take 20% less damage. A protective ward of raw mana.' },
   },
   N: {
     A: { name: 'Verdant Touch', desc: 'Slaying a foe restores a little of your health.' },
@@ -113,6 +128,9 @@ export const CONTENT: Record<string, Record<string, ContentEntry>> = {
     E1: { name: 'Second Wind', desc: 'All healing you receive is increased by 50%.' },
     E2: { name: 'Wild Growth', desc: 'Summon a second Spirit Wisp.' },
     F: { name: 'Verdant Bloom', desc: 'Capstone. Every kill releases a healing pulse that mends you and your wisps, and harms nearby foes.' },
+    I: { name: 'Overgrowth', desc: 'Every 12 seconds, a surge of life heals you for 20% max HP and damages all nearby enemies.' },
+    J: { name: 'Nature\u2019s Wrath', desc: 'Your wisps fire 50% faster and their bolts pierce 1 enemy.' },
+    K: { name: 'Thornskin', desc: 'When hit, reflect 15 damage back to the attacker as thorns.' },
   },
   S: {
     A: { name: 'Cold Reading', desc: 'Gain an 8% chance for any hit to land as a critical strike.' },
@@ -125,6 +143,9 @@ export const CONTENT: Record<string, Record<string, ContentEntry>> = {
     E1: { name: 'Vampiric Sigil', desc: 'A portion of all damage you deal returns to you as health.' },
     E2: { name: 'Twilight Veil', desc: 'Your dash\u2019s detonation deals significantly more damage.' },
     F: { name: 'Reaper\u2019s Mark', desc: 'Capstone. Slaying a marked foe resets every spell\u2019s cooldown.' },
+    I: { name: 'Shadow Blink', desc: 'Every 15 seconds, you blink to the nearest enemy and mark all foes around them.' },
+    J: { name: 'Cull', desc: 'Every 8 seconds, any enemy below 20% HP is instantly executed (marked foes at 30%).' },
+    K: { name: 'Nightmare', desc: 'Marked enemies take 25% more damage from all sources.' },
   },
   B: {
     A: { name: 'Traveler\u2019s Legs', desc: 'Move 15% faster.' },
@@ -137,6 +158,9 @@ export const CONTENT: Record<string, Record<string, ContentEntry>> = {
     E1: { name: 'Vitality', desc: 'Increase max health by another 50%.' },
     E2: { name: 'Battle Focus', desc: 'Health regeneration greatly increased.' },
     F: { name: 'Undying', desc: 'Capstone. Once per minute, a killing blow instead leaves you at 1 health.' },
+    I: { name: 'Fortress', desc: 'Standing still for 2+ seconds reduces incoming damage by an additional 25%.' },
+    J: { name: 'Titan Heart', desc: 'Your max health is increased by another 40%, and regen is boosted by 50%.' },
+    K: { name: 'Second Skin', desc: 'After taking damage, gain 1 second of invulnerability (6s internal cooldown).' },
   },
   P: {
     A: { name: 'Honed Edge', desc: 'Your bolts and spells deal 10% more damage.' },
@@ -149,67 +173,40 @@ export const CONTENT: Record<string, Record<string, ContentEntry>> = {
     E1: { name: 'Arcane Might', desc: 'Your bolts and spells deal a further 15% more damage.' },
     E2: { name: 'Windswept', desc: 'Move a further 15% faster.' },
     F: { name: 'Apex', desc: 'Capstone. A surge of raw power: +20% damage, +10% critical chance, +10% move speed, and +10% cooldown reduction, all at once.' },
+    I: { name: 'Apex Surge', desc: 'Every 15 seconds, gain +50% damage and +20% crit chance for 4 seconds.' },
+    J: { name: 'Perfection', desc: 'All your stats are increased by an additional 10%.' },
+    K: { name: 'Velocity', desc: 'All your projectiles travel 40% faster, increasing effective range and DPS.' },
   },
 };
 
-// ---------------- Grid layout ----------------
-// Replaced the radial constellation with a clean vertical-column grid: each
-// of the 7 branches is its own column, nodes stacked top-to-bottom by tier,
-// with straight horizontal/vertical (right-angle) connector lines — no
-// diagonals, no curves. Side nodes (C1/C2/G/H/E1/E2) sit at small horizontal
-// offsets within the column and connect via right-angle elbow paths.
-//
-// Geometry constants:
-export const COL_W = 170; // horizontal gap between branch columns
-export const ROW_H = 92; // vertical gap between tier rows
-export const SIDE_DX = 58; // horizontal offset for side-branch nodes (C1/C2/E1/E2/H)
-export const HUB_X = 8; // (in column units) center column index for the hub
-export const HUB_Y = 40; // hub Y position (px from top of treeinner)
-export const GRID_TOP = 120; // Y of tier-0 (A) nodes — below the hub
-// Derived overall tree size (used by hud.css #treeinner):
-export const GRID_W = 7 * COL_W + 120; // padding on both sides
-export const GRID_H = 7 * ROW_H + 220; // room for capstones + padding
+// ---------------- Radial layout ----------------
+// Canvas big enough to fit max radius (920) with generous padding.
+export const TREE_W = 2000;
+export const TREE_H = 2000;
+export const CX = TREE_W / 2; // 1000
+export const CY = TREE_H / 2; // 1000
 
-// Column X for branch index bi (0..6). Branches are centered as a group.
-export function colX(bi: number): number {
-  // Center the 7 columns around the middle of GRID_W.
-  const totalW = 6 * COL_W;
-  const startX = (GRID_W - totalW) / 2;
-  return startX + bi * COL_W;
+/**
+ * Compute a node's (x, y) position on the radial constellation.
+ * @param baseAngle  branch's base angle in degrees
+ * @param off        angular offset from base (degrees)
+ * @param tier       tier index 0–6
+ * @param radiusOverride  optional explicit radius
+ */
+function radialPos(baseAngle: number, off: number, tier: number, radiusOverride?: number): { x: number; y: number } {
+  const angle = ((baseAngle + off) * Math.PI) / 180;
+  const r = radiusOverride ?? RADII[tier];
+  return {
+    x: CX + Math.cos(angle) * r,
+    y: CY + Math.sin(angle) * r,
+  };
 }
-
-// Tier Y — main spine nodes (A,B,G,D,F) sit on the central spine of the
-// column. Tier index maps: A=0, B=1, G=2, D=3, F=5 (capstone gets extra gap).
-export function tierY(tier: number): number {
-  return GRID_TOP + tier * ROW_H;
-}
-
-export const CX = GRID_W / 2;
-export const CY = HUB_Y;
 
 export const SKILL_NODES: SkillNode[] = [];
-BRANCHES.forEach((br, bi) => {
-  const cx = colX(bi); // central spine X for this branch's column
+BRANCHES.forEach((br) => {
   const locals = br.code === 'V' ? LOCAL.concat(VOID_EXTRA) : LOCAL;
   locals.forEach((loc) => {
-    // Grid coordinate per node id. Main spine (A,B,G,D,F) is on the column's
-    // center X. Side nodes (C1,C2,E1,E2,H,X) offset horizontally and connect
-    // via right-angle elbow lines. F (capstone) sits one extra row below E.
-    let x = cx;
-    let y = tierY(loc.tier);
-    switch (loc.id) {
-      case 'A': y = tierY(0); break;
-      case 'B': y = tierY(1); break;
-      case 'G': y = tierY(2); break; // central spine tier-2
-      case 'C1': x = cx - SIDE_DX; y = tierY(2); break; // left of G
-      case 'C2': x = cx + SIDE_DX; y = tierY(2); break; // right of G
-      case 'D': y = tierY(3); break;
-      case 'H': x = cx + SIDE_DX; y = tierY(3); break; // side node off D
-      case 'E1': x = cx - SIDE_DX; y = tierY(4); break; // left of spine
-      case 'E2': x = cx + SIDE_DX; y = tierY(4); break; // right of spine
-      case 'X': x = cx - SIDE_DX; y = tierY(1); break; // Void-only side node off A→B tier
-      case 'F': y = tierY(5) + 18; break; // capstone gets a slightly larger gap
-    }
+    const { x, y } = radialPos(br.angle, loc.off, loc.tier, loc.radius);
     const content = CONTENT[br.code][loc.id];
     SKILL_NODES.push({
       id: br.code + '_' + loc.id,
@@ -218,7 +215,7 @@ BRANCHES.forEach((br, bi) => {
       tier: loc.tier,
       x,
       y,
-      cost: loc.cost !== undefined ? loc.cost : COST_BY_TIER[loc.tier],
+      cost: loc.id === 'I' || loc.id === 'J' ? 6 : loc.id === 'K' ? 4 : COST_BY_TIER[loc.tier],
       pre: loc.pre.map((p) => br.code + '_' + p),
       capstone: loc.id === 'F',
       name: content.name,
@@ -231,14 +228,12 @@ export const NODE_BY_ID: Record<string, SkillNode> = {};
 SKILL_NODES.forEach((n) => (NODE_BY_ID[n.id] = n));
 
 /**
- * Right-angle (Manhattan) SVG path between two nodes for the grid layout.
- * Goes vertically from the source's Y to the target's Y, then horizontally
- * to the target's X — produces purely vertical+horizontal segments (no
- * diagonals). Used by UIManager.renderTree for connector lines.
+ * Straight-line SVG path between two nodes for the radial layout.
+ * Since nodes radiate outward, connectors are diagonal spokes — that's
+ * the intended constellation look.
  */
-export function gridPath(x1: number, y1: number, x2: number, y2: number): string {
-  // L-shaped path: vertical first, then horizontal.
-  return `M ${x1} ${y1} L ${x1} ${y2} L ${x2} ${y2}`;
+export function radialPath(x1: number, y1: number, x2: number, y2: number): string {
+  return `M ${x1} ${y1} L ${x2} ${y2}`;
 }
 
 export function hasNode(purchased: Set<string>, id: string): boolean {
@@ -258,4 +253,10 @@ export function buySkill(world: World, id: string): void {
   world.purchased.add(id);
   world.spSpent += n.cost;
   world.flash(n.name.toUpperCase(), n.color);
+}
+
+/** Get the icon character for a node (shown before purchase). Returns the branch icon. */
+export function nodeIcon(node: SkillNode): string {
+  const br = BRANCHES.find((b) => b.code === node.branch);
+  return br ? br.icon : '◆';
 }

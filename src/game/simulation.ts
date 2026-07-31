@@ -6,7 +6,7 @@ import { damageEnemy, damageBoss } from './combat';
 import { nearestEnemy } from './spells';
 import { burst } from './visuals';
 import { updateBoss } from './bosses';
-import { addRunEssence, essenceForBossKill } from './metaProgression';
+import { addRunEssence, essenceForBossKill, metaDashDistMult } from './metaProgression';
 
 function clamp(v: number, a: number, b: number): number {
   return Math.max(a, Math.min(b, v));
@@ -63,6 +63,11 @@ export function updatePlayer(world: World, input: InputState, dt: number): void 
   if (p.dashCd > 0) p.dashCd -= dt;
   if (p.adrenaline > 0) p.adrenaline -= dt;
   if (p.undyingCd > 0) p.undyingCd -= dt;
+  // Fortress (B_I): track time spent stationary for damage reduction.
+  if (Math.hypot(p.vx, p.vy) < 8) p.stillTime += dt;
+  else p.stillTime = 0;
+  // Second Skin (B_K): the brief invuln is granted in damagePlayer; it
+  // naturally decays here via the invuln countdown above.
   healPlayer(world, regenPerSec(world) * dt);
   if (world.cd.frostArmorActive > 0) world.cd.frostArmorActive -= dt;
 }
@@ -79,7 +84,7 @@ export function tryDash(world: World): void {
   const len = Math.hypot(dx, dy) || 1;
   dx /= len;
   dy /= len;
-  const dist = 150;
+  const dist = 150 * metaDashDistMult(world);
   const startX = p.x;
   const startY = p.y;
   p.x = clamp(p.x + dx * dist, 16, world.W - 16);
@@ -97,8 +102,37 @@ export function tryDash(world: World): void {
 export function damagePlayer(world: World, amount: number): void {
   const p = world.player;
   p.hp -= amount;
+
+  // Thornskin (N_K): reflect damage to nearby enemies.
+  if (hasNode(world.purchased, 'N_K') && amount > 0) {
+    world.enemies.forEach((e) => {
+      if (!e.dead && dist2(e.x, e.y, p.x, p.y) < 60 * 60) {
+        damageEnemy(world, e, 15, { allowCrit: false });
+      }
+    });
+  }
+
   if (p.hp <= 0) {
-    if (hasNode(world.purchased, 'B_F') && p.undyingCd <= 0) {
+    // Phoenix (F_I): once per run, revive with 50% HP and blast all enemies.
+    if (hasNode(world.purchased, 'F_I') && p.phoenixCd <= 0) {
+      p.phoenixCd = 1; // consumed for the rest of the run
+      p.hp = Math.round(maxHP(world) * 0.5);
+      p.invuln = 2;
+      world.flash('PHOENIX', '#e2793d');
+      // Massive fire blast
+      const blastRadius = 250;
+      const blastDmg = 60 + world.level * 1.5;
+      world.enemies.forEach((e) => {
+        if (!e.dead && dist2(e.x, e.y, p.x, p.y) < blastRadius * blastRadius) {
+          damageEnemy(world, e, blastDmg, { allowCrit: false, burn: true, color: '#e2793d' });
+        }
+      });
+      if (world.bossFight) {
+        damageBoss(world, world.bossFight.boss, blastDmg, { burn: true, color: '#e2793d' });
+      }
+      world.effects.push({ type: 'ring', x: p.x, y: p.y, r: 0, maxR: blastRadius, color: '#e2793d', life: 0.6, t: 0 });
+      burst(world, p.x, p.y, '#e2793d', 40, 280);
+    } else if (hasNode(world.purchased, 'B_F') && p.undyingCd <= 0) {
       p.hp = 1;
       p.undyingCd = 60;
       p.invuln = 1.5;
@@ -107,6 +141,9 @@ export function damagePlayer(world: World, amount: number): void {
       p.hp = 0;
       world.running = false;
     }
+  } else if (hasNode(world.purchased, 'B_K') && amount > 0 && p.invuln <= 0) {
+    // Second Skin (B_K): brief invuln after taking a hit.
+    p.invuln = 1;
   }
 }
 
@@ -181,6 +218,15 @@ export function updateDecoys(world: World, dt: number): void {
 
 export function updateEnemies(world: World, dt: number): void {
   const p = world.player;
+  // Frostbite Aura (R_K): passively chill enemies near the player.
+  if (hasNode(world.purchased, 'R_K')) {
+    world.enemies.forEach((e) => {
+      if (!e.dead && dist2(e.x, e.y, p.x, p.y) < 120 * 120) {
+        e.slowUntil = world.elapsed + 0.5; // refreshed every frame while in range
+        e.slowAmt = Math.max(e.slowAmt, 0.15);
+      }
+    });
+  }
   for (let i = world.enemies.length - 1; i >= 0; i--) {
     const e = world.enemies[i];
     if (e.dead) {

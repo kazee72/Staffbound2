@@ -30,18 +30,24 @@ export interface MetaUpgradeDef {
 }
 
 export const META_UPGRADES: MetaUpgradeDef[] = [
-  { id: 'dmg',       name: 'Arcane Resonance',  desc: '+5% damage per rank.',                 maxRank: 5, costAt: (r) => 15 + r * 10,  perRank: 0.05 },
-  { id: 'cd',        name: 'Swift Spirit',       desc: '+4% cooldown reduction per rank.',    maxRank: 5, costAt: (r) => 18 + r * 12,  perRank: 0.04 },
-  { id: 'move',      name: 'Wanderlust',         desc: '+4% movement speed per rank.',        maxRank: 5, costAt: (r) => 14 + r * 8,   perRank: 0.04 },
-  { id: 'hp',        name: 'Vital Essence',      desc: '+5% max HP per rank.',                 maxRank: 5, costAt: (r) => 16 + r * 10,  perRank: 0.05 },
-  { id: 'xp',        name: 'Soul harvest',       desc: '+6% XP gain per rank.',                maxRank: 5, costAt: (r) => 20 + r * 12,  perRank: 0.06 },
-  { id: 'essence',   name: 'Echoing Glory',      desc: '+8% essence gain per rank.',           maxRank: 5, costAt: (r) => 25 + r * 15,  perRank: 0.08 },
-  { id: 'crit',      name: 'Keening Edge',       desc: '+3% critical chance per rank.',       maxRank: 3, costAt: (r) => 30 + r * 18,  perRank: 0.03 },
-  { id: 'critdmg',   name: 'Devastation',        desc: '+15% critical damage per rank.',      maxRank: 3, costAt: (r) => 28 + r * 16,  perRank: 0.15 },
-  { id: 'regen',     name: 'Lingering Vigor',    desc: '+0.4 HP/sec regeneration per rank.',   maxRank: 3, costAt: (r) => 22 + r * 14,  perRank: 0.4 },
-  { id: 'lifesteal', name: 'Sanguine Pact',       desc: '+2% lifesteal per rank.',              maxRank: 3, costAt: (r) => 32 + r * 20,  perRank: 0.02 },
-  { id: 'dr',        name: 'Iron Resolve',       desc: '+3% damage reduction per rank.',      maxRank: 3, costAt: (r) => 35 + r * 22,  perRank: 0.03 },
-  { id: 'dash',      name: 'Flowing Step',       desc: '+6% dash cooldown reduction per rank.', maxRank: 3, costAt: (r) => 24 + r * 14, perRank: 0.06 },
+  { id: 'dmg',       name: 'Arcane Resonance',  desc: '+5% damage per rank.',                   maxRank: 10, costAt: (r) => 12 + r * 8,    perRank: 0.05 },
+  { id: 'cd',        name: 'Swift Spirit',      desc: '+4% cooldown reduction per rank.',       maxRank: 8,  costAt: (r) => 14 + r * 10,   perRank: 0.04 },
+  { id: 'move',      name: 'Wanderlust',        desc: '+4% movement speed per rank.',           maxRank: 10, costAt: (r) => 12 + r * 7,    perRank: 0.04 },
+  { id: 'hp',        name: 'Vital Essence',     desc: '+5% max HP per rank.',                   maxRank: 10, costAt: (r) => 14 + r * 9,    perRank: 0.05 },
+  { id: 'xp',        name: 'Soul Harvest',      desc: '+6% XP gain per rank.',                  maxRank: 8,  costAt: (r) => 18 + r * 10,   perRank: 0.06 },
+  { id: 'essence',   name: 'Echoing Glory',     desc: '+8% essence gain per rank.',             maxRank: 8,  costAt: (r) => 22 + r * 12,   perRank: 0.08 },
+  { id: 'crit',      name: 'Keening Edge',      desc: '+3% critical chance per rank.',          maxRank: 6,  costAt: (r) => 28 + r * 14,   perRank: 0.03 },
+  { id: 'critdmg',   name: 'Devastation',       desc: '+15% critical damage per rank.',         maxRank: 6,  costAt: (r) => 26 + r * 12,   perRank: 0.15 },
+  { id: 'regen',     name: 'Lingering Vigor',   desc: '+0.4 HP/sec regeneration per rank.',     maxRank: 8,  costAt: (r) => 20 + r * 10,   perRank: 0.4 },
+  { id: 'lifesteal', name: 'Sanguine Pact',     desc: '+2% lifesteal per rank.',                maxRank: 5,  costAt: (r) => 30 + r * 16,   perRank: 0.02 },
+  { id: 'dr',        name: 'Iron Resolve',      desc: '+3% damage reduction per rank.',        maxRank: 6,  costAt: (r) => 32 + r * 16,   perRank: 0.03 },
+  { id: 'dash',      name: 'Flowing Step',      desc: '+6% dash cooldown reduction per rank.', maxRank: 6,  costAt: (r) => 22 + r * 10,   perRank: 0.06 },
+  // New meta upgrades — flat numeric boosts for broader build variety.
+  { id: 'startlevel',name: 'Veteran Soul',      desc: 'Start each run 1 level higher per rank (more starting SP).', maxRank: 3, costAt: (r) => 40 + r * 25, perRank: 1 },
+  { id: 'starthp',   name: 'Inner Fortitude',    desc: '+25 starting HP per rank.',              maxRank: 4,  costAt: (r) => 30 + r * 18,   perRank: 25 },
+  { id: 'bossearn',  name: 'Trophy Hunter',      desc: '+25% essence from boss kills per rank.', maxRank: 4,  costAt: (r) => 35 + r * 20,   perRank: 0.25 },
+  { id: 'projspeed', name: 'Aether Velocity',   desc: '+8% projectile speed per rank.',         maxRank: 5,  costAt: (r) => 24 + r * 12,   perRank: 0.08 },
+  { id: 'dashdist',  name: 'Long Stride',       desc: '+10% dash distance per rank.',           maxRank: 4,  costAt: (r) => 28 + r * 14,   perRank: 0.10 },
 ];
 
 export interface MetaState {
@@ -87,13 +93,14 @@ export function essenceForEnemyKill(world: World, xpValue: number): number {
   return Math.max(1, Math.round(base * mult));
 }
 
-/** Essence earned per boss kill, scaled by essence-gain meta. */
+/** Essence earned per boss kill, scaled by essence-gain meta and boss-essence meta. */
 export function essenceForBossKill(world: World, xpValue: number): number {
   const meta = metaStateOf(world);
   const mult = 1 + (meta.ranks.essence ? meta.ranks.essence * META_BY_ID['essence'].perRank : 0);
+  const bossMult = 1 + (meta.ranks.bossearn ? meta.ranks.bossearn * META_BY_ID['bossearn'].perRank : 0);
   // 20-50 based on boss xpValue.
   const base = Math.max(20, Math.round(xpValue / 2));
-  return Math.max(20, Math.round(base * mult));
+  return Math.max(20, Math.round(base * mult * bossMult));
 }
 
 /**
@@ -202,4 +209,26 @@ export function metaDamageReduction(world: World): number {
 }
 export function metaDashCdMult(world: World): number {
   return 1 - metaRank(world, 'dash') * META_BY_ID['dash'].perRank;
+}
+
+// New meta accessors for the additional upgrade types.
+
+/** Flat starting-level bonus from Veteran Soul meta (0 if unpurchased). */
+export function metaStartLevel(world: World): number {
+  return metaRank(world, 'startlevel') * META_BY_ID['startlevel'].perRank;
+}
+
+/** Flat starting-HP bonus from Inner Fortitude meta (0 if unpurchased). */
+export function metaStartHP(world: World): number {
+  return metaRank(world, 'starthp') * META_BY_ID['starthp'].perRank;
+}
+
+/** Projectile-speed multiplier from Aether Velocity meta (1.0 if unpurchased). */
+export function metaProjSpeedMult(world: World): number {
+  return 1 + metaRank(world, 'projspeed') * META_BY_ID['projspeed'].perRank;
+}
+
+/** Dash-distance multiplier from Long Stride meta (1.0 if unpurchased). */
+export function metaDashDistMult(world: World): number {
+  return 1 + metaRank(world, 'dashdist') * META_BY_ID['dashdist'].perRank;
 }

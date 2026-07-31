@@ -31,6 +31,8 @@ export function damageEnemy(world: World, e: EnemyState, amount: number, opts: D
   if (opts.markedBonus && e.marked > world.elapsed) dmg *= 2;
   if (e.frozenUntil > world.elapsed && hasNode(world.purchased, 'R_D')) dmg *= 1.5;
   if (hasNode(world.purchased, 'R_G') && (e.frozenUntil > world.elapsed || e.slowUntil > world.elapsed)) dmg *= 1.15;
+  // Nightmare (S_K): marked enemies take 25% more damage from all sources.
+  if (hasNode(world.purchased, 'S_K') && e.marked > world.elapsed) dmg *= 1.25;
   e.hp -= dmg;
   if (crit) e.marked = world.elapsed + 4;
   if (lifestealPct(world) > 0) healPlayer(world, dmg * lifestealPct(world));

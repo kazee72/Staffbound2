@@ -360,8 +360,8 @@
 }
 #treeinner {
   position: relative;
-  width: 1600px;
-  height: 1600px;
+  width: 2000px;
+  height: 2000px;
   margin: 0 auto;
 }
 #treeinner svg {
@@ -389,8 +389,8 @@
 }
 .core {
   position: absolute;
-  left: 800px;
-  top: 800px;
+  left: 1000px;
+  top: 1000px;
   width: 64px;
   height: 64px;
   margin-left: -32px;
@@ -419,34 +419,34 @@
 }
 .node {
   position: absolute;
-  width: 48px;
-  height: 48px;
-  margin-left: -24px;
-  margin-top: -24px;
-  border-radius: 50%;
+  width: 42px;
+  height: 42px;
+  margin-left: -21px;
+  margin-top: -21px;
+  border-radius: 8px;
   background: var(--panel);
   border: 2px solid var(--line);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: 'Cinzel', serif;
-  font-size: 8.5px;
+  font-size: 18px;
   font-weight: 700;
   text-align: center;
   color: var(--dim);
-  line-height: 1.15;
-  padding: 3px;
+  line-height: 1;
+  padding: 0;
   cursor: pointer;
   z-index: 2;
   transition: all 0.15s;
   overflow: hidden;
+  user-select: none;
 }
 .node.capstone {
-  width: 64px;
-  height: 64px;
-  margin-left: -32px;
-  margin-top: -32px;
-  font-size: 10px;
+  width: 56px;
+  height: 56px;
+  margin-left: -28px;
+  margin-top: -28px;
+  font-size: 22px;
 }
 .node.locked {
   opacity: 0.4;
@@ -462,6 +462,7 @@
 .node.bought {
   color: #0d0e16;
   font-weight: 800;
+  font-size: 20px;
 }
 #tooltip {
   position: fixed;
