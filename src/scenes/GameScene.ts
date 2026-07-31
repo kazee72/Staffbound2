@@ -3,7 +3,7 @@ import { MAGE_TEXTURE_KEY } from '../game/mageSprite';
 import { FOREST_GRASS_KEY, FOREST_TREE_KEY, FOREST_BUSH_KEY, generateForestTextures } from '../game/forestBackground';
 import { ENEMY_TEXTURE_KEYS, BOSS_TEXTURE_KEYS } from '../game/enemySprites';
 import { createWorld } from '../game/types';
-import type { World } from '../game/types';
+import type { World, NetPlayer, NetPlayerState } from '../game/types';
 import { xpForLevel } from '../game/player';
 import { updateSpellTimers } from '../game/spells';
 import { updateSpawns } from '../game/waves';
@@ -18,8 +18,20 @@ import {
   tryDash,
   type InputState,
 } from '../game/simulation';
+import { NODE_BY_ID } from '../game/skillTree';
 import { UIManager } from '../ui/UIManager';
 import { attachMeta, bankRunEssence, loadMeta, metaStartLevel, metaStartHP, type MetaState } from '../game/metaProgression';
+import { netManager } from '../net/netManager';
+import type { ClientMsg, HostMsg, MetaPayload, PlayerInfo } from '../net/messages';
+import {
+  serializeSnapshot,
+  deserializeSnapshot,
+  enemyTypeName,
+  bossDefName,
+  type SnapshotView,
+  type SnapPlayer,
+} from '../net/snapshot';
+import type { LobbySceneInitData } from './LobbyScene';
 
 interface Firefly {
   x: number;
@@ -29,6 +41,13 @@ interface Firefly {
   r: number;
   hue: number;
 }
+
+/** Per-player slot tint colors for multiplayer rendering. */
+const PLAYER_TINTS = [0x6b9eff, 0x8bc48a, 0xe2a040, 0xb58ce0];
+const PLAYER_TINT_NAMES = ['blue', 'green', 'orange', 'purple'];
+
+/** 20Hz tick rate in ms (for snapshot broadcast / input send). */
+const NET_TICK_MS = 50;
 
 export class GameScene extends Phaser.Scene {
   private mage!: Phaser.GameObjects.Sprite;
@@ -72,8 +91,52 @@ export class GameScene extends Phaser.Scene {
 
   private metaState!: MetaState;
 
+  // ---------------- Multiplayer state ----------------
+
+  /** Network mode: single-player, host, or guest. */
+  private netMode: 'single' | 'host' | 'guest' = 'single';
+  /** Guest mode: the latest two snapshots for interpolation. */
+  private guestMageSprites: Phaser.GameObjects.Sprite[] = [];
+  /** Net tick accumulator for 20Hz send/broadcast. */
+  private netTickAccum = 0;
+  /** Snapshot tick counter. */
+  private snapshotTick = 0;
+  /** Guest mode: the latest two snapshots for interpolation. */
+  private prevSnap: SnapshotView | null = null;
+  private curSnap: SnapshotView | null = null;
+  /** Guest mode: interpolation alpha between prevSnap and curSnap. */
+  private snapInterpAlpha = 1;
+  /** Guest mode: time since last snapshot received (for interpolation timing). */
+  private snapRecvTime = 0;
+  /** Guest mode: guest's own player slot (from host's welcome). */
+  private myPlayerSlot = 0;
+  /** Guest mode: local grimoire purchased set (sent to host for validation). */
+  private guestPurchased: Set<string> = new Set();
+  /** Guest mode: local SP / spSpent (mirrored from host acks). */
+  private guestSP = 0;
+  private guestSpSpent = 0;
+  /** Guest mode: player list HUD element. */
+  private playerListEl: HTMLDivElement | null = null;
+  /** Guest mode: host disconnected banner. */
+  private hostDisconnectEl: HTMLDivElement | null = null;
+
   constructor() {
     super('Game');
+  }
+
+  /**
+   * Phaser init — receives scene data from LobbyScene.
+   */
+  init(data: LobbySceneInitData): void {
+    this.netMode = data.netMode ?? 'single';
+    this.prevSnap = null;
+    this.curSnap = null;
+    this.snapshotTick = 0;
+    this.netTickAccum = 0;
+    this.myPlayerSlot = 0;
+    this.guestPurchased = new Set();
+    this.guestSP = 0;
+    this.guestSpSpent = 0;
   }
 
   create(): void {
@@ -112,7 +175,14 @@ export class GameScene extends Phaser.Scene {
     this.keyK = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.K);
 
     this.keySpace.on('down', () => {
-      if (this.world.running && !this.world.grimoireOpen) tryDash(this.world);
+      if (this.world.running && !this.world.grimoireOpen) {
+        if (this.netMode === 'guest') {
+          // Guest: send dash flag to host; host applies the dash
+          netManager.sendToHost({ t: 'input', mvx: 0, mvy: 0, dash: true, aim: 0 });
+        } else {
+          tryDash(this.world);
+        }
+      }
     });
     this.keyG.on('down', () => this.toggleGrimoire());
     this.keyEsc.on('down', () => {
@@ -131,6 +201,9 @@ export class GameScene extends Phaser.Scene {
     this.ui.onStart = () => this.startRun();
     this.ui.onRetry = () => this.startRun();
     this.ui.onToggleGrimoire = () => this.toggleGrimoire();
+    this.ui.onBuySkill = (nodeId: string) => {
+      if (this.netMode === 'guest') this.guestRequestBuySkill(nodeId);
+    };
     this.ui.onOpenMetaGrimoire = () => this.openMetaGrimoire();
 
     // Load persistent meta state once at scene creation.
@@ -143,7 +216,687 @@ export class GameScene extends Phaser.Scene {
       this.scatterForestDecor(gameSize.width, gameSize.height);
       this.initFireflies();
     });
+
+    // ---------------- Multiplayer setup ----------------
+
+    if (this.netMode === 'host') {
+      this.setupHostNetworking();
+      this.startRun(); // host starts the run immediately
+    } else if (this.netMode === 'guest') {
+      this.setupGuestNetworking();
+      this.startGuestRun();
+    } else {
+      // Single-player: show start overlay as before.
+      this.ui.showStart();
+    }
   }
+
+  // ---------------- Multiplayer: HOST ----------------
+
+  private setupHostNetworking(): void {
+    // Initialize netPlayers array on the world
+    this.world.netPlayers = [];
+
+    // Set up message handler for guest inputs
+    netManager.onMessage = (msg: ClientMsg | HostMsg, fromPeerId: string) => {
+      this.handleHostMessage(msg, fromPeerId);
+    };
+    netManager.onPlayerConnect = (_peerId: string) => {
+      // Handled when we receive their hello message
+    };
+    netManager.onPlayerDisconnect = (peerId: string) => {
+      this.handleGuestDisconnect(peerId);
+    };
+    netManager.onHostDisconnect = null;
+  }
+
+  private handleHostMessage(msg: ClientMsg | HostMsg, fromPeerId: string): void {
+    switch (msg.t) {
+      case 'hello': {
+        // Guest connected — create their NetPlayer entry
+        const newId = (this.world.netPlayers?.length ?? 0) + 1; // host is 0
+        const state = this.createNetPlayerState(newId, msg.meta);
+        const np: NetPlayer = {
+          id: newId,
+          peerId: fromPeerId,
+          name: msg.name || 'Guest ' + newId,
+          input: { mvx: 0, mvy: 0, dash: false, aim: -Math.PI / 2 },
+          state,
+          meta: msg.meta,
+        };
+        // Apply any purchased skills the guest already has
+        for (const nodeId of msg.purchased) {
+          np.state.purchased.add(nodeId);
+        }
+        this.world.netPlayers?.push(np);
+        // Send welcome
+        const players: PlayerInfo[] = [
+          { id: 0, name: 'Host', isHost: true, peerId: netManager.getPeerId() },
+          ...this.world.netPlayers!.map((p) => ({ id: p.id, name: p.name, isHost: false, peerId: p.peerId })),
+        ];
+        const welcome: HostMsg = { t: 'welcome', you: newId, players };
+        netManager.sendToGuest(fromPeerId, welcome);
+        break;
+      }
+      case 'input': {
+        // Update the guest's input on the host
+        const np = this.world.netPlayers?.find((p) => p.peerId === fromPeerId);
+        if (np) {
+          np.input.mvx = msg.mvx;
+          np.input.mvy = msg.mvy;
+          np.input.dash = msg.dash;
+          np.input.aim = msg.aim;
+        }
+        break;
+      }
+      case 'buySkill': {
+        // Guest wants to purchase a skill — validate and ack
+        const np = this.world.netPlayers?.find((p) => p.peerId === fromPeerId);
+        if (!np) break;
+        const node = NODE_BY_ID[msg.nodeId];
+        if (!node) break;
+        const canBuy = !np.state.purchased.has(msg.nodeId) &&
+          node.pre.every((p) => np.state.purchased.has(p)) &&
+          np.state.sp - np.state.spSpent >= node.cost;
+        if (canBuy) {
+          np.state.purchased.add(msg.nodeId);
+          np.state.spSpent += node.cost;
+        }
+        const ack: HostMsg = { t: 'skillAck', nodeId: msg.nodeId, ok: canBuy, sp: np.state.sp, spSpent: np.state.spSpent };
+        netManager.sendToGuest(fromPeerId, ack);
+        break;
+      }
+      case 'ping':
+        break;
+      default:
+        break;
+    }
+  }
+
+  private createNetPlayerState(id: number, _meta: MetaPayload): NetPlayerState {
+    return {
+      id,
+      x: this.world.W / 2 + (id * 30),
+      y: this.world.H / 2,
+      hp: 100,
+      maxHp: 100,
+      level: 1,
+      invuln: 0,
+      dashing: 0,
+      aimAngle: -Math.PI / 2,
+      dashCd: 0,
+      downed: false,
+      vx: 0,
+      vy: 0,
+      facing: { x: 0, y: -1 },
+      r: 9,
+      dashCdMax: 3.4,
+      phoenixCd: 0,
+      undyingCd: 0,
+      stillTime: 0,
+      purchased: new Set<string>(),
+      sp: 0,
+      spSpent: 0,
+      xp: 0,
+      xpNext: 24,
+      cd: {
+        bolt: 0.3, boltCastCount: 0, fireNova: 0, iceLance: 0, frostArmor: 0,
+        frostArmorActive: 0, arcaneBurst: 0, vines: 0, shadowBolt: 0,
+        timeWarp: 0, overgrowth: 0, shadowBlink: 0, eternalFrost: 0, apexSurge: 0, cull: 0,
+      },
+      wisps: [],
+      decoys: [],
+    };
+  }
+
+  private handleGuestDisconnect(peerId: string): void {
+    if (this.world.netPlayers) {
+      this.world.netPlayers = this.world.netPlayers.filter((p) => p.peerId !== peerId);
+    }
+    // Broadcast updated player list
+    const players: PlayerInfo[] = [
+      { id: 0, name: 'Host', isHost: true, peerId: netManager.getPeerId() },
+      ...(this.world.netPlayers ?? []).map((p) => ({ id: p.id, name: p.name, isHost: false, peerId: p.peerId })),
+    ];
+    const msg: HostMsg = { t: 'players', players };
+    netManager.broadcastToGuests(msg);
+  }
+
+  /** HOST: simulate net players' positions from their input (called each frame). */
+  private simulateNetPlayers(dt: number): void {
+    if (!this.world.netPlayers) return;
+    for (const np of this.world.netPlayers) {
+      if (np.state.downed) continue;
+      const s = np.state;
+      // Apply input to velocity (same movement model as updatePlayer)
+      let ax = np.input.mvx;
+      let ay = np.input.mvy;
+      const len = Math.hypot(ax, ay) || 1;
+      const accel = 1000;
+      s.vx += (ax / len) * accel * dt;
+      s.vy += (ay / len) * accel * dt;
+      s.vx *= 0.86;
+      s.vy *= 0.86;
+      s.x = Math.max(14, Math.min(this.world.W - 14, s.x + s.vx * dt));
+      s.y = Math.max(14, Math.min(this.world.H - 14, s.y + s.vy * dt));
+      if (Math.hypot(s.vx, s.vy) > 8) {
+        const l = Math.hypot(s.vx, s.vy);
+        s.facing = { x: s.vx / l, y: s.vy / l };
+      }
+      s.aimAngle = np.input.aim;
+      if (s.invuln > 0) s.invuln -= dt;
+      if (s.dashing > 0) s.dashing -= dt;
+      if (s.dashCd > 0) s.dashCd -= dt;
+      if (s.undyingCd > 0) s.undyingCd -= dt;
+      if (s.dashCd > 0) s.dashCd -= dt;
+      // Handle dash
+      if (np.input.dash && s.dashCd <= 0) {
+        let dx = s.vx, dy = s.vy;
+        if (Math.hypot(dx, dy) < 10) { dx = s.facing.x; dy = s.facing.y; }
+        const l = Math.hypot(dx, dy) || 1;
+        dx /= l; dy /= l;
+        const dist = 150;
+        s.x = Math.max(16, Math.min(this.world.W - 16, s.x + dx * dist));
+        s.y = Math.max(16, Math.min(this.world.H - 16, s.y + dy * dist));
+        s.invuln = 0.28;
+        s.dashing = 0.18;
+        s.dashCd = s.dashCdMax;
+      }
+      np.input.dash = false; // consume
+      // Check death
+      if (s.hp <= 0) {
+        s.downed = true;
+        s.hp = 0;
+      }
+    }
+  }
+
+  /** HOST: broadcast a snapshot to all guests at 20Hz. */
+  private broadcastSnapshot(): void {
+    this.snapshotTick++;
+    const snap = serializeSnapshot(this.world, this.snapshotTick);
+    const msg: HostMsg = { t: 'snapshot', snap };
+    netManager.broadcastToGuests(msg);
+  }
+
+  // ---------------- Multiplayer: GUEST ----------------
+
+  private setupGuestNetworking(): void {
+    netManager.onMessage = (msg: ClientMsg | HostMsg) => {
+      this.handleGuestMsg(msg);
+    };
+    netManager.onHostDisconnect = () => {
+      this.showHostDisconnected();
+    };
+    netManager.onPlayerConnect = null;
+    netManager.onPlayerDisconnect = null;
+  }
+
+  private handleGuestMsg(msg: ClientMsg | HostMsg): void {
+    switch (msg.t) {
+      case 'welcome':
+        this.myPlayerSlot = msg.you;
+        break;
+      case 'players':
+        break;
+      case 'start':
+        // Already handled in lobby, but if we get a late one, start the run
+        if (!this.world.running) this.startGuestRun();
+        break;
+      case 'snapshot': {
+        const view = deserializeSnapshot(msg.snap);
+        this.prevSnap = this.curSnap;
+        this.curSnap = view;
+        this.snapInterpAlpha = 0;
+        this.snapRecvTime = 0;
+        break;
+      }
+      case 'skillAck': {
+        if (msg.ok) {
+          this.guestPurchased.add(msg.nodeId);
+        }
+        this.guestSP = msg.sp;
+        this.guestSpSpent = msg.spSpent;
+        // Re-render grimoire if open
+        if (this.world.grimoireOpen) {
+          this.ui.updateNodeStates(this.world);
+        }
+        break;
+      }
+      case 'hostLeft':
+        this.showHostDisconnected();
+        break;
+      default:
+        break;
+    }
+  }
+
+  /** GUEST: start the run — set up world in a minimal render-only state. */
+  private startGuestRun(): void {
+    this.ui.hideStart();
+    this.ui.hideGameOver();
+    this.ui.hideMetaGrimoire();
+    const { width, height } = this.scale;
+    // Guests use world.purchased as a local mirror for the grimoire UI
+    this.world.purchased = this.guestPurchased;
+    this.world.sp = this.guestSP;
+    this.world.spSpent = this.guestSpSpent;
+    Object.assign(this.world, {
+      running: true,
+      grimoireOpen: false,
+      autoAim: true,
+      player: {
+        x: width / 2,
+        y: height / 2,
+        vx: 0, vy: 0,
+        hp: 100,
+        invuln: 0,
+        facing: { x: 0, y: -1 },
+        aimAngle: -Math.PI / 2,
+        dashCd: 0, dashing: 0,
+        adrenaline: 0, undyingCd: 0,
+        r: 9, phoenixCd: 0, stillTime: 0,
+      },
+      level: 1, xp: 0, xpNext: xpForLevel(1),
+      sp: 0, spSpent: 0,
+      slain: 0, elapsed: 0,
+      enemies: [], projectiles: [], effects: [], particles: [], popups: [], wisps: [], decoys: [],
+      cd: { bolt: 0, boltCastCount: 0, fireNova: 0, iceLance: 0, frostArmor: 0, frostArmorActive: 0, arcaneBurst: 0, vines: 0, shadowBolt: 0, timeWarp: 0, overgrowth: 0, shadowBlink: 0, eternalFrost: 0, apexSurge: 0, cull: 0 },
+      spawnTimer: 0, bossTimer: 130, bossFight: null,
+    });
+    this.ui.renderTree(this.world);
+    this.ui.setGrimoireVisible(false);
+    this.createPlayerListHUD();
+  }
+
+  /** GUEST: send local input to the host at 20Hz. */
+  private sendGuestInput(): void {
+    // Read local input
+    const left = this.cursors.left.isDown || this.keyA.isDown || this.keyH.isDown;
+    const right = this.cursors.right.isDown || this.keyD.isDown || this.keyK.isDown;
+    const up = this.cursors.up.isDown || this.keyW.isDown || this.keyU.isDown;
+    const down = this.cursors.down.isDown || this.keyS.isDown || this.keyJ.isDown;
+    let mvx = 0, mvy = 0;
+    if (left) mvx -= 1;
+    if (right) mvx += 1;
+    if (up) mvy -= 1;
+    if (down) mvy += 1;
+    // Aim from mouse
+    const pointer = this.input.activePointer;
+    const p = this.world.player;
+    const dx = pointer.worldX - p.x;
+    const dy = pointer.worldY - p.y;
+    const aim = Math.hypot(dx, dy) > 2 ? Math.atan2(dy, dx) : p.aimAngle;
+    p.aimAngle = aim;
+
+    const msg: ClientMsg = { t: 'input', mvx, mvy, dash: false, aim };
+    netManager.sendToHost(msg);
+  }
+
+  /** GUEST: render the game state from the interpolated snapshot. */
+  private renderFromSnapshot(dt: number): void {
+    if (!this.curSnap) return;
+
+    // Advance interpolation
+    this.snapRecvTime += dt;
+    // Snapshots arrive at ~20Hz (50ms), so we interpolate over 50ms.
+    this.snapInterpAlpha = Math.min(1, this.snapRecvTime / 0.05);
+
+    const snap = this.curSnap;
+    const prev = this.prevSnap;
+    const alpha = this.snapInterpAlpha;
+
+    // Update world.elapsed/day for HUD
+    this.world.elapsed = snap.elapsed;
+
+    // Draw player (self) — find our slot in the snapshot
+    const mySnap = snap.players.find((p) => p.id === this.myPlayerSlot);
+    if (mySnap) {
+      const interp = this.lerpPlayer(prev, mySnap, alpha);
+      this.world.player.x = interp.x;
+      this.world.player.y = interp.y;
+      this.world.player.hp = mySnap.hp;
+      this.world.player.invuln = mySnap.invuln ? 1 : 0;
+      this.world.player.dashing = mySnap.dashing ? 1 : 0;
+      this.world.player.aimAngle = mySnap.aimAngle;
+      this.world.player.dashCd = mySnap.dashCd;
+      // Update HP for HUD
+      if (mySnap.downed && this.world.player.hp > 0) {
+        this.world.player.hp = 0;
+      }
+    }
+
+    // Draw self
+    this.drawPlayer();
+
+    // Draw other players (guest mages)
+    snap.players.forEach((p) => {
+      if (p.id === this.myPlayerSlot) return; // skip self (already drawn)
+      const interp = this.lerpPlayerById(prev, p, alpha);
+      this.drawGuestMageSprite(p.id, interp.x, interp.y, p.aimAngle, p.invuln, p.dashing, p.downed, p.hp, p.maxHp);
+    });
+
+    // Render enemies, boss, projectiles, effects from snapshot
+    this.renderSnapshotScene(snap);
+
+    // Update HUD from snapshot (approximate)
+    this.updateGuestHUD(snap);
+
+    // Player list
+    this.updatePlayerListHUD(snap);
+  }
+
+  private lerpPlayer(prev: SnapshotView | null, cur: SnapPlayer, alpha: number): { x: number; y: number } {
+    if (!prev) return { x: cur.x, y: cur.y };
+    const pp = prev.players.find((p) => p.id === cur.id);
+    if (!pp) return { x: cur.x, y: cur.y };
+    return {
+      x: pp.x + (cur.x - pp.x) * alpha,
+      y: pp.y + (cur.y - pp.y) * alpha,
+    };
+  }
+
+  private lerpPlayerById(prev: SnapshotView | null, cur: SnapPlayer, alpha: number): { x: number; y: number } {
+    if (!prev) return { x: cur.x, y: cur.y };
+    const pp = prev.players.find((p) => p.id === cur.id);
+    if (!pp) return { x: cur.x, y: cur.y };
+    return {
+      x: pp.x + (cur.x - pp.x) * alpha,
+      y: pp.y + (cur.y - pp.y) * alpha,
+    };
+  }
+
+  private renderSnapshotScene(snap: SnapshotView): void {
+    const g = this.fxGraphics;
+    g.clear();
+
+    // Effects
+    snap.effects.forEach((fx) => {
+      if (fx.type === 0) {
+        // ring
+        const r = fx.r * (fx.t / fx.life);
+        const alpha = Math.max(0, 1 - fx.t / fx.life);
+        g.lineStyle(4, Phaser.Display.Color.HexStringToColor(fx.color).color, alpha);
+        g.strokeCircle(fx.x, fx.y, Math.max(0, r));
+      } else {
+        // ground
+        g.fillStyle(Phaser.Display.Color.HexStringToColor(fx.color).color, 0.18);
+        g.fillCircle(fx.x, fx.y, fx.r);
+      }
+    });
+
+    // Enemies
+    this.renderSnapshotEnemies(snap);
+
+    // Boss
+    this.renderSnapshotBoss(snap, g);
+
+    // Projectiles
+    snap.projectiles.forEach((pr) => {
+      const color = Phaser.Display.Color.HexStringToColor(pr.color).color;
+      g.fillStyle(color, 1);
+      g.fillCircle(pr.x, pr.y, pr.mini ? 3 : pr.r);
+    });
+
+    // Particles
+    snap.particles.forEach((pt) => {
+      const a = Math.max(0, pt.life / pt.maxLife);
+      const color = Phaser.Display.Color.HexStringToColor(pt.color).color;
+      g.fillStyle(color, a);
+      g.fillCircle(pt.x, pt.y, pt.size * a + 0.6);
+    });
+  }
+
+  private renderSnapshotEnemies(snap: SnapshotView): void {
+    const g = this.fxGraphics;
+    const seen = new Set<number>();
+    // For guests, we can't use identity-keyed sprites (the objects change every
+    // snapshot). Instead, use array-index-based sprite pooling.
+    // Ensure pool is large enough
+    while (this.enemySpritePool.length < snap.enemies.length) {
+      const spr = this.add.sprite(0, 0, ENEMY_TEXTURE_KEYS.slime).setDepth(4.5);
+      this.enemySpritePool.push(spr);
+    }
+
+    snap.enemies.forEach((e, i) => {
+      seen.add(i);
+      const typeName = enemyTypeName(e.type) as 'slime' | 'skel' | 'wisp' | 'wraith';
+      const spr = this.enemySpritePool[i];
+      spr.setTexture(ENEMY_TEXTURE_KEYS[typeName]);
+      const scale = e.type === 0 ? e.r / 7 : e.type === 1 ? e.r / 9 : e.type === 2 ? e.r / 6.5 : e.r / 10;
+      spr.setScale(scale * 1.35);
+      spr.setPosition(Math.round(e.x), Math.round(e.y));
+      spr.setVisible(true);
+      spr.setDepth(4.5 + e.y * 0.0001);
+      if (e.frozen) spr.setTint(0xa9d8ef);
+      else if (e.slowed) spr.setTint(0xc9d8e8);
+      else spr.clearTint();
+      if (e.marked) {
+        g.lineStyle(2, 0xc4728f, 1);
+        g.strokeCircle(e.x, e.y, e.r + 4);
+      }
+      if (e.hp < e.maxHp) {
+        const w = 28;
+        g.fillStyle(0x1a1c2c, 1);
+        g.fillRect(e.x - w / 2, e.y - e.r - 12, w, 5);
+        g.fillStyle(0xc15b5b, 1);
+        g.fillRect(e.x - w / 2, e.y - e.r - 12, w * Math.max(0, e.hp / e.maxHp), 5);
+      }
+    });
+    // Hide unused sprites
+    for (let i = snap.enemies.length; i < this.enemySpritePool.length; i++) {
+      this.enemySpritePool[i].setVisible(false);
+    }
+  }
+
+  private renderSnapshotBoss(snap: SnapshotView, g: Phaser.GameObjects.Graphics): void {
+    if (!snap.bossActive || !snap.boss) {
+      if (this.bossSprite) {
+        this.bossSprite.destroy();
+        this.bossSprite = null;
+        this.currentBossDefId = null;
+      }
+      return;
+    }
+    const boss = snap.boss;
+    const defName = bossDefName(boss.defId);
+    if (!this.bossSprite || this.currentBossDefId !== defName) {
+      this.bossSprite?.destroy();
+      this.bossSprite = this.add.sprite(boss.x, boss.y, BOSS_TEXTURE_KEYS[defName]).setDepth(4.8);
+      this.currentBossDefId = defName;
+    }
+    this.bossSprite.setPosition(Math.round(boss.x), Math.round(boss.y));
+    this.bossSprite.setScale(1.5);
+    if (boss.slowed) this.bossSprite.setTint(0xc9d8e8);
+    else this.bossSprite.clearTint();
+
+    // Telegraphs
+    boss.telegraphs.forEach((tg) => {
+      const alpha = 0.75 * (tg.t / tg.dur);
+      const color = Phaser.Display.Color.HexStringToColor(tg.color).color;
+      if (tg.kind === 0) {
+        g.lineStyle(3, color, alpha);
+        g.strokeCircle(tg.x, tg.y, tg.rOrLen);
+      } else {
+        const len = tg.rOrLen;
+        const w = tg.width;
+        g.fillStyle(color, alpha * 0.35);
+        g.fillRect(tg.x - len / 2, tg.y - w / 2, len, w);
+      }
+    });
+
+    // Boss projectiles
+    snap.bossProjectiles.forEach((pr) => {
+      const color = Phaser.Display.Color.HexStringToColor(pr.color).color;
+      g.fillStyle(color, 1);
+      g.fillCircle(pr.x, pr.y, pr.r);
+      g.fillStyle(0xffffff, 0.5);
+      g.fillCircle(pr.x, pr.y, pr.r * 0.4);
+    });
+
+    // Boss healthbar
+    const w = 130;
+    g.fillStyle(0x0d0e16, 0.9);
+    g.fillRect(boss.x - w / 2, boss.y - boss.r - 24, w, 9);
+    g.fillStyle(Phaser.Display.Color.HexStringToColor('#c15b5b').color, 1);
+    g.fillRect(boss.x - w / 2, boss.y - boss.r - 24, w * Math.max(0, boss.hp / boss.maxHp), 9);
+  }
+
+  private updateGuestHUD(snap: SnapshotView): void {
+    // Update the world's level to match our player's level from snapshot
+    const mySnap = snap.players.find((p) => p.id === this.myPlayerSlot);
+    if (mySnap) {
+      this.world.level = mySnap.level;
+      this.world.player.hp = mySnap.hp;
+    }
+    // Use the snapshot's day info
+    this.ui.updateHUD(this.world);
+  }
+
+  // ---------------- Player list HUD (multiplayer) ----------------
+
+  private createPlayerListHUD(): void {
+    if (this.playerListEl) return;
+    const el = document.createElement('div');
+    el.style.cssText = `
+      position: fixed; top: 60px; right: 16px; z-index: 15;
+      background: rgba(18,27,42,0.85); border: 1px solid #333a5c; border-radius: 8px;
+      padding: 8px 12px; min-width: 160px; pointer-events: none;
+      font-family: 'EB Garamond', serif; font-size: 11px; color: #e9e4d8;
+    `;
+    document.getElementById('app')!.appendChild(el);
+    this.playerListEl = el;
+  }
+
+  private updatePlayerListHUD(snap: SnapshotView): void {
+    if (!this.playerListEl) return;
+    let html = '<div style="font-family:Cinzel,serif;font-size:10px;color:#c9a869;letter-spacing:1px;margin-bottom:4px;">PARTY</div>';
+    snap.players.forEach((p) => {
+      const tintName = PLAYER_TINT_NAMES[p.id % PLAYER_TINT_NAMES.length];
+      const tintHex = ['#6b9eff', '#8bc48a', '#e2a040', '#b58ce0'][p.id % 4];
+      const hpPct = Math.max(0, (p.hp / p.maxHp) * 100);
+      const downed = p.downed ? ' <span style="color:#c15b5b;">(DOWN)</span>' : '';
+      html += `
+        <div style="display:flex;align-items:center;gap:6px;margin:3px 0;">
+          <div style="width:8px;height:8px;border-radius:50%;background:${tintHex};"></div>
+          <div style="flex:1;">
+            <div style="font-size:10px;color:${tintHex};">P${p.id + 1} ${tintName}${downed}</div>
+            <div style="width:80px;height:4px;background:#20233a;border-radius:2px;overflow:hidden;">
+              <div style="height:100%;width:${hpPct}%;background:${tintHex};"></div>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+    this.playerListEl.innerHTML = html;
+  }
+
+  private showHostDisconnected(): void {
+    this.world.running = false;
+    if (!this.hostDisconnectEl) {
+      const el = document.createElement('div');
+      el.style.cssText = `
+        position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column;
+        align-items: center; justify-content: center; background: rgba(10,11,18,0.95);
+        font-family: 'Cinzel', serif; color: #c15b5b; text-align: center;
+      `;
+      el.innerHTML = `
+        <div style="font-size:28px;font-weight:800;letter-spacing:3px;margin-bottom:12px;">HOST DISCONNECTED</div>
+        <div style="color:#8789a3;font-size:14px;margin-bottom:20px;">The connection to the host was lost.</div>
+        <button id="backToLobbyBtn" style="background:transparent;border:1.5px solid #c9a869;color:#eeda9e;font-family:'Cinzel',serif;font-size:14px;padding:10px 28px;border-radius:7px;cursor:pointer;letter-spacing:2px;">RETURN TO LOBBY</button>
+      `;
+      document.getElementById('app')!.appendChild(el);
+      this.hostDisconnectEl = el;
+      el.querySelector('#backToLobbyBtn')!.addEventListener('click', () => {
+        netManager.disconnect();
+        this.scene.start('Lobby');
+      });
+    }
+    this.hostDisconnectEl.style.display = 'flex';
+  }
+
+  // ---------------- HOST: render net player mages ----------------
+
+  private ensureGuestMageSprites(count: number): void {
+    while (this.guestMageSprites.length < count) {
+      const spr = this.add.sprite(0, 0, MAGE_TEXTURE_KEY).setDepth(6);
+      spr.setScale(1.5);
+      spr.setVisible(false);
+      this.guestMageSprites.push(spr);
+    }
+  }
+
+  private renderNetPlayerMages(): void {
+    if (!this.world.netPlayers || this.netMode !== 'host') return;
+    this.ensureGuestMageSprites(this.world.netPlayers.length);
+    this.world.netPlayers.forEach((np, i) => {
+      const spr = this.guestMageSprites[i];
+      const s = np.state;
+      spr.setPosition(Math.round(s.x), Math.round(s.y));
+      spr.setVisible(true);
+      spr.setDepth(6 + s.y * 0.0001);
+      spr.setTint(PLAYER_TINTS[np.id % PLAYER_TINTS.length]);
+      const blink = s.invuln > 0 && Math.floor(this.world.elapsed * 16) % 2 === 0;
+      spr.setAlpha(blink ? 0.4 : 1);
+      spr.setFlipX(Math.cos(s.aimAngle) < 0);
+      // Shadow
+      const g = this.fxGraphics;
+      g.fillStyle(0x000000, 0.35);
+      g.fillEllipse(s.x, s.y + 10, 18, 6);
+      // HP bar
+      if (s.hp < s.maxHp) {
+        const w = 28;
+        g.fillStyle(0x1a1c2c, 1);
+        g.fillRect(s.x - w / 2, s.y - 22, w, 5);
+        const tintHex = PLAYER_TINTS[np.id % PLAYER_TINTS.length];
+        g.fillStyle(tintHex, 1);
+        g.fillRect(s.x - w / 2, s.y - 22, w * Math.max(0, s.hp / s.maxHp), 5);
+      }
+    });
+    // Hide extra sprites
+    for (let i = this.world.netPlayers.length; i < this.guestMageSprites.length; i++) {
+      this.guestMageSprites[i].setVisible(false);
+    }
+  }
+
+  /** Draw a guest mage sprite at a given position (guest mode, from snapshot). */
+  private drawGuestMageSprite(
+    playerId: number, x: number, y: number, aim: number, invuln: boolean,
+    _dashing: boolean, downed: boolean, hp: number, maxHp: number,
+  ): void {
+    const g = this.fxGraphics;
+    const tint = PLAYER_TINTS[playerId % PLAYER_TINTS.length];
+    // Shadow
+    g.fillStyle(0x000000, 0.35);
+    g.fillEllipse(x, y + 10, 18, 6);
+    // Body circle with tint
+    g.fillStyle(tint, downed ? 0.3 : 1);
+    g.fillCircle(x, y, 12);
+    // Staff direction indicator
+    const staffX = x + Math.cos(aim) * 16;
+    const staffY = y + Math.sin(aim) * 16;
+    g.lineStyle(3, tint, downed ? 0.3 : 0.8);
+    g.lineBetween(x, y, staffX, staffY);
+    // Invuln blink ring
+    if (invuln) {
+      g.lineStyle(1.5, 0xffffff, 0.5);
+      g.strokeCircle(x, y, 15);
+    }
+    // HP bar
+    if (hp < maxHp) {
+      const w = 28;
+      g.fillStyle(0x1a1c2c, 1);
+      g.fillRect(x - w / 2, y - 22, w, 5);
+      g.fillStyle(tint, 1);
+      g.fillRect(x - w / 2, y - 22, w * Math.max(0, hp / maxHp), 5);
+    }
+    if (downed) {
+      g.fillStyle(0xc15b5b, 0.6);
+      g.fillCircle(x, y, 14);
+    }
+  }
+
+  // ---------------- Existing game flow ----------------
 
   private startRun(): void {
     this.ui.hideStart();
@@ -203,6 +956,11 @@ export class GameScene extends Phaser.Scene {
     });
     this.ui.renderTree(this.world);
     this.ui.setGrimoireVisible(false);
+
+    // In host mode, create the player list HUD
+    if (this.netMode === 'host') {
+      this.createPlayerListHUD();
+    }
   }
 
   private toggleGrimoire(): void {
@@ -216,9 +974,35 @@ export class GameScene extends Phaser.Scene {
     this.ui.showMetaGrimoire(this.world);
   }
 
+  /** Guest: send a skill purchase request to the host for authoritative validation. Called from the Grimoire UI. */
+  private guestRequestBuySkill(nodeId: string): void {
+    // Optimistically apply locally so the UI updates immediately; the host
+    // will send back a skillAck. If the host rejects, the ack handler reverts.
+    const node = NODE_BY_ID[nodeId];
+    if (!node) return;
+    if (this.guestPurchased.has(nodeId)) return;
+    if (!node.pre.every((p) => this.guestPurchased.has(p))) return;
+    if (this.guestSP - this.guestSpSpent < node.cost) return;
+    // Send purchase request to host
+    const msg: ClientMsg = { t: 'buySkill', nodeId };
+    netManager.sendToHost(msg);
+    // Optimistically apply locally
+    this.guestPurchased.add(nodeId);
+    this.guestSpSpent += node.cost;
+    this.world.sp = this.guestSP;
+    this.world.spSpent = this.guestSpSpent;
+  }
+
   update(_time: number, deltaMs: number): void {
     const dt = Math.min(0.033, deltaMs / 1000);
     this.drawFireflies(dt);
+
+    if (this.netMode === 'guest') {
+      this.updateGuest(dt, deltaMs);
+      return;
+    }
+
+    // ---------------- HOST and SINGLE-PLAYER: run simulation ----------------
 
     if (this.world.running && !this.world.grimoireOpen) {
       const input: InputState = {
@@ -245,6 +1029,17 @@ export class GameScene extends Phaser.Scene {
       updateParticles(this.world, dt);
       updateSpawns(this.world, dt);
       updateBossFight(this.world, dt);
+
+      // HOST: simulate net players and broadcast snapshots
+      if (this.netMode === 'host') {
+        this.simulateNetPlayers(dt);
+        this.netTickAccum += deltaMs;
+        if (this.netTickAccum >= NET_TICK_MS) {
+          this.netTickAccum -= NET_TICK_MS;
+          this.broadcastSnapshot();
+        }
+      }
+
       this.ui.updateHUD(this.world);
       if (this.world.grimoireOpen) this.ui.updateNodeStates(this.world);
       else this.ui.updateNodeStates(this.world);
@@ -259,6 +1054,60 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (this.world.running) this.renderScene();
+
+    // HOST: render net player mages on top of the scene
+    if (this.netMode === 'host' && this.world.running) {
+      this.renderNetPlayerMages();
+      // Update player list HUD from world state
+      if (this.playerListEl) {
+        const allPlayers = [
+          { id: 0, name: 'Host', x: this.world.player.x, y: this.world.player.y, hp: this.world.player.hp, maxHp: 100, level: this.world.level, downed: this.world.player.hp <= 0 },
+          ...(this.world.netPlayers ?? []).map((np) => ({
+            id: np.id, name: np.name, x: np.state.x, y: np.state.y, hp: np.state.hp, maxHp: np.state.maxHp, level: np.state.level, downed: np.state.downed,
+          })),
+        ];
+        let html = '<div style="font-family:Cinzel,serif;font-size:10px;color:#c9a869;letter-spacing:1px;margin-bottom:4px;">PARTY</div>';
+        allPlayers.forEach((p) => {
+          const idx = p.id % PLAYER_TINT_NAMES.length;
+          const tintName = PLAYER_TINT_NAMES[idx];
+          const tintHex = ['#6b9eff', '#8bc48a', '#e2a040', '#b58ce0'][idx];
+          const hpPct = Math.max(0, (p.hp / p.maxHp) * 100);
+          const downed = p.downed ? ' <span style="color:#c15b5b;">(DOWN)</span>' : '';
+          html += `
+            <div style="display:flex;align-items:center;gap:6px;margin:3px 0;">
+              <div style="width:8px;height:8px;border-radius:50%;background:${tintHex};"></div>
+              <div style="flex:1;">
+                <div style="font-size:10px;color:${tintHex};">P${p.id + 1} ${tintName}${downed}</div>
+                <div style="width:80px;height:4px;background:#20233a;border-radius:2px;overflow:hidden;">
+                  <div style="height:100%;width:${hpPct}%;background:${tintHex};"></div>
+                </div>
+              </div>
+            </div>
+          `;
+        });
+        this.playerListEl!.innerHTML = html;
+      }
+    }
+  }
+
+  /** GUEST: update loop — send input, render from snapshots. */
+  private updateGuest(dt: number, deltaMs: number): void {
+    if (!this.world.running) return;
+
+    // Send input to host at 20Hz
+    this.netTickAccum += deltaMs;
+    if (this.netTickAccum >= NET_TICK_MS) {
+      this.netTickAccum -= NET_TICK_MS;
+      this.sendGuestInput();
+    }
+
+    // Render from snapshot
+    this.renderFromSnapshot(dt);
+
+    // Check for host disconnect banner
+    if (this.hostDisconnectEl && this.hostDisconnectEl.style.display !== 'none') {
+      return; // Host disconnected — stop updating
+    }
   }
 
   // ---------------- rendering ----------------
@@ -519,6 +1368,13 @@ export class GameScene extends Phaser.Scene {
     // visually points toward wherever bolts/ice lance/shadow bolt will fire).
     this.mage.setFlipX(Math.cos(p.aimAngle) < 0);
 
+    // Tint the player mage based on slot in multiplayer
+    if (this.netMode !== 'single') {
+      this.mage.setTint(PLAYER_TINTS[this.myPlayerSlot % PLAYER_TINTS.length]);
+    } else {
+      this.mage.clearTint();
+    }
+
     // frost armor ring + ambient glow via the fx graphics, drawn behind the sprite depth-wise is
     // acceptable given the sprite renders on its own GameObject above fxGraphics depth.
     const g = this.fxGraphics;
@@ -549,6 +1405,22 @@ export class GameScene extends Phaser.Scene {
     });
     for (let i = world.popups.length; i < this.popupTexts.length; i++) {
       this.popupTexts[i].setVisible(false);
+    }
+  }
+
+  shutdown(): void {
+    // Clean up DOM elements created for multiplayer
+    if (this.playerListEl) {
+      this.playerListEl.remove();
+      this.playerListEl = null;
+    }
+    if (this.hostDisconnectEl) {
+      this.hostDisconnectEl.remove();
+      this.hostDisconnectEl = null;
+    }
+    // Disconnect networking if we're leaving the game scene
+    if (this.netMode !== 'single') {
+      netManager.disconnect();
     }
   }
 }

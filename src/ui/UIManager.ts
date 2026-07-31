@@ -74,6 +74,8 @@ export class UIManager {
   onRetry: () => void = () => {};
   onToggleGrimoire: () => void = () => {};
   onOpenMetaGrimoire: () => void = () => {};
+  /** When set, skill purchases go through this callback instead of the default buySkill(). */
+  onBuySkill: ((nodeId: string) => void) | null = null;
 
   constructor(container: HTMLElement) {
     this.root = document.createElement('div');
@@ -474,7 +476,11 @@ export class UIManager {
       div.textContent = bought ? '✓' : nodeIcon(n);
       div.addEventListener('click', () => {
         if (preOk && !bought) {
-          buySkill(world, n.id);
+          if (this.onBuySkill) {
+            this.onBuySkill(n.id);
+          } else {
+            buySkill(world, n.id);
+          }
           this.renderTree(world);
         }
       });

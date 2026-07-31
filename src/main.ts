@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { BootScene } from './scenes/BootScene';
+import { LobbyScene } from './scenes/LobbyScene';
 import { GameScene } from './scenes/GameScene';
 
 const config: Phaser.Types.Core.GameConfig = {
@@ -16,7 +17,7 @@ const config: Phaser.Types.Core.GameConfig = {
   physics: {
     default: undefined,
   },
-  scene: [BootScene, GameScene],
+  scene: [BootScene, LobbyScene, GameScene],
 };
 
 new Phaser.Game(config);
