@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "vite",
+    "server": "tsx server/peerServer.ts",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview"
   },
@@ -13,9 +14,12 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
+    "peer": "^1.0.2",
+    "peerjs": "^1.5.5",
     "phaser": "^4.2.1"
   },
   "devDependencies": {
+    "tsx": "^4.23.1",
     "typescript": "^7.0.2",
     "vite": "^8.1.5"
   }

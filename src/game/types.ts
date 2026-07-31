@@ -288,8 +288,77 @@ export interface World {
 
   purchased: Set<string>;
 
+  /** Network players tracked by the host (host is index 0, not in this array). */
+  netPlayers?: NetPlayer[];
+
   /** UI hook: shows the big center-screen flash banner text. */
   flash: (text: string, color: string) => void;
+}
+
+// ---------------- Multiplayer (Phases 3+4) ----------------
+
+/**
+ * Lightweight per-player state for network players tracked by the host.
+ * The host owns the authoritative World; in multiplayer it also maintains
+ * an array of these NetPlayer entries — one per connected guest — so it
+ * can simulate each player's position from their reported input and factor
+ * their derived stats (from their per-player Grimoire + meta multipliers)
+ * into their spell casts.
+ *
+ * `world.player` remains the *local* player's state for both host and guest
+ * (backward compat with single-player). The host's own player is NOT in
+ * `netPlayers` (index 0 in the snapshot is always the host).
+ */
+export interface NetPlayerState {
+  /** Render + protocol fields. */
+  x: number;
+  y: number;
+  hp: number;
+  maxHp: number;
+  level: number;
+  invuln: number;
+  dashing: number;
+  aimAngle: number;
+  dashCd: number;
+  downed: boolean;
+  /** Internal player state for simulation (mirrors PlayerState fields the host needs). */
+  vx: number;
+  vy: number;
+  facing: Vec2;
+  r: number;
+  dashCdMax: number;
+  phoenixCd: number;
+  undyingCd: number;
+  stillTime: number;
+  /** Per-player skill-tree (Grimoire) purchases (host-authoritative copy). */
+  purchased: Set<string>;
+  sp: number;
+  spSpent: number;
+  /** Per-player XP/level. */
+  xp: number;
+  xpNext: number;
+  /** Per-player cooldowns. */
+  cd: Cooldowns;
+  /** Per-player wisps/decoys. */
+  wisps: Wisp[];
+  decoys: Decoy[];
+  /** ID used in snapshots and lobby player list. */
+  id: number;
+}
+
+export interface NetPlayer {
+  /** Unique numeric ID (host assigns sequentially; host is 0). */
+  id: number;
+  /** PeerJS peer ID of this client. */
+  peerId: string;
+  /** Display name. */
+  name: string;
+  /** Latest input reported by this client (20Hz). */
+  input: { mvx: number; mvy: number; dash: boolean; aim: number };
+  /** Simulation-side per-player state (host-authoritative). */
+  state: NetPlayerState;
+  /** Meta multipliers reported by this client at connection time. */
+  meta: import('../net/messages').MetaPayload;
 }
 
 export function createWorld(W: number, H: number, flash: (text: string, color: string) => void): World {
