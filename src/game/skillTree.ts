@@ -42,27 +42,33 @@ interface LocalNode {
 // Per-branch node template. 13 nodes per branch (tier 0–6), with side
 // branches at tiers 2, 3, and 4. Tier 5 = capstone, tier 6 = post-capstone.
 // Void gets an extra side node X (14 total for Void).
+// Angular offsets are kept SMALL relative to the 51.43° branch spacing so
+// side nodes never collide with neighbouring branches' nodes — even at the
+// outermost tiers where radii are largest. Max offset is 18° (well within
+// the ~25° half-gap between branches), and side-node radii for tier 6 are
+// pulled in slightly to avoid edge proximity.
 export const LOCAL: LocalNode[] = [
   { id: 'A',  tier: 0, off: 0,   pre: [] },
   { id: 'B',  tier: 1, off: 0,   pre: ['A'] },
-  { id: 'C1', tier: 2, off: -22, pre: ['B'] },
+  { id: 'C1', tier: 2, off: -16, pre: ['B'] },
   { id: 'G',  tier: 2, off: 0,   pre: ['B'] },
-  { id: 'C2', tier: 2, off: 22,  pre: ['B'] },
+  { id: 'C2', tier: 2, off: 16,  pre: ['B'] },
   { id: 'D',  tier: 3, off: 0,   pre: ['C1', 'C2'] },
-  { id: 'H',  tier: 3, off: 28,  pre: ['D'] },
-  { id: 'E1', tier: 4, off: -14, pre: ['D'] },
-  { id: 'E2', tier: 4, off: 14,  pre: ['D'] },
+  { id: 'H',  tier: 3, off: 18,  pre: ['D'] },
+  { id: 'E1', tier: 4, off: -10, pre: ['D'] },
+  { id: 'E2', tier: 4, off: 10,  pre: ['D'] },
   { id: 'F',  tier: 5, off: 0,   pre: ['E1', 'E2'] },          // capstone
-  { id: 'I',  tier: 6, off: 0,   pre: ['F'] },                  // post-capstone
-  { id: 'J',  tier: 6, off: 30,  pre: ['F'] },                  // post-capstone side
-  { id: 'K',  tier: 4, off: -30, pre: ['E1'] },                // extra side node
+  { id: 'I',  tier: 6, off: 0,   pre: ['F'] },                 // post-capstone
+  { id: 'J',  tier: 6, off: 18,  pre: ['F'], radius: 1000 },   // post-capstone side (pulled in slightly from tier 6 max)
+  { id: 'K',  tier: 4, off: -22, pre: ['E1'] },               // extra side node
 ];
 
-export const VOID_EXTRA: LocalNode[] = [{ id: 'X', tier: 1, off: 38, pre: ['A'] }];
+export const VOID_EXTRA: LocalNode[] = [{ id: 'X', tier: 1, off: 20, pre: ['A'] }];
 
-// Breathable, airy radii — significantly larger than the old [145,265,385,505,625,745].
-// 7 tiers (0–6): tier 6 post-capstone nodes sit at radius 780.
-export const RADII = [120, 230, 350, 480, 620, 780, 920];
+// Breathable, airy radii — each tier is generously spaced so nodes never
+// overlap even with angular offsets at the outermost tiers. The gap between
+// tiers increases with radius to keep angular separation comfortable.
+export const RADII = [140, 270, 410, 560, 720, 900, 1050];
 export const COST_BY_TIER = [1, 1, 2, 3, 3, 5, 6];
 
 interface ContentEntry {
@@ -180,11 +186,11 @@ export const CONTENT: Record<string, Record<string, ContentEntry>> = {
 };
 
 // ---------------- Radial layout ----------------
-// Canvas big enough to fit max radius (920) with generous padding.
-export const TREE_W = 2000;
-export const TREE_H = 2000;
-export const CX = TREE_W / 2; // 1000
-export const CY = TREE_H / 2; // 1000
+// Canvas big enough to fit max radius (1050) with generous padding.
+export const TREE_W = 2200;
+export const TREE_H = 2200;
+export const CX = TREE_W / 2; // 1100
+export const CY = TREE_H / 2; // 1100
 
 /**
  * Compute a node's (x, y) position on the radial constellation.

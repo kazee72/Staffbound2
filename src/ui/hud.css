@@ -360,8 +360,8 @@
 }
 #treeinner {
   position: relative;
-  width: 2000px;
-  height: 2000px;
+  width: 2200px;
+  height: 2200px;
   margin: 0 auto;
 }
 #treeinner svg {
@@ -389,8 +389,8 @@
 }
 .core {
   position: absolute;
-  left: 1000px;
-  top: 1000px;
+  left: 1100px;
+  top: 1100px;
   width: 64px;
   height: 64px;
   margin-left: -32px;
