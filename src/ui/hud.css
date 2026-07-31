@@ -370,26 +370,31 @@
   width: 100%;
   height: 100%;
 }
-#treeinner svg line {
+#treeinner svg line,
+#treeinner svg path {
   stroke: var(--line);
   stroke-width: 2;
+  fill: none;
 }
-#treeinner svg line.lit {
+#treeinner svg line.lit,
+#treeinner svg path.lit {
   stroke-width: 2.5;
 }
-#treeinner svg line.spoke {
+#treeinner svg line.spoke,
+#treeinner svg path.spoke {
   stroke: #22263a;
   stroke-width: 1.5;
   stroke-dasharray: 2 4;
+  fill: none;
 }
 .core {
   position: absolute;
   left: 800px;
   top: 800px;
-  width: 88px;
-  height: 88px;
-  margin-left: -44px;
-  margin-top: -44px;
+  width: 64px;
+  height: 64px;
+  margin-left: -32px;
+  margin-top: -32px;
   border-radius: 50%;
   background: radial-gradient(circle, #2b2f4a, #141625);
   border: 2px solid var(--gold);
@@ -397,7 +402,7 @@
   align-items: center;
   justify-content: center;
   font-family: 'Cinzel', serif;
-  font-size: 12px;
+  font-size: 10px;
   color: var(--gold-bright);
   text-align: center;
   box-shadow: 0 0 32px rgba(201, 168, 105, 0.35);
@@ -406,18 +411,18 @@
 .branchlabel {
   position: absolute;
   font-family: 'Cinzel', serif;
-  font-size: 15px;
-  letter-spacing: 3.5px;
+  font-size: 13px;
+  letter-spacing: 2.5px;
   text-transform: uppercase;
   z-index: 3;
   text-shadow: 0 0 10px currentColor;
 }
 .node {
   position: absolute;
-  width: 76px;
-  height: 76px;
-  margin-left: -38px;
-  margin-top: -38px;
+  width: 48px;
+  height: 48px;
+  margin-left: -24px;
+  margin-top: -24px;
   border-radius: 50%;
   background: var(--panel);
   border: 2px solid var(--line);
@@ -425,22 +430,23 @@
   align-items: center;
   justify-content: center;
   font-family: 'Cinzel', serif;
-  font-size: 11px;
+  font-size: 8.5px;
   font-weight: 700;
   text-align: center;
   color: var(--dim);
-  line-height: 1.2;
-  padding: 6px;
+  line-height: 1.15;
+  padding: 3px;
   cursor: pointer;
   z-index: 2;
   transition: all 0.15s;
+  overflow: hidden;
 }
 .node.capstone {
-  width: 96px;
-  height: 96px;
-  margin-left: -48px;
-  margin-top: -48px;
-  font-size: 12.5px;
+  width: 64px;
+  height: 64px;
+  margin-left: -32px;
+  margin-top: -32px;
+  font-size: 10px;
 }
 .node.locked {
   opacity: 0.4;
@@ -520,4 +526,198 @@
   font-style: italic;
   opacity: 0.55;
   pointer-events: none;
+}
+
+/* Game-over button row */
+#goBtnRow {
+  display: flex;
+  gap: 14px;
+  margin-top: 14px;
+  align-items: center;
+}
+#metaGrimBtn {
+  background: transparent;
+  border: 1.5px solid var(--ember);
+  color: var(--gold-bright);
+  font-family: 'Cinzel', serif;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 11px 26px;
+  border-radius: 7px;
+  cursor: pointer;
+  letter-spacing: 2px;
+  transition: all 0.15s;
+}
+#metaGrimBtn:hover {
+  background: rgba(226, 121, 61, 0.25);
+  box-shadow: 0 0 22px rgba(226, 121, 61, 0.5);
+  color: var(--gold-bright);
+}
+#goBanked {
+  letter-spacing: 1px;
+}
+#goBanked b {
+  color: var(--gold-bright);
+}
+
+/* Meta Grimoire — persistent upgrade panel (warm gold/amber theme) */
+#metaOverlay {
+  z-index: 26;
+  background: rgba(10, 8, 5, 0.97);
+  padding: 0;
+}
+#metaHeader {
+  width: 100%;
+  padding: 16px 22px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(201, 168, 105, 0.3);
+  background: linear-gradient(180deg, rgba(40, 30, 12, 0.5), transparent);
+}
+#metaHeader .disp {
+  color: var(--gold-bright);
+  letter-spacing: 3px;
+  font-size: 17px;
+  text-shadow: 0 0 14px rgba(238, 218, 158, 0.35);
+}
+#metaEssenceLine {
+  color: var(--gold);
+  font-size: 13px;
+  font-family: 'JetBrains Mono', monospace;
+}
+#metaEssenceLine #metaEssenceTxt {
+  color: var(--gold-bright);
+  font-weight: 700;
+  font-size: 16px;
+}
+#closeMeta {
+  background: none;
+  border: 1px solid var(--dim);
+  color: var(--dim);
+  border-radius: 6px;
+  padding: 6px 14px;
+  cursor: pointer;
+  font-family: 'Cinzel', serif;
+  font-size: 11px;
+}
+#closeMeta:hover {
+  color: var(--gold-bright);
+  border-color: var(--gold);
+}
+#metaBody {
+  width: 100%;
+  max-width: 720px;
+  flex: 1;
+  overflow: auto;
+  padding: 20px 26px;
+  display: flex;
+  justify-content: center;
+}
+#metaRows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+.metarow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: linear-gradient(90deg, rgba(40, 32, 16, 0.55), rgba(28, 22, 12, 0.35));
+  border: 1px solid rgba(201, 168, 105, 0.22);
+  border-radius: 9px;
+  padding: 12px 16px;
+  transition: all 0.15s;
+}
+.metarow:hover {
+  border-color: rgba(201, 168, 105, 0.5);
+  box-shadow: 0 0 16px rgba(201, 168, 105, 0.18);
+}
+.metarow.maxed {
+  border-color: rgba(238, 218, 158, 0.6);
+  background: linear-gradient(90deg, rgba(60, 48, 18, 0.6), rgba(40, 30, 12, 0.4));
+}
+.metainfo {
+  flex: 1;
+  padding-right: 16px;
+}
+.metaname {
+  font-family: 'Cinzel', serif;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--gold-bright);
+  letter-spacing: 1px;
+  margin-bottom: 3px;
+}
+.metadesc {
+  font-size: 11.5px;
+  color: var(--dim);
+  line-height: 1.35;
+  margin-bottom: 5px;
+}
+.metaranks {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.metadot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #2a2415;
+  border: 1px solid #4a3f22;
+  display: inline-block;
+}
+.metadot.on {
+  background: var(--gold);
+  border-color: var(--gold-bright);
+  box-shadow: 0 0 6px rgba(201, 168, 105, 0.7);
+}
+.metaranktxt {
+  font-size: 10px;
+  color: var(--dim);
+  font-family: 'JetBrains Mono', monospace;
+  margin-left: 6px;
+}
+.metabuy {
+  flex-shrink: 0;
+}
+.metabuybtn {
+  background: rgba(201, 168, 105, 0.15);
+  border: 1.5px solid var(--gold);
+  color: var(--gold-bright);
+  font-family: 'Cinzel', serif;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 9px 16px;
+  border-radius: 7px;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.metabuybtn:hover {
+  background: var(--gold);
+  color: #1a1508;
+  box-shadow: 0 0 18px rgba(201, 168, 105, 0.55);
+}
+.metabuybtn.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  border-color: var(--dim);
+  color: var(--dim);
+}
+.metabuybtn.disabled:hover {
+  background: rgba(201, 168, 105, 0.15);
+  color: var(--dim);
+  box-shadow: none;
+}
+.metamaxed {
+  font-family: 'Cinzel', serif;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--gold-bright);
+  letter-spacing: 2px;
+  text-shadow: 0 0 10px rgba(238, 218, 158, 0.5);
 }

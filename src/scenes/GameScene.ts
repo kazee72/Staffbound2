@@ -19,6 +19,7 @@ import {
   type InputState,
 } from '../game/simulation';
 import { UIManager } from '../ui/UIManager';
+import { attachMeta, bankRunEssence, loadMeta, type MetaState } from '../game/metaProgression';
 
 interface Firefly {
   x: number;
@@ -68,6 +69,8 @@ export class GameScene extends Phaser.Scene {
 
   private bossSprite: Phaser.GameObjects.Sprite | null = null;
   private currentBossDefId: string | null = null;
+
+  private metaState!: MetaState;
 
   constructor() {
     super('Game');
@@ -128,6 +131,10 @@ export class GameScene extends Phaser.Scene {
     this.ui.onStart = () => this.startRun();
     this.ui.onRetry = () => this.startRun();
     this.ui.onToggleGrimoire = () => this.toggleGrimoire();
+    this.ui.onOpenMetaGrimoire = () => this.openMetaGrimoire();
+
+    // Load persistent meta state once at scene creation.
+    this.metaState = loadMeta();
 
     this.scale.on('resize', (gameSize: Phaser.Structs.Size) => {
       this.world.W = gameSize.width;
@@ -141,8 +148,12 @@ export class GameScene extends Phaser.Scene {
   private startRun(): void {
     this.ui.hideStart();
     this.ui.hideGameOver();
+    this.ui.hideMetaGrimoire();
     const { width, height } = this.scale;
     this.world.purchased.clear();
+    // Attach persistent meta state + reset run-only essence accumulation.
+    attachMeta(this.world, this.metaState);
+    (this.world as unknown as { runEssence?: number }).runEssence = 0;
     Object.assign(this.world, {
       running: true,
       grimoireOpen: false,
@@ -191,6 +202,11 @@ export class GameScene extends Phaser.Scene {
     this.ui.setGrimoireVisible(this.world.grimoireOpen);
   }
 
+  private openMetaGrimoire(): void {
+    // Open the Meta Grimoire panel from the game-over screen.
+    this.ui.showMetaGrimoire(this.world);
+  }
+
   update(_time: number, deltaMs: number): void {
     const dt = Math.min(0.033, deltaMs / 1000);
     this.drawFireflies(dt);
@@ -226,6 +242,9 @@ export class GameScene extends Phaser.Scene {
 
       if (!this.world.running) {
         // damagePlayer flipped running=false this frame -> game over.
+        // Bank the run's earned essence into the persistent total (death is
+        // the only moment essence is persisted — closing mid-run forfeits it).
+        bankRunEssence(this.world);
         this.ui.showGameOver(this.world);
       }
     }

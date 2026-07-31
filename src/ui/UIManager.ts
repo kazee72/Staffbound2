@@ -8,10 +8,16 @@
 import './hud.css';
 import type { World } from '../game/types';
 import { availableSP, buySkill, hasNode } from '../game/skillTree';
-import { SKILL_NODES, NODE_BY_ID, BRANCHES, CX, CY } from '../game/skillTree';
+import { SKILL_NODES, NODE_BY_ID, BRANCHES, CX, CY, GRID_W, GRID_H, GRID_TOP, colX, gridPath } from '../game/skillTree';
 import { maxHP } from '../game/player';
 import { currentDay } from '../game/enemies';
 import { PLACES } from '../game/waves';
+import {
+  META_UPGRADES,
+  buyMetaRank,
+  metaStateOf,
+  getRunEssence,
+} from '../game/metaProgression';
 
 const GAME_OVER_FLAVORS = [
   'the road was long, but not long enough',
@@ -44,7 +50,10 @@ export class UIManager {
   private goDay: HTMLElement;
   private goSlain: HTMLElement;
   private goLvl: HTMLElement;
+  private goEssence: HTMLElement;
+  private goBankedVal: HTMLElement;
   private retryBtn: HTMLButtonElement;
+  private metaGrimBtn: HTMLButtonElement;
 
   private grimoireOverlay: HTMLDivElement;
   private treeSVG: SVGSVGElement;
@@ -53,11 +62,18 @@ export class UIManager {
   private closeGrimBtn: HTMLButtonElement;
   private tooltip: HTMLDivElement;
 
+  private metaOverlay: HTMLDivElement;
+  private metaEssenceTxt: HTMLSpanElement;
+  private metaRunEssenceTxt: HTMLSpanElement;
+  private closeMetaBtn: HTMLButtonElement;
+  private metaRowsEl: HTMLDivElement;
+
   private nodeDivs = new Map<string, HTMLDivElement>();
 
   onStart: () => void = () => {};
   onRetry: () => void = () => {};
   onToggleGrimoire: () => void = () => {};
+  onOpenMetaGrimoire: () => void = () => {};
 
   constructor(container: HTMLElement) {
     this.root = document.createElement('div');
@@ -162,16 +178,25 @@ export class UIManager {
         <div><div class="v" id="goDay">1</div><div class="l">days survived</div></div>
         <div><div class="v" id="goSlain">0</div><div class="l">foes slain</div></div>
         <div><div class="v" id="goLvl">1</div><div class="l">level reached</div></div>
+        <div><div class="v" id="goEssence" style="color:var(--gold-bright);">0</div><div class="l">essence earned</div></div>
       </div>
-      <button id="retryBtn">WALK AGAIN</button>
+      <div id="goBanked" style="color:var(--gold);font-size:12px;margin-bottom:6px;">banked essence: <b id="goBankedVal">0</b></div>
+      <div id="goBtnRow">
+        <button id="retryBtn">WALK AGAIN</button>
+        <button id="metaGrimBtn">META GRIMOIRE</button>
+      </div>
     `;
     this.root.appendChild(this.gameOverOverlay);
     this.goFlavor = this.gameOverOverlay.querySelector('#goFlavor')!;
     this.goDay = this.gameOverOverlay.querySelector('#goDay')!;
     this.goSlain = this.gameOverOverlay.querySelector('#goSlain')!;
     this.goLvl = this.gameOverOverlay.querySelector('#goLvl')!;
+    this.goEssence = this.gameOverOverlay.querySelector('#goEssence')!;
+    this.goBankedVal = this.gameOverOverlay.querySelector('#goBankedVal')!;
     this.retryBtn = this.gameOverOverlay.querySelector('#retryBtn')!;
     this.retryBtn.addEventListener('click', () => this.onRetry());
+    this.metaGrimBtn = this.gameOverOverlay.querySelector('#metaGrimBtn')!;
+    this.metaGrimBtn.addEventListener('click', () => this.onOpenMetaGrimoire());
 
     // Grimoire overlay
     this.grimoireOverlay = document.createElement('div');
@@ -194,6 +219,14 @@ export class UIManager {
     this.root.appendChild(this.grimoireOverlay);
     this.treeSVG = this.grimoireOverlay.querySelector('#treeSVG')!;
     this.treeInner = this.grimoireOverlay.querySelector('#treeinner')!;
+    // Size the tree container to the grid layout and place the hub core at CX/CY.
+    this.treeInner.style.width = GRID_W + 'px';
+    this.treeInner.style.height = GRID_H + 'px';
+    const coreEl = this.grimoireOverlay.querySelector('.core') as HTMLDivElement | null;
+    if (coreEl) {
+      coreEl.style.left = CX + 'px';
+      coreEl.style.top = CY + 'px';
+    }
     this.spAvail = this.grimoireOverlay.querySelector('#spAvail')!;
     this.closeGrimBtn = this.grimoireOverlay.querySelector('#closeGrim')!;
     this.closeGrimBtn.addEventListener('click', () => this.onToggleGrimoire());
@@ -202,16 +235,40 @@ export class UIManager {
     this.tooltip.id = 'tooltip';
     this.root.appendChild(this.tooltip);
 
+    // Meta Grimoire overlay — persistent upgrade panel (gold/amber theme).
+    this.metaOverlay = document.createElement('div');
+    this.metaOverlay.className = 'overlay hidden';
+    this.metaOverlay.id = 'metaOverlay';
+    this.metaOverlay.style.flexDirection = 'column';
+    this.metaOverlay.innerHTML = `
+      <div id="metaHeader">
+        <div class="disp">META GRIMOIRE</div>
+        <div id="metaEssenceLine">
+          <span id="metaEssenceTxt">0</span> essence available
+          <span id="metaRunEssenceTxt" style="display:none;color:var(--ember);margin-left:10px;"></span>
+        </div>
+        <button id="closeMeta">CLOSE</button>
+      </div>
+      <div id="metaBody">
+        <div id="metaRows"></div>
+      </div>
+    `;
+    this.root.appendChild(this.metaOverlay);
+    this.metaEssenceTxt = this.metaOverlay.querySelector('#metaEssenceTxt')!;
+    this.metaRunEssenceTxt = this.metaOverlay.querySelector('#metaRunEssenceTxt')!;
+    this.closeMetaBtn = this.metaOverlay.querySelector('#closeMeta')!;
+    this.metaRowsEl = this.metaOverlay.querySelector('#metaRows')!;
+    this.closeMetaBtn.addEventListener('click', () => this.hideMetaGrimoire());
+
     const footnote = document.createElement('div');
     footnote.id = 'footnote';
     footnote.textContent = 'a session-only tale — no record of this journey is kept once the page is closed';
     this.root.appendChild(footnote);
 
-    // Branch labels (static, drawn once)
-    BRANCHES.forEach((br) => {
-      const rad = (br.angle * Math.PI) / 180;
-      const lx = CX + 85 * Math.cos(rad);
-      const ly = CY + 85 * Math.sin(rad);
+    // Branch labels (static, drawn once) — placed at the top of each branch's column.
+    BRANCHES.forEach((br, bi) => {
+      const lx = colX(bi);
+      const ly = GRID_TOP - 28;
       const lab = document.createElement('div');
       lab.className = 'branchlabel';
       lab.style.left = lx + 'px';
@@ -246,15 +303,82 @@ export class UIManager {
   }
 
   showGameOver(world: World): void {
+    this.currentWorld = world;
     this.goDay.textContent = String(currentDay(world));
     this.goSlain.textContent = String(world.slain);
     this.goLvl.textContent = String(world.level);
+    const runEssence = getRunEssence(world);
+    this.goEssence.textContent = String(runEssence);
+    const meta = metaStateOf(world);
+    // Show what will be banked (run essence added to existing banked total).
+    this.goBankedVal.textContent = String(meta.essence + runEssence);
     this.goFlavor.textContent = GAME_OVER_FLAVORS[(Math.random() * GAME_OVER_FLAVORS.length) | 0];
     this.gameOverOverlay.classList.remove('hidden');
   }
 
   hideGameOver(): void {
     this.gameOverOverlay.classList.add('hidden');
+  }
+
+  /** Show the Meta Grimoire panel (called from game-over screen). Renders the upgrade rows. */
+  showMetaGrimoire(world: World): void {
+    this.currentWorld = world;
+    this.renderMetaTree(world);
+    this.metaOverlay.classList.remove('hidden');
+  }
+
+  hideMetaGrimoire(): void {
+    this.metaOverlay.classList.add('hidden');
+  }
+
+  /** Render the meta upgrade rows from the world's attached meta state. */
+  renderMetaTree(world: World): void {
+    const meta = metaStateOf(world);
+    this.metaEssenceTxt.textContent = String(meta.essence);
+    const runEssence = getRunEssence(world);
+    if (runEssence > 0) {
+      this.metaRunEssenceTxt.style.display = 'inline';
+      this.metaRunEssenceTxt.textContent = '(+' + runEssence + ' pending from this run)';
+    } else {
+      this.metaRunEssenceTxt.style.display = 'none';
+    }
+    let html = '';
+    META_UPGRADES.forEach((def) => {
+      const rank = meta.ranks[def.id] || 0;
+      const maxed = rank >= def.maxRank;
+      const cost = maxed ? 0 : def.costAt(rank + 1);
+      const afford = !maxed && meta.essence >= cost;
+      const rankDots = Array.from({ length: def.maxRank }, (_, i) =>
+        i < rank ? '<span class="metadot on"></span>' : '<span class="metadot"></span>',
+      ).join('');
+      html += `
+        <div class="metarow${maxed ? ' maxed' : ''}" data-id="${def.id}">
+          <div class="metainfo">
+            <div class="metaname">${def.name}</div>
+            <div class="metadesc">${def.desc}</div>
+            <div class="metaranks">${rankDots} <span class="metaranktxt">rank ${rank}/${def.maxRank}</span></div>
+          </div>
+          <div class="metabuy">
+            ${maxed
+              ? '<span class="metamaxed">MAX</span>'
+              : `<button class="metabuybtn${afford ? '' : ' disabled'}" data-id="${def.id}" ${afford ? '' : 'disabled'}>${cost} essence</button>`}
+          </div>
+        </div>
+      `;
+    });
+    this.metaRowsEl.innerHTML = html;
+    // Wire up buy buttons.
+    this.metaRowsEl.querySelectorAll<HTMLButtonElement>('.metabuybtn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-id')!;
+        if (buyMetaRank(world, id)) {
+          this.renderMetaTree(world);
+          // Refresh game-over essence display too.
+          const m = metaStateOf(world);
+          this.goBankedVal.textContent = String(m.essence);
+        }
+      });
+    });
   }
 
   setGrimoireVisible(open: boolean): void {
@@ -316,12 +440,12 @@ export class UIManager {
       n.pre.forEach((p) => {
         const pn = NODE_BY_ID[p];
         const lit = hasNode(world.purchased, p);
-        lines += `<line x1="${pn.x}" y1="${pn.y}" x2="${n.x}" y2="${n.y}" style="stroke:${
-          lit ? n.color : '#333a5c'
-        }"${lit ? ' class="lit"' : ''}></line>`;
+        const d = gridPath(pn.x, pn.y, n.x, n.y);
+        lines += `<path d="${d}" style="stroke:${lit ? n.color : '#333a5c'};fill:none"${lit ? ' class="lit"' : ''}></path>`;
       });
       if (n.tier === 0) {
-        lines += `<line class="spoke" x1="${CX}" y1="${CY}" x2="${n.x}" y2="${n.y}"></line>`;
+        // Spoke from the hub down to each branch's first node (straight vertical).
+        lines += `<path class="spoke" d="M ${CX} ${CY} L ${CX} ${GRID_TOP - 10} L ${n.x} ${GRID_TOP - 10} L ${n.x} ${n.y}"></path>`;
       }
     });
     this.treeSVG.innerHTML = lines;

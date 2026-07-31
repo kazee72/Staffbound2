@@ -6,6 +6,7 @@ import { damageEnemy, damageBoss } from './combat';
 import { nearestEnemy } from './spells';
 import { burst } from './visuals';
 import { updateBoss } from './bosses';
+import { addRunEssence, essenceForBossKill } from './metaProgression';
 
 function clamp(v: number, a: number, b: number): number {
   return Math.max(a, Math.min(b, v));
@@ -265,6 +266,7 @@ export function updateBossFight(world: World, dt: number): void {
   const boss = fight.boss;
   if (boss.hp <= 0) {
     gainXP(world, boss.xpValue);
+    addRunEssence(world, essenceForBossKill(world, boss.xpValue));
     world.slain++;
     burst(world, boss.x, boss.y, boss.color, 46, 280);
     world.flash(boss.name.toUpperCase() + ' FALLS', 'var(--gold-bright)');

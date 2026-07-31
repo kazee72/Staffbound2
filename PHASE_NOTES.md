@@ -198,3 +198,55 @@ Two follow-up visual tweaks requested after playtesting Phase 2:
 - Open the Grimoire (`G`) and confirm all 6 branches are comfortably spread
   out with no overlapping nodes, and that scrolling to the outer capstone
   nodes still works smoothly.
+
+## Phase 2.3 — Meta progression + skill tree grid redesign + QoL fixes
+
+### What was built
+
+**Boss damage fix:**
+- Root cause: `castBolt`/`castIceLance`/`castShadowBolt` used `nearestEnemy()` which only searched `world.enemies` — empty during boss-exclusive fights. Spells silently fired nothing at bosses.
+- Fix: Added `damageBoss()` in combat.ts (mirrors `damageEnemy`'s crit/lifesteal/burn/slow/mark logic). Wired boss collision into `updateProjectiles` via `damageBoss`. Added `forEachTargetInRange` helper so AoE spells (Fire Nova, Vines) also hit the boss. Wisp companions now target the boss when no regular enemies exist.
+
+**Auto-aim toggle (Q key):**
+- `world.autoAim` boolean (defaults true). Press Q during a run to toggle.
+- When on: bolt/ice lance/shadow bolt auto-target nearest enemy (classic behavior), with fallback to boss during boss fights.
+- When off: spells fire toward `player.aimAngle` (mouse cursor direction).
+- HUD shows current mode ("auto" in frost-blue, "mouse" in gold).
+
+**UHJK movement keys:**
+- U=up, H=left, J=down, K=right — alongside WASD and arrow keys.
+
+**Skill cooldown bar:**
+- Bottom-center of screen. Shows each unlocked spell as a compact icon + progress bar + countdown timer.
+- Only shows skills you've actually unlocked (bolt and dash always visible; others appear when their Grimoire node is purchased).
+
+**Classic blue mage sprite restored:**
+- Reverted the Frieren reskin to a classic blue-robed, blue pointy-hat mage with gold trim and staff+orb.
+
+**Meta progression system (src/game/metaProgression.ts — new):**
+- 12 meta upgrades with multiple ranks each: damage, cooldown reduction, move speed, max HP, XP gain, essence gain, crit chance, crit damage, regen, lifesteal, damage reduction, dash cooldown.
+- Essence (meta currency) earned from kills: 1-3 per regular enemy, 20-50 per boss, scaled by essence-gain meta ranks.
+- Essence accumulates during a run but only "banks" (persists) on death — closing the browser mid-run loses unbanked essence.
+- Stored in localStorage (key `hollowmere_meta`). Survives page close/reload.
+- Meta stat multipliers stack multiplicatively with in-run Grimoire derived stats in player.ts.
+- Fresh state grants 1 free rank of "Arcane Resonance" (damage) as a head-start.
+- "META GRIMOIRE" button on game-over screen opens a gold/amber-themed upgrade panel.
+- Each upgrade row shows name, description, current rank dots, and cost for next rank with a buy button.
+
+**Skill tree grid redesign:**
+- Replaced radial constellation layout with a vertical-column grid: 7 columns (one per branch), nodes stacked vertically.
+- Smaller nodes: 48px (was 76px), capstones 64px (was 96px).
+- Straight right-angle SVG connector paths (no diagonals).
+- Side nodes (C1/C2/G/H/X variants) offset horizontally within their column.
+- 1310x864px scrollable grid area, 71 total nodes, 85 connector paths.
+
+### Verified
+- `npm run build` (tsc --noEmit && vite build) — zero TypeScript errors.
+- Browser verification: game runs with no console/JS errors. Grimoire grid renders with 71 nodes, 85 right-angle paths, 7 branch labels, core element. Game-over screen shows "YOUR JOURNEY ENDS HERE" with banked essence display, WALK AGAIN + META GRIMOIRE buttons. Meta Grimoire opens with 12 upgrade buttons showing essence costs. Cooldown bar shows BOLT and DASH at minimum, more skills appear when unlocked.
+
+### What to test manually
+- Play a run, kill enemies, die. Check game-over screen shows banked essence. Open META GRIMOIRE, buy an upgrade, restart, confirm you're stronger.
+- Press Q to toggle auto-aim on/off. Confirm spells follow mouse when off, auto-target when on.
+- Try UHJK movement keys alongside WASD.
+- Open the Grimoire (G) and confirm the grid layout with smaller nodes, straight lines, 7 columns.
+- During a boss fight, confirm your bolts/ice lance/shadow bolt actually damage the boss.

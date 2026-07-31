@@ -1,0 +1,205 @@
+/**
+ * Meta progression system — a SEPARATE, permanent upgrade tree that persists
+ * across deaths via localStorage. Players earn "essence" (meta currency) from
+ * kills during a run; essence is only "banked" (added to the persistent total)
+ * when the player dies, giving death a purpose while keeping the session-only
+ * ethos intact (closing the browser mid-run forfeits the run's unbanked essence).
+ *
+ * Meta upgrades are simple flat stat multipliers (damage, attack speed, move
+ * speed, max HP, XP gain, essence gain) that stack multiplicatively with the
+ * in-run Grimoire's derived stats. They form a persistent "power floor" — each
+ * run you're a bit stronger than the last, but the in-run Grimoire still
+ * provides the bulk of build variety.
+ *
+ * Storage key: "hollowmere_meta" — a JSON blob:
+ *   { essence: number, ranks: Record<metaId, number> }
+ */
+import type { World } from './types';
+
+const STORAGE_KEY = 'hollowmere_meta';
+
+export interface MetaUpgradeDef {
+  id: string;
+  name: string;
+  desc: string;
+  maxRank: number;
+  /** Cost for rank k (1-indexed) — progressive. */
+  costAt: (rank: number) => number;
+  /** Per-rank bonus value (e.g. 0.05 = +5% per rank). */
+  perRank: number;
+}
+
+export const META_UPGRADES: MetaUpgradeDef[] = [
+  { id: 'dmg',       name: 'Arcane Resonance',  desc: '+5% damage per rank.',                 maxRank: 5, costAt: (r) => 15 + r * 10,  perRank: 0.05 },
+  { id: 'cd',        name: 'Swift Spirit',       desc: '+4% cooldown reduction per rank.',    maxRank: 5, costAt: (r) => 18 + r * 12,  perRank: 0.04 },
+  { id: 'move',      name: 'Wanderlust',         desc: '+4% movement speed per rank.',        maxRank: 5, costAt: (r) => 14 + r * 8,   perRank: 0.04 },
+  { id: 'hp',        name: 'Vital Essence',      desc: '+5% max HP per rank.',                 maxRank: 5, costAt: (r) => 16 + r * 10,  perRank: 0.05 },
+  { id: 'xp',        name: 'Soul harvest',       desc: '+6% XP gain per rank.',                maxRank: 5, costAt: (r) => 20 + r * 12,  perRank: 0.06 },
+  { id: 'essence',   name: 'Echoing Glory',      desc: '+8% essence gain per rank.',           maxRank: 5, costAt: (r) => 25 + r * 15,  perRank: 0.08 },
+  { id: 'crit',      name: 'Keening Edge',       desc: '+3% critical chance per rank.',       maxRank: 3, costAt: (r) => 30 + r * 18,  perRank: 0.03 },
+  { id: 'critdmg',   name: 'Devastation',        desc: '+15% critical damage per rank.',      maxRank: 3, costAt: (r) => 28 + r * 16,  perRank: 0.15 },
+  { id: 'regen',     name: 'Lingering Vigor',    desc: '+0.4 HP/sec regeneration per rank.',   maxRank: 3, costAt: (r) => 22 + r * 14,  perRank: 0.4 },
+  { id: 'lifesteal', name: 'Sanguine Pact',       desc: '+2% lifesteal per rank.',              maxRank: 3, costAt: (r) => 32 + r * 20,  perRank: 0.02 },
+  { id: 'dr',        name: 'Iron Resolve',       desc: '+3% damage reduction per rank.',      maxRank: 3, costAt: (r) => 35 + r * 22,  perRank: 0.03 },
+  { id: 'dash',      name: 'Flowing Step',       desc: '+6% dash cooldown reduction per rank.', maxRank: 3, costAt: (r) => 24 + r * 14, perRank: 0.06 },
+];
+
+export interface MetaState {
+  essence: number;
+  ranks: Record<string, number>;
+}
+
+export const META_BY_ID: Record<string, MetaUpgradeDef> = {};
+META_UPGRADES.forEach((m) => (META_BY_ID[m.id] = m));
+
+/** Load meta state from localStorage, with a small head-start (1 rank of dmg). */
+export function loadMeta(): MetaState {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as MetaState;
+      if (typeof parsed.essence === 'number' && parsed.ranks) {
+        return parsed;
+      }
+    }
+  } catch {
+    // corrupt or unavailable — fall through to fresh state
+  }
+  // Fresh state: grant 1 free rank of Arcane Resonance as a head-start.
+  return { essence: 0, ranks: { dmg: 1 } };
+}
+
+/** Persist meta state to localStorage. */
+export function saveMeta(state: MetaState): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // localStorage may be unavailable (private mode etc.) — silently no-op.
+  }
+}
+
+/** Essence earned per regular enemy kill, scaled by the enemy's xpValue and essence-gain meta. */
+export function essenceForEnemyKill(world: World, xpValue: number): number {
+  const meta = metaStateOf(world);
+  const mult = 1 + (meta.ranks.essence ? meta.ranks.essence * META_BY_ID['essence'].perRank : 0);
+  // 1-3 essence based on xpValue tier.
+  const base = Math.max(1, Math.round(xpValue / 3));
+  return Math.max(1, Math.round(base * mult));
+}
+
+/** Essence earned per boss kill, scaled by essence-gain meta. */
+export function essenceForBossKill(world: World, xpValue: number): number {
+  const meta = metaStateOf(world);
+  const mult = 1 + (meta.ranks.essence ? meta.ranks.essence * META_BY_ID['essence'].perRank : 0);
+  // 20-50 based on boss xpValue.
+  const base = Math.max(20, Math.round(xpValue / 2));
+  return Math.max(20, Math.round(base * mult));
+}
+
+/**
+ * Attach a live MetaState reference to the world for the duration of a run.
+ * The run accumulates *unbanked* essence in `world.runEssence`; on death that
+ * is added to the persistent `state.essence` and saved.
+ */
+export function attachMeta(world: World, state: MetaState): void {
+  (world as unknown as { metaState: MetaState }).metaState = state;
+}
+
+/** Read the meta state attached to the world (or load a fresh one if missing). */
+export function metaStateOf(world: World): MetaState {
+  const w = world as unknown as { metaState?: MetaState };
+  if (w.metaState) return w.metaState;
+  const fresh = loadMeta();
+  w.metaState = fresh;
+  return fresh;
+}
+
+/** Add unbanked essence earned during the current run. */
+export function addRunEssence(world: World, amount: number): void {
+  const w = world as unknown as { runEssence?: number };
+  w.runEssence = (w.runEssence || 0) + amount;
+}
+
+/** Read unbanked essence earned during the current run (for game-over display). */
+export function getRunEssence(world: World): number {
+  return (world as unknown as { runEssence?: number }).runEssence || 0;
+}
+
+/**
+ * Bank the run's accumulated essence into the persistent total on death.
+ * Returns the amount banked (0 if nothing to bank).
+ */
+export function bankRunEssence(world: World): number {
+  const earned = getRunEssence(world);
+  if (earned <= 0) return 0;
+  const meta = metaStateOf(world);
+  meta.essence += earned;
+  saveMeta(meta);
+  // Clear run essence so it can't be double-banked.
+  (world as unknown as { runEssence?: number }).runEssence = 0;
+  return earned;
+}
+
+/** Current rank of a meta upgrade (0 if unpurchased). */
+export function metaRank(world: World, id: string): number {
+  return metaStateOf(world).ranks[id] || 0;
+}
+
+/** Cost to buy the NEXT rank of a meta upgrade (or 0 if maxed). */
+export function metaNextCost(world: World, id: string): number {
+  const def = META_BY_ID[id];
+  const rank = metaRank(world, id);
+  if (rank >= def.maxRank) return 0;
+  return def.costAt(rank + 1);
+}
+
+/** Purchase the next rank of a meta upgrade. Returns true on success. */
+export function buyMetaRank(world: World, id: string): boolean {
+  const def = META_BY_ID[id];
+  if (!def) return false;
+  const meta = metaStateOf(world);
+  const rank = meta.ranks[id] || 0;
+  if (rank >= def.maxRank) return false;
+  const cost = def.costAt(rank + 1);
+  if (meta.essence < cost) return false;
+  meta.essence -= cost;
+  meta.ranks[id] = rank + 1;
+  saveMeta(meta);
+  return true;
+}
+
+// ---------------- derived-stat accessors (used by player.ts) ----------------
+
+export function metaDamageMult(world: World): number {
+  return 1 + metaRank(world, 'dmg') * META_BY_ID['dmg'].perRank;
+}
+export function metaCooldownMult(world: World): number {
+  return 1 - metaRank(world, 'cd') * META_BY_ID['cd'].perRank;
+}
+export function metaMoveMult(world: World): number {
+  return 1 + metaRank(world, 'move') * META_BY_ID['move'].perRank;
+}
+export function metaHpMult(world: World): number {
+  return 1 + metaRank(world, 'hp') * META_BY_ID['hp'].perRank;
+}
+export function metaXpMult(world: World): number {
+  return 1 + metaRank(world, 'xp') * META_BY_ID['xp'].perRank;
+}
+export function metaCritChance(world: World): number {
+  return metaRank(world, 'crit') * META_BY_ID['crit'].perRank;
+}
+export function metaCritDmgMult(world: World): number {
+  return metaRank(world, 'critdmg') * META_BY_ID['critdmg'].perRank;
+}
+export function metaRegenPerSec(world: World): number {
+  return metaRank(world, 'regen') * META_BY_ID['regen'].perRank;
+}
+export function metaLifestealPct(world: World): number {
+  return metaRank(world, 'lifesteal') * META_BY_ID['lifesteal'].perRank;
+}
+export function metaDamageReduction(world: World): number {
+  return metaRank(world, 'dr') * META_BY_ID['dr'].perRank;
+}
+export function metaDashCdMult(world: World): number {
+  return 1 - metaRank(world, 'dash') * META_BY_ID['dash'].perRank;
+}

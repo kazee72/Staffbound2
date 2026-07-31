@@ -152,18 +152,64 @@ export const CONTENT: Record<string, Record<string, ContentEntry>> = {
   },
 };
 
-export const CX = 800;
-export const CY = 800;
+// ---------------- Grid layout ----------------
+// Replaced the radial constellation with a clean vertical-column grid: each
+// of the 7 branches is its own column, nodes stacked top-to-bottom by tier,
+// with straight horizontal/vertical (right-angle) connector lines — no
+// diagonals, no curves. Side nodes (C1/C2/G/H/E1/E2) sit at small horizontal
+// offsets within the column and connect via right-angle elbow paths.
+//
+// Geometry constants:
+export const COL_W = 170; // horizontal gap between branch columns
+export const ROW_H = 92; // vertical gap between tier rows
+export const SIDE_DX = 58; // horizontal offset for side-branch nodes (C1/C2/E1/E2/H)
+export const HUB_X = 8; // (in column units) center column index for the hub
+export const HUB_Y = 40; // hub Y position (px from top of treeinner)
+export const GRID_TOP = 120; // Y of tier-0 (A) nodes — below the hub
+// Derived overall tree size (used by hud.css #treeinner):
+export const GRID_W = 7 * COL_W + 120; // padding on both sides
+export const GRID_H = 7 * ROW_H + 220; // room for capstones + padding
+
+// Column X for branch index bi (0..6). Branches are centered as a group.
+export function colX(bi: number): number {
+  // Center the 7 columns around the middle of GRID_W.
+  const totalW = 6 * COL_W;
+  const startX = (GRID_W - totalW) / 2;
+  return startX + bi * COL_W;
+}
+
+// Tier Y — main spine nodes (A,B,G,D,F) sit on the central spine of the
+// column. Tier index maps: A=0, B=1, G=2, D=3, F=5 (capstone gets extra gap).
+export function tierY(tier: number): number {
+  return GRID_TOP + tier * ROW_H;
+}
+
+export const CX = GRID_W / 2;
+export const CY = HUB_Y;
 
 export const SKILL_NODES: SkillNode[] = [];
-BRANCHES.forEach((br) => {
-  const rad = (br.angle * Math.PI) / 180;
+BRANCHES.forEach((br, bi) => {
+  const cx = colX(bi); // central spine X for this branch's column
   const locals = br.code === 'V' ? LOCAL.concat(VOID_EXTRA) : LOCAL;
   locals.forEach((loc) => {
-    const a = rad + (loc.off * Math.PI) / 180;
-    const r = loc.radius !== undefined ? loc.radius : RADII[loc.tier];
-    const x = CX + r * Math.cos(a);
-    const y = CY + r * Math.sin(a);
+    // Grid coordinate per node id. Main spine (A,B,G,D,F) is on the column's
+    // center X. Side nodes (C1,C2,E1,E2,H,X) offset horizontally and connect
+    // via right-angle elbow lines. F (capstone) sits one extra row below E.
+    let x = cx;
+    let y = tierY(loc.tier);
+    switch (loc.id) {
+      case 'A': y = tierY(0); break;
+      case 'B': y = tierY(1); break;
+      case 'G': y = tierY(2); break; // central spine tier-2
+      case 'C1': x = cx - SIDE_DX; y = tierY(2); break; // left of G
+      case 'C2': x = cx + SIDE_DX; y = tierY(2); break; // right of G
+      case 'D': y = tierY(3); break;
+      case 'H': x = cx + SIDE_DX; y = tierY(3); break; // side node off D
+      case 'E1': x = cx - SIDE_DX; y = tierY(4); break; // left of spine
+      case 'E2': x = cx + SIDE_DX; y = tierY(4); break; // right of spine
+      case 'X': x = cx - SIDE_DX; y = tierY(1); break; // Void-only side node off A→B tier
+      case 'F': y = tierY(5) + 18; break; // capstone gets a slightly larger gap
+    }
     const content = CONTENT[br.code][loc.id];
     SKILL_NODES.push({
       id: br.code + '_' + loc.id,
@@ -183,6 +229,17 @@ BRANCHES.forEach((br) => {
 
 export const NODE_BY_ID: Record<string, SkillNode> = {};
 SKILL_NODES.forEach((n) => (NODE_BY_ID[n.id] = n));
+
+/**
+ * Right-angle (Manhattan) SVG path between two nodes for the grid layout.
+ * Goes vertically from the source's Y to the target's Y, then horizontally
+ * to the target's X — produces purely vertical+horizontal segments (no
+ * diagonals). Used by UIManager.renderTree for connector lines.
+ */
+export function gridPath(x1: number, y1: number, x2: number, y2: number): string {
+  // L-shaped path: vertical first, then horizontal.
+  return `M ${x1} ${y1} L ${x1} ${y2} L ${x2} ${y2}`;
+}
 
 export function hasNode(purchased: Set<string>, id: string): boolean {
   return purchased.has(id);

@@ -2,6 +2,7 @@
 import type { BossState, EnemyState, World } from './types';
 import { critChance, critDmgMult, gainXP, healPlayer, lifestealPct, resetAllCooldowns } from './player';
 import { hasNode } from './skillTree';
+import { addRunEssence, essenceForEnemyKill } from './metaProgression';
 import { burst, spawnPopup } from './visuals';
 
 function dist2(x1: number, y1: number, x2: number, y2: number): number {
@@ -52,6 +53,7 @@ export function damageEnemy(world: World, e: EnemyState, amount: number, opts: D
 export function killEnemy(world: World, e: EnemyState): void {
   e.dead = true;
   gainXP(world, e.xpValue);
+  addRunEssence(world, essenceForEnemyKill(world, e.xpValue));
   world.slain++;
   burst(world, e.x, e.y, e.color, 14, 150);
   if (hasNode(world.purchased, 'N_A')) healPlayer(world, 3);
