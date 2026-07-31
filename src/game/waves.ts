@@ -15,7 +15,14 @@ export const PLACES = [
   'the last watchtower',
 ];
 
+/**
+ * Regular enemy spawning pauses entirely while a boss fight is active
+ * (`world.bossFight !== null`) — see BossFightState in types.ts. The boss
+ * timer itself still only fires spawnBoss() when not already mid-fight.
+ */
 export function updateSpawns(world: World, dt: number): void {
+  if (world.bossFight) return;
+
   const day = currentDay(world);
   world.spawnTimer -= dt;
   const interval = Math.max(0.32, 1.5 - day * 0.09);
@@ -26,7 +33,11 @@ export function updateSpawns(world: World, dt: number): void {
   }
   world.bossTimer -= dt;
   if (world.bossTimer <= 0) {
-    world.bossTimer = 90;
+    // Boss fights are now full bullet-hell set-pieces (multiple attack
+    // patterns instead of one telegraphed stomp), so the cadence was
+    // stretched from the original 90s to 130s to give each fight room to
+    // breathe without back-to-back bosses feeling relentless.
+    world.bossTimer = 130;
     spawnBoss(world);
   }
 }

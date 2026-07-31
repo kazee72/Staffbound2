@@ -3,15 +3,26 @@ import type { World } from './types';
 import { hasNode } from './skillTree';
 
 export function cooldownMult(world: World): number {
-  return 1 - (hasNode(world.purchased, 'V_E2') ? 0.2 : 0);
+  return (
+    1 -
+    (hasNode(world.purchased, 'V_E2') ? 0.2 : 0) -
+    (hasNode(world.purchased, 'P_B') ? 0.1 : 0) -
+    (hasNode(world.purchased, 'P_D') ? 0.12 : 0) -
+    (hasNode(world.purchased, 'P_F') ? 0.1 : 0)
+  );
 }
 
 export function critChance(world: World): number {
-  return (hasNode(world.purchased, 'S_A') ? 0.08 : 0) + (hasNode(world.purchased, 'S_G') ? 0.05 : 0);
+  return (
+    (hasNode(world.purchased, 'S_A') ? 0.08 : 0) +
+    (hasNode(world.purchased, 'S_G') ? 0.05 : 0) +
+    (hasNode(world.purchased, 'P_C1') ? 0.06 : 0) +
+    (hasNode(world.purchased, 'P_F') ? 0.1 : 0)
+  );
 }
 
 export function critDmgMult(world: World): number {
-  return 1.5 + (hasNode(world.purchased, 'S_C1') ? 0.5 : 0);
+  return 1.5 + (hasNode(world.purchased, 'S_C1') ? 0.5 : 0) + (hasNode(world.purchased, 'P_C2') ? 0.15 : 0);
 }
 
 export function maxHP(world: World): number {
@@ -25,7 +36,8 @@ export function maxHP(world: World): number {
       (hasNode(p, 'R_H') ? 0.15 : 0) +
       (hasNode(p, 'V_H') ? 0.15 : 0) +
       (hasNode(p, 'N_H') ? 0.15 : 0) +
-      (hasNode(p, 'S_H') ? 0.15 : 0))
+      (hasNode(p, 'S_H') ? 0.15 : 0) +
+      (hasNode(p, 'P_H') ? 0.15 : 0))
   );
 }
 
@@ -33,7 +45,12 @@ export function moveSpeed(world: World): number {
   const p = world.purchased;
   return (
     230 *
-    (1 + (hasNode(p, 'B_A') ? 0.15 : 0) + (hasNode(p, 'B_G') ? 0.1 : 0)) *
+    (1 +
+      (hasNode(p, 'B_A') ? 0.15 : 0) +
+      (hasNode(p, 'B_G') ? 0.1 : 0) +
+      (hasNode(p, 'P_G') ? 0.1 : 0) +
+      (hasNode(p, 'P_E2') ? 0.15 : 0) +
+      (hasNode(p, 'P_F') ? 0.1 : 0)) *
     (world.player.adrenaline > 0 ? 1.25 : 1)
   );
 }
@@ -60,6 +77,12 @@ export function dashCooldownMax(world: World): number {
 
 export function xpMult(world: World): number {
   return 1 + (hasNode(world.purchased, 'V_X') ? 0.3 : 0);
+}
+
+/** Broad "spell power" multiplier from the Potency branch — applied to non-bolt damage spells (Fire Nova/Ice Lance/Arcane Burst/Shadow Bolt/Wisp bolts). Bolt itself is scaled inline in castBolt alongside its other multipliers. */
+export function spellDamageMult(world: World): number {
+  const p = world.purchased;
+  return (1 + (hasNode(p, 'P_A') ? 0.1 : 0) + (hasNode(p, 'P_E1') ? 0.15 : 0)) * (hasNode(p, 'P_F') ? 1.2 : 1);
 }
 
 export function healPlayer(world: World, amount: number): void {

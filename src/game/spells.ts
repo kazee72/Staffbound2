@@ -1,8 +1,8 @@
 /** All spell cast functions & their cooldown update loop, ported from reference/full-reference.html */
 import type { EnemyState, Projectile, World } from './types';
-import { cooldownMult } from './player';
+import { cooldownMult, spellDamageMult } from './player';
 import { hasNode } from './skillTree';
-import { damageEnemy } from './combat';
+import { damageEnemy, damageBoss } from './combat';
 import { burst } from './visuals';
 
 function dist2(x1: number, y1: number, x2: number, y2: number): number {
@@ -25,6 +25,22 @@ export function nearestEnemy(world: World, x: number, y: number): EnemyState | n
   return best;
 }
 
+/**
+ * AoE helper shared by Fire Nova / Thorned Vines / Arcane Burst-style spells
+ * that hit "anything in range" rather than a single locked target — applies
+ * to both regular enemies (world.enemies) and the active boss (world.bossFight)
+ * so these spells still do something during a boss-exclusive fight.
+ */
+function forEachTargetInRange(world: World, x: number, y: number, radius: number, fn: (e: EnemyState) => void, bossFn: () => void): void {
+  world.enemies.forEach((e) => {
+    if (!e.dead && dist2(e.x, e.y, x, y) < radius * radius) fn(e);
+  });
+  if (world.bossFight) {
+    const boss = world.bossFight.boss;
+    if (dist2(boss.x, boss.y, x, y) < radius * radius) bossFn();
+  }
+}
+
 interface ProjOpts {
   r?: number;
   homing?: boolean;
@@ -33,6 +49,7 @@ interface ProjOpts {
   slow?: number;
   freeze?: number;
   mini?: boolean;
+  markedBonus?: boolean;
 }
 
 export function fireProjectile(
@@ -63,6 +80,7 @@ export function fireProjectile(
     slow: opts.slow,
     freeze: opts.freeze,
     mini: opts.mini,
+    markedBonus: opts.markedBonus,
   };
   world.projectiles.push(pr);
 }
@@ -72,12 +90,21 @@ export function castBolt(world: World): void {
   const count = 1 + (hasNode(world.purchased, 'V_B') ? 1 : 0);
   world.cd.boltCastCount++;
   const empowered = hasNode(world.purchased, 'V_D') && world.cd.boltCastCount % 5 === 0;
-  for (let i = 0; i < count; i++) {
+  // Determine aim direction: auto-aim targets nearest enemy (classic behavior),
+  // mouse-aim fires toward player.aimAngle. If auto-aim finds no target, fall
+  // back to aimAngle so the player can still shoot during boss-only fights.
+  let baseAng: number | null = null;
+  if (world.autoAim) {
     const target = nearestEnemy(world, p.x, p.y);
-    if (!target) break;
-    const ang = Math.atan2(target.y - p.y, target.x - p.x) + (i - (count - 1) / 2) * 0.18;
+    if (target) baseAng = Math.atan2(target.y - p.y, target.x - p.x);
+    else if (world.bossFight) baseAng = Math.atan2(world.bossFight.boss.y - p.y, world.bossFight.boss.x - p.x);
+  }
+  if (baseAng === null) baseAng = p.aimAngle;
+  for (let i = 0; i < count; i++) {
+    const ang = baseAng + (i - (count - 1) / 2) * 0.18;
     let dmg = 8 + world.level * 0.6;
     if (hasNode(world.purchased, 'F_A')) dmg *= 1.2;
+    dmg *= spellDamageMult(world);
     if (empowered) dmg *= 3;
     fireProjectile(world, p.x, p.y, Math.cos(ang), Math.sin(ang), 480, dmg, '#9d8ce0', hasNode(world.purchased, 'V_C1') ? 1 : 0, {
       homing: hasNode(world.purchased, 'V_C2'),
@@ -97,11 +124,16 @@ export function castBolt(world: World): void {
 export function castFireNova(world: World): void {
   const p = world.player;
   const radius = 110 + (hasNode(world.purchased, 'F_C1') ? 45 : 0);
-  const dmg = (22 + world.level * 0.5) * (hasNode(world.purchased, 'F_E1') ? 1.8 : 1);
+  const dmg = (22 + world.level * 0.5) * (hasNode(world.purchased, 'F_E1') ? 1.8 : 1) * spellDamageMult(world);
   world.effects.push({ type: 'ring', x: p.x, y: p.y, r: 0, maxR: radius, color: '#e2793d', life: 0.4, t: 0 });
-  world.enemies.forEach((e) => {
-    if (!e.dead && dist2(e.x, e.y, p.x, p.y) < radius * radius) damageEnemy(world, e, dmg, { burn: true, color: '#e2793d' });
-  });
+  forEachTargetInRange(
+    world,
+    p.x,
+    p.y,
+    radius,
+    (e) => damageEnemy(world, e, dmg, { burn: true, color: '#e2793d' }),
+    () => damageBoss(world, world.bossFight!.boss, dmg, { burn: true, color: '#e2793d' }),
+  );
   if (hasNode(world.purchased, 'F_E2')) {
     world.effects.push({ type: 'ground', x: p.x, y: p.y, r: radius * 0.8, color: '#e2793d', life: 4, t: 0, dmg: 6 });
   }
@@ -111,13 +143,20 @@ export function castFireNova(world: World): void {
 
 export function castIceLance(world: World): void {
   const p = world.player;
-  const target = nearestEnemy(world, p.x, p.y);
-  if (!target) return;
   const dmg = 16 + world.level * 0.4;
+  const dmgMult = spellDamageMult(world);
   const freeze = 1.2 + (hasNode(world.purchased, 'R_C1') ? 1.2 : 0);
   const pierce = 2 + (hasNode(world.purchased, 'R_C2') ? 2 : 0);
-  const ang = Math.atan2(target.y - p.y, target.x - p.x);
-  fireProjectile(world, p.x, p.y, Math.cos(ang), Math.sin(ang), 420, dmg, '#8ec9e8', pierce, { freeze, slow: 0.4, r: 6 });
+  let ang: number;
+  if (world.autoAim) {
+    const target = nearestEnemy(world, p.x, p.y);
+    if (target) ang = Math.atan2(target.y - p.y, target.x - p.x);
+    else if (world.bossFight) ang = Math.atan2(world.bossFight.boss.y - p.y, world.bossFight.boss.x - p.x);
+    else ang = p.aimAngle;
+  } else {
+    ang = p.aimAngle;
+  }
+  fireProjectile(world, p.x, p.y, Math.cos(ang), Math.sin(ang), 420, dmg * dmgMult, '#8ec9e8', pierce, { freeze, slow: 0.4, r: 6 });
 }
 
 export function castFrostArmor(world: World): void {
@@ -129,7 +168,7 @@ export function castFrostArmor(world: World): void {
 
 export function castArcaneBurst(world: World): void {
   const p = world.player;
-  const dmg = 14 + world.level * 0.4;
+  const dmg = (14 + world.level * 0.4) * spellDamageMult(world);
   const n = 10;
   for (let i = 0; i < n; i++) {
     const a = (i / n) * Math.PI * 2;
@@ -142,23 +181,37 @@ export function castVines(world: World): void {
   const p = world.player;
   const radius = 130 + (hasNode(world.purchased, 'N_D') ? 60 : 0);
   world.effects.push({ type: 'ring', x: p.x, y: p.y, r: 0, maxR: radius, color: '#8bc48a', life: 0.5, t: 0 });
-  world.enemies.forEach((e) => {
-    if (!e.dead && dist2(e.x, e.y, p.x, p.y) < radius * radius) {
+  forEachTargetInRange(
+    world,
+    p.x,
+    p.y,
+    radius,
+    (e) => {
       e.slowUntil = world.elapsed + 2.5;
       e.slowAmt = Math.max(e.slowAmt, 0.9);
       if (hasNode(world.purchased, 'N_C1')) e.rootBleed = world.elapsed + 2.5;
-    }
-  });
+    },
+    () => {
+      const boss = world.bossFight!.boss;
+      boss.slowUntil = world.elapsed + 2.5;
+      boss.slowAmt = Math.max(boss.slowAmt, 0.6); // bosses resist root-slow slightly so fights stay mobile
+    },
+  );
 }
 
 export function castShadowBolt(world: World): void {
   const p = world.player;
-  const target = nearestEnemy(world, p.x, p.y);
-  if (!target) return;
-  let dmg = 18 + world.level * 0.5;
-  if (target.marked > world.elapsed) dmg *= 2;
-  const ang = Math.atan2(target.y - p.y, target.x - p.x);
-  fireProjectile(world, p.x, p.y, Math.cos(ang), Math.sin(ang), 500, dmg, '#c4728f', 0, {});
+  const dmg = (18 + world.level * 0.5) * spellDamageMult(world);
+  let ang: number;
+  if (world.autoAim) {
+    const target = nearestEnemy(world, p.x, p.y);
+    if (target) ang = Math.atan2(target.y - p.y, target.x - p.x);
+    else if (world.bossFight) ang = Math.atan2(world.bossFight.boss.y - p.y, world.bossFight.boss.x - p.x);
+    else ang = p.aimAngle;
+  } else {
+    ang = p.aimAngle;
+  }
+  fireProjectile(world, p.x, p.y, Math.cos(ang), Math.sin(ang), 500, dmg, '#c4728f', 0, { markedBonus: true });
 }
 
 export function updateWisps(world: World, dt: number): void {
@@ -175,9 +228,14 @@ export function updateWisps(world: World, dt: number): void {
       const interval = 2.2 * (hasNode(world.purchased, 'N_D') ? 0.7 : 1) * cooldownMult(world);
       w.cd = interval;
       const target = nearestEnemy(world, w.x!, w.y!);
+      const dmg = (10 + world.level * 0.3) * spellDamageMult(world);
       if (target) {
         const ang = Math.atan2(target.y - w.y!, target.x - w.x!);
-        fireProjectile(world, w.x!, w.y!, Math.cos(ang), Math.sin(ang), 400, 10 + world.level * 0.3, '#8bc48a', 0, {});
+        fireProjectile(world, w.x!, w.y!, Math.cos(ang), Math.sin(ang), 400, dmg, '#8bc48a', 0, {});
+      } else if (world.bossFight) {
+        const boss = world.bossFight.boss;
+        const ang = Math.atan2(boss.y - w.y!, boss.x - w.x!);
+        fireProjectile(world, w.x!, w.y!, Math.cos(ang), Math.sin(ang), 400, dmg, '#8bc48a', 0, {});
       }
     }
   });

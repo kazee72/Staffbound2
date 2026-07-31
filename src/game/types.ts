@@ -13,6 +13,8 @@ export interface PlayerState {
   hp: number;
   invuln: number;
   facing: Vec2;
+  /** Mouse-aim direction in radians (world space), used by directional casts (bolt/ice lance/shadow bolt) instead of auto-targeting the nearest foe. */
+  aimAngle: number;
   dashCd: number;
   dashing: number;
   adrenaline: number;
@@ -20,7 +22,7 @@ export interface PlayerState {
   r: number;
 }
 
-export type EnemyType = 'slime' | 'skel' | 'wisp' | 'wraith' | 'boss';
+export type EnemyType = 'slime' | 'skel' | 'wisp' | 'wraith';
 
 export interface EnemyState {
   type: EnemyType;
@@ -43,9 +45,87 @@ export interface EnemyState {
   marked: number;
   rootBleed?: number;
   dead?: boolean;
-  isBoss?: boolean;
-  stompT?: number;
-  telegraph?: number;
+}
+
+/**
+ * Boss-owned bullet-hell projectiles. Deliberately NOT part of the regular
+ * `Projectile`/`world.enemies` systems — bosses own their attacks end to
+ * end, which keeps them trivial to clear in bulk when a fight ends and
+ * keeps the regular enemy collision loop untouched.
+ */
+export interface BossProjectile {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  r: number;
+  dmg: number;
+  color: string;
+  life: number;
+}
+
+/** A telegraphed warning shape (ring or line) shown before a boss attack lands/fires. */
+export interface BossTelegraph {
+  kind: 'ring' | 'line';
+  x: number;
+  y: number;
+  angle?: number;
+  length?: number;
+  width?: number;
+  radius?: number;
+  color: string;
+  t: number;
+  dur: number;
+}
+
+export type BossAttackId = 'stomp' | 'radialBurst' | 'spiral' | 'aimedVolley' | 'expandRing' | 'lineBeam';
+
+export interface BossState {
+  defId: string;
+  name: string;
+  x: number;
+  y: number;
+  hp: number;
+  maxHp: number;
+  dmg: number;
+  spd: number;
+  r: number;
+  color: string;
+  seed: number;
+  xpValue: number;
+
+  burning: number;
+  burnT: number;
+  slowUntil: number;
+  slowAmt: number;
+  /** Mirrors EnemyState.marked — set when a crit lands on the boss, consumed by mark-bonus damage (Shadow Bolt etc). */
+  marked: number;
+
+  /** Rotation index into this boss's attack-pattern list. */
+  patternIndex: number;
+  /** Currently-executing pattern id, or null while resting between attacks. */
+  activePattern: BossAttackId | null;
+  /** Seconds elapsed within the active pattern (or rest countdown when idle). */
+  patternT: number;
+  /** Free-form scratch state for a pattern's internal bookkeeping (shot counts, spin angle, etc). */
+  patternData: Record<string, number>;
+
+  projectiles: BossProjectile[];
+  telegraphs: BossTelegraph[];
+  dead?: boolean;
+}
+
+/**
+ * Explicit boss-fight mode. When non-null, regular enemy spawning is paused
+ * and all regular enemies were cleared on fight start — only the boss and
+ * its own attacks are live. Kept as an explicit World field (rather than
+ * inferred from enemies array contents) specifically so it's easy to reason
+ * about now and easy to sync as a single discrete piece of state later in
+ * Phase 4 multiplayer (NOTE for Phase 4: replicate `bossFight` verbatim to
+ * clients rather than trying to infer boss-fight-active from enemy lists).
+ */
+export interface BossFightState {
+  boss: BossState;
 }
 
 export interface Projectile {
@@ -63,6 +143,8 @@ export interface Projectile {
   slow?: number;
   freeze?: number;
   mini?: boolean;
+  /** Deals double damage if it hits a target that's currently marked (Shadow Bolt). Resolved generically in damageEnemy/damageBoss since the target isn't known until the projectile actually connects (mouse-aim casts, no pre-lock). */
+  markedBonus?: boolean;
 }
 
 export interface RingEffect {
@@ -162,6 +244,8 @@ export interface World {
   H: number;
   running: boolean;
   grimoireOpen: boolean;
+  /** Toggles auto-aim vs mouse-aim. When true, bolt/ice lance/shadow bolt auto-target nearest enemy (classic behavior). When false, they fire toward player.aimAngle (mouse cursor). */
+  autoAim: boolean;
 
   player: PlayerState;
   level: number;
@@ -183,6 +267,8 @@ export interface World {
   cd: Cooldowns;
   spawnTimer: number;
   bossTimer: number;
+  /** Explicit boss-fight state — see BossFightState doc comment. Null = normal spawning. */
+  bossFight: BossFightState | null;
 
   purchased: Set<string>;
 
@@ -196,6 +282,7 @@ export function createWorld(W: number, H: number, flash: (text: string, color: s
     H,
     running: false,
     grimoireOpen: false,
+    autoAim: true,
     player: {
       x: W / 2,
       y: H / 2,
@@ -204,6 +291,7 @@ export function createWorld(W: number, H: number, flash: (text: string, color: s
       hp: 100,
       invuln: 0,
       facing: { x: 0, y: -1 },
+      aimAngle: -Math.PI / 2,
       dashCd: 0,
       dashing: 0,
       adrenaline: 0,
@@ -237,6 +325,7 @@ export function createWorld(W: number, H: number, flash: (text: string, color: s
     },
     spawnTimer: 0,
     bossTimer: 20,
+    bossFight: null,
     purchased: new Set<string>(),
     flash,
   };

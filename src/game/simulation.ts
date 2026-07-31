@@ -1,10 +1,11 @@
 /** Core per-frame simulation update functions, ported from reference/full-reference.html */
 import type { World } from './types';
-import { damageReduction, dashCooldownMax, healPlayer, maxHP, moveSpeed, regenPerSec } from './player';
+import { damageReduction, dashCooldownMax, gainXP, healPlayer, maxHP, moveSpeed, regenPerSec } from './player';
 import { hasNode } from './skillTree';
-import { damageEnemy } from './combat';
+import { damageEnemy, damageBoss } from './combat';
 import { nearestEnemy } from './spells';
 import { burst } from './visuals';
+import { updateBoss } from './bosses';
 
 function clamp(v: number, a: number, b: number): number {
   return Math.max(a, Math.min(b, v));
@@ -40,7 +41,12 @@ export function updatePlayer(world: World, input: InputState, dt: number): void 
   if (input.up) ay -= 1;
   if (input.down) ay += 1;
   const len = Math.hypot(ax, ay) || 1;
-  const accel = 1000;
+  // Scale accel by the moveSpeed() stat's ratio versus its 230 baseline, so
+  // move-speed nodes (Warden's Traveler's Legs/Momentum, Potency's Fleet
+  // Step/Windswept/Apex) produce a real, visible speed change while
+  // preserving the exact original accel/friction feel when no such node is
+  // owned (ratio === 1 with zero nodes purchased).
+  const accel = 1000 * (moveSpeed(world) / 230);
   p.vx += (ax / len) * accel * dt;
   p.vy += (ay / len) * accel * dt;
   p.vx *= 0.86;
@@ -58,11 +64,6 @@ export function updatePlayer(world: World, input: InputState, dt: number): void 
   if (p.undyingCd > 0) p.undyingCd -= dt;
   healPlayer(world, regenPerSec(world) * dt);
   if (world.cd.frostArmorActive > 0) world.cd.frostArmorActive -= dt;
-  // moveSpeed() is referenced by Warden-branch nodes conceptually; the raw
-  // accel/friction values above already match the reference's feel 1:1, so
-  // moveSpeed() itself is surfaced to callers/UI (dash indicator etc.) but
-  // not re-applied here to avoid double-scaling versus the source.
-  void moveSpeed;
 }
 
 export function tryDash(world: World): void {
@@ -133,7 +134,7 @@ export function updateProjectiles(world: World, dt: number): void {
     for (const e of world.enemies) {
       if (e.dead) continue;
       if (dist2(pr.x, pr.y, e.x, e.y) < (pr.r + e.r) * (pr.r + e.r)) {
-        damageEnemy(world, e, pr.dmg, { burn: pr.burn, slow: pr.slow, freeze: pr.freeze, color: pr.color });
+        damageEnemy(world, e, pr.dmg, { burn: pr.burn, slow: pr.slow, freeze: pr.freeze, color: pr.color, markedBonus: pr.markedBonus });
         hit = true;
         if (pr.pierce > 0) {
           pr.pierce--;
@@ -141,6 +142,19 @@ export function updateProjectiles(world: World, dt: number): void {
           world.projectiles.splice(i, 1);
         }
         break;
+      }
+    }
+    // Boss-fight hit test: player projectiles can also damage the active boss.
+    if (!hit && world.bossFight) {
+      const boss = world.bossFight.boss;
+      if (dist2(pr.x, pr.y, boss.x, boss.y) < (pr.r + boss.r) * (pr.r + boss.r)) {
+        damageBoss(world, boss, pr.dmg, { burn: pr.burn, slow: pr.slow, color: pr.color, markedBonus: pr.markedBonus });
+        hit = true;
+        if (pr.pierce > 0) {
+          pr.pierce--;
+        } else {
+          world.projectiles.splice(i, 1);
+        }
       }
     }
     if (!hit && (pr.life <= 0 || pr.x < -50 || pr.x > world.W + 50 || pr.y < -50 || pr.y > world.H + 50)) {
@@ -177,19 +191,6 @@ export function updateEnemies(world: World, dt: number): void {
     if (e.frozenUntil > world.elapsed) spd = 0;
     if (e.rootBleed && e.rootBleed > world.elapsed) damageEnemy(world, e, 4 * dt, { allowCrit: false });
     if (e.burning > world.elapsed) damageEnemy(world, e, 3 * dt, { allowCrit: false });
-
-    if (e.isBoss) {
-      e.stompT = (e.stompT ?? 4) - dt;
-      if (e.stompT <= 1 && (e.telegraph ?? 0) <= 0) e.telegraph = 1;
-      if ((e.telegraph ?? 0) > 0) {
-        e.telegraph = (e.telegraph ?? 0) - dt;
-        if (e.telegraph <= 0) {
-          if (dist2(p.x, p.y, e.x, e.y) < 150 * 150 && p.invuln <= 0) damagePlayer(world, e.dmg * 1.3);
-          world.effects.push({ type: 'ring', x: e.x, y: e.y, r: 0, maxR: 150, color: '#c4728f', life: 0.3, t: 0 });
-          e.stompT = 4;
-        }
-      }
-    }
 
     const dx = p.x - e.x;
     const dy = p.y - e.y;
@@ -248,4 +249,25 @@ export function updateParticles(world: World, dt: number): void {
 
 export function maxHPStat(world: World): number {
   return maxHP(world);
+}
+
+/**
+ * Ticks the active boss fight (movement, bullet-hell pattern rotation,
+ * projectile collision) via bosses.ts, then resolves death: grants XP,
+ * flashes a victory banner, and clears `world.bossFight` so
+ * `updateSpawns` resumes normal enemy spawning next frame. No-op when no
+ * fight is active.
+ */
+export function updateBossFight(world: World, dt: number): void {
+  const fight = world.bossFight;
+  if (!fight) return;
+  updateBoss(world, dt);
+  const boss = fight.boss;
+  if (boss.hp <= 0) {
+    gainXP(world, boss.xpValue);
+    world.slain++;
+    burst(world, boss.x, boss.y, boss.color, 46, 280);
+    world.flash(boss.name.toUpperCase() + ' FALLS', 'var(--gold-bright)');
+    world.bossFight = null;
+  }
 }

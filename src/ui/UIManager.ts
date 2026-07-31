@@ -30,8 +30,11 @@ export class UIManager {
   private dayline: HTMLDivElement;
   private slainTxt: HTMLElement;
   private dashTxt: HTMLElement;
+  private aimTxt: HTMLElement;
   private spBadge: HTMLSpanElement;
   private grimoireBtn: HTMLButtonElement;
+  private cooldownBar: HTMLDivElement;
+  private cooldownSlots: Record<string, { container: HTMLDivElement; fill: HTMLDivElement; time: HTMLDivElement; label: string }>;
 
   private startOverlay: HTMLDivElement;
   private startBtn: HTMLButtonElement;
@@ -85,6 +88,7 @@ export class UIManager {
         <button id="grimoireBtn">GRIMOIRE <span id="spBadge" style="display:none;">0</span></button>
         <div class="hudrow"><span>slain</span><b id="slainTxt" style="margin-left:6px;">0</b></div>
         <div id="dashind">dash <b id="dashTxt">ready</b></div>
+        <div id="aimind">aim <b id="aimTxt">auto</b> (Q)</div>
       </div>
     `;
     this.root.appendChild(hud);
@@ -95,9 +99,39 @@ export class UIManager {
     this.dayline = hud.querySelector('#dayline')!;
     this.slainTxt = hud.querySelector('#slainTxt')!;
     this.dashTxt = hud.querySelector('#dashTxt')!;
+    this.aimTxt = hud.querySelector('#aimTxt')!;
     this.spBadge = hud.querySelector('#spBadge')!;
     this.grimoireBtn = hud.querySelector('#grimoireBtn')!;
     this.grimoireBtn.addEventListener('click', () => this.onToggleGrimoire());
+
+    // Skill cooldown bar (bottom-center of screen)
+    this.cooldownBar = document.createElement('div');
+    this.cooldownBar.id = 'cooldownBar';
+    this.root.appendChild(this.cooldownBar);
+    this.cooldownSlots = {};
+    const spellDefs = [
+      { id: 'bolt',       label: 'Bolt',    color: '#9d8ce0' },
+      { id: 'fireNova',   label: 'Nova',    color: '#e2793d' },
+      { id: 'iceLance',   label: 'Lance',   color: '#8ec9e8' },
+      { id: 'shadowBolt', label: 'Shadow',  color: '#c4728f' },
+      { id: 'arcaneBurst',label: 'Burst',   color: '#c7bdf5' },
+      { id: 'vines',      label: 'Vines',   color: '#8bc48a' },
+      { id: 'frostArmor', label: 'Armor',   color: '#8ec9e8' },
+      { id: 'dash',       label: 'Dash',    color: '#c9a869' },
+    ];
+    spellDefs.forEach((sd) => {
+      const slot = document.createElement('div');
+      slot.className = 'cdSlot';
+      slot.innerHTML = `<div class="cdIcon" style="border-color:${sd.color};color:${sd.color}">${sd.label}</div><div class="cdBar"><div class="cdFill" style="background:${sd.color}"></div></div><div class="cdTime"></div>`;
+      slot.style.display = 'none'; // hidden until the skill is unlocked/active
+      this.cooldownBar.appendChild(slot);
+      this.cooldownSlots[sd.id] = {
+        container: slot,
+        fill: slot.querySelector('.cdFill')!,
+        time: slot.querySelector('.cdTime')!,
+        label: sd.label,
+      };
+    });
 
     // Start overlay
     this.startOverlay = document.createElement('div');
@@ -241,9 +275,37 @@ export class UIManager {
     this.dayline.textContent = 'Day ' + currentDay(world) + ' — ' + PLACES[(currentDay(world) - 1) % PLACES.length];
     this.slainTxt.textContent = String(world.slain);
     this.dashTxt.textContent = p.dashCd > 0 ? p.dashCd.toFixed(1) + 's' : 'ready';
+    this.aimTxt.textContent = world.autoAim ? 'auto' : 'mouse';
+    this.aimTxt.style.color = world.autoAim ? 'var(--frost)' : 'var(--gold)';
     const sp = availableSP(world);
     this.spBadge.style.display = sp > 0 ? 'flex' : 'none';
     this.spBadge.textContent = String(sp);
+
+    // Skill cooldown bar: show each unlocked skill's cooldown progress.
+    this.updateCooldown('bolt', world.cd.bolt, 0.55 * (1 - (hasNode(world.purchased, 'V_A') ? 0.2 : 0)) * (1 - (hasNode(world.purchased, 'V_E2') ? 0.2 : 0)), true);
+    this.updateCooldown('dash', p.dashCd, 3.4, true);
+    this.updateCooldown('fireNova', world.cd.fireNova, 6, hasNode(world.purchased, 'F_B'));
+    this.updateCooldown('iceLance', world.cd.iceLance, 5, hasNode(world.purchased, 'R_B'));
+    this.updateCooldown('shadowBolt', world.cd.shadowBolt, 4, hasNode(world.purchased, 'S_B'));
+    this.updateCooldown('arcaneBurst', world.cd.arcaneBurst, 8, hasNode(world.purchased, 'V_E1'));
+    this.updateCooldown('vines', world.cd.vines, 10, hasNode(world.purchased, 'N_B'));
+    this.updateCooldown('frostArmor', world.cd.frostArmor, 14, hasNode(world.purchased, 'R_E2'));
+  }
+
+  private updateCooldown(id: string, cd: number, maxCd: number, visible: boolean): void {
+    const slot = this.cooldownSlots[id];
+    if (!slot) return;
+    slot.container.style.display = visible ? 'flex' : 'none';
+    if (!visible) return;
+    if (cd <= 0) {
+      slot.fill.style.width = '100%';
+      slot.fill.style.opacity = '0.25';
+      slot.time.textContent = '';
+    } else {
+      slot.fill.style.width = Math.max(0, (1 - cd / maxCd) * 100) + '%';
+      slot.fill.style.opacity = '1';
+      slot.time.textContent = cd.toFixed(1);
+    }
   }
 
   /** Full (re)render of the skill tree — connectors + node divs + labels. Called when opening the Grimoire or after a purchase. */

@@ -169,6 +169,69 @@
 #dashind b {
   color: var(--frost);
 }
+#aimind {
+  font-size: 10px;
+  color: var(--dim);
+  text-align: right;
+}
+#aimind b {
+  color: var(--frost);
+}
+
+/* Skill cooldown bar (bottom-center) */
+#cooldownBar {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: flex;
+  gap: 6px;
+  pointer-events: none;
+}
+.cdSlot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 52px;
+}
+.cdIcon {
+  font-family: 'Cinzel', serif;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  border: 1.5px solid;
+  border-radius: 5px;
+  padding: 3px 4px;
+  width: 100%;
+  text-align: center;
+  background: var(--panel);
+  line-height: 1;
+}
+.cdBar {
+  width: 100%;
+  height: 5px;
+  background: #20233a;
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid #2c3050;
+}
+.cdFill {
+  height: 100%;
+  width: 100%;
+  transition: width 0.08s linear;
+  border-radius: 2px;
+}
+.cdTime {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8px;
+  color: var(--dim);
+  text-align: center;
+  min-height: 10px;
+  line-height: 10px;
+}
 
 /* overlays */
 .overlay {

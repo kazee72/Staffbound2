@@ -14,11 +14,18 @@ export interface Branch {
 
 export const BRANCHES: Branch[] = [
   { code: 'F', name: 'Ember', color: '#e2793d', angle: -90 },
-  { code: 'R', name: 'Rime', color: '#8ec9e8', angle: -30 },
-  { code: 'V', name: 'Void', color: '#9d8ce0', angle: 30 },
-  { code: 'S', name: 'Umbral', color: '#c4728f', angle: 90 },
-  { code: 'N', name: 'Verdant', color: '#8bc48a', angle: 150 },
-  { code: 'B', name: 'Warden', color: '#c9a869', angle: 210 },
+  { code: 'R', name: 'Rime', color: '#8ec9e8', angle: -90 + 51.42857142857143 },
+  { code: 'V', name: 'Void', color: '#9d8ce0', angle: -90 + 2 * 51.42857142857143 },
+  { code: 'S', name: 'Umbral', color: '#c4728f', angle: -90 + 3 * 51.42857142857143 },
+  { code: 'N', name: 'Verdant', color: '#8bc48a', angle: -90 + 4 * 51.42857142857143 },
+  { code: 'B', name: 'Warden', color: '#c9a869', angle: -90 + 5 * 51.42857142857143 },
+  // 7th branch: raw/basic stat scaling (bolt/spell damage %, cast speed %,
+  // move speed %, crit chance/damage %, cooldown reduction %) rather than
+  // unlocking new spell effects like the other six. Breaks the old perfect
+  // hexagon — all seven branches are now re-spaced evenly at 360/7 ≈
+  // 51.43° apart (see comment above) instead of the original 60°, so the
+  // constellation still reads as balanced/intentional rather than lopsided.
+  { code: 'P', name: 'Potency', color: '#4fd6c0', angle: -90 + 6 * 51.42857142857143 },
 ];
 
 interface LocalNode {
@@ -130,6 +137,18 @@ export const CONTENT: Record<string, Record<string, ContentEntry>> = {
     E1: { name: 'Vitality', desc: 'Increase max health by another 50%.' },
     E2: { name: 'Battle Focus', desc: 'Health regeneration greatly increased.' },
     F: { name: 'Undying', desc: 'Capstone. Once per minute, a killing blow instead leaves you at 1 health.' },
+  },
+  P: {
+    A: { name: 'Honed Edge', desc: 'Your bolts and spells deal 10% more damage.' },
+    B: { name: 'Swift Casting', desc: 'All spell cooldowns reduced by 10%.' },
+    C1: { name: 'Keen Eye', desc: '+6% additional critical strike chance.' },
+    G: { name: 'Fleet Step', desc: 'Move 10% faster.' },
+    C2: { name: 'Vicious Strikes', desc: 'Critical strikes deal 15% more damage.' },
+    D: { name: 'Overdrive', desc: 'All spell cooldowns reduced by a further 12%.' },
+    H: { name: 'Resilient Core', desc: 'Raw power hardens you too. +15% max health.' },
+    E1: { name: 'Arcane Might', desc: 'Your bolts and spells deal a further 15% more damage.' },
+    E2: { name: 'Windswept', desc: 'Move a further 15% faster.' },
+    F: { name: 'Apex', desc: 'Capstone. A surge of raw power: +20% damage, +10% critical chance, +10% move speed, and +10% cooldown reduction, all at once.' },
   },
 };
 

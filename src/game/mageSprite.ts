@@ -1,13 +1,9 @@
 /**
- * Mage sprite generation.
+ * Mage sprite generation — classic fantasy mage: long pointy blue hat with
+ * gold trim, blue robe with a gold belt band, small face with two eyes,
+ * and a staff to one side topped with a glowing orb.
  *
- * Draws a small pixel-art mage onto a 16x16 texture (via Phaser's texture
- * manager / a Canvas), matching the SPEC.md description:
- *  - pointed hat with a highlight band and gold trim tip
- *  - small face with two eyes
- *  - robe with a gold belt band
- *  - a staff to one side topped with a glowing orb
- *
+ * Drawn onto a 16x16 texture (via Phaser's texture manager / a Canvas).
  * The texture is generated at native 16x16 resolution; the sprite is then
  * displayed scaled up (~1.5x) in-game. Because the game uses `pixelArt: true`
  * and `roundPixels: true` (see main.ts), and because texture filtering is
@@ -18,15 +14,16 @@ const GRID = 16;
 
 export const MAGE_TEXTURE_KEY = 'mage';
 
-// Palette
+// Palette — classic blue mage
 const COLOR = {
-  hat: 0x3d3a5c,
-  hatHighlight: 0x5c5885,
-  hatTrim: 0xe0b84c, // gold trim tip
+  hat: 0x2a3a7a, // deep blue hat
+  hatHighlight: 0x3a5290,
+  hatTrim: 0xd4a938, // gold trim at tip
+  hatBrim: 0x223068,
   skin: 0xe8c39e,
   eye: 0x1a1a22,
-  robe: 0x4a5a8a,
-  robeShade: 0x374468,
+  robe: 0x2a3a7a, // blue robe matching hat
+  robeShade: 0x1e2c5e,
   belt: 0xd4a938, // gold belt band
   staff: 0x6b4a2f,
   orb: 0x8ec9e8,
@@ -62,7 +59,7 @@ export function generateMageTexture(scene: Phaser.Scene): void {
   px(11, 2, COLOR.orbGlow, 0.35);
   px(13, 2, COLOR.orbGlow, 0.35);
 
-  // Pointed hat (rows 0-5), tapering triangle centered around x=7/8
+  // Long pointy blue hat (rows 0-5), tapering tall triangle centered around x=7/8
   const hatRows: Array<[number, number]> = [
     [8, 8], // row 0: tip
     [7, 8],
@@ -73,18 +70,18 @@ export function generateMageTexture(scene: Phaser.Scene): void {
   ];
   hatRows.forEach(([x0, x1], row) => {
     for (let x = x0; x <= x1; x++) {
-      px(x, row, COLOR.hat);
+      px(x, row, row % 2 === 0 ? COLOR.hat : COLOR.hatHighlight);
     }
   });
-  // Gold trim tip at the very top of the hat
+  // Gold trim tip
   px(8, 0, COLOR.hatTrim);
-  // Highlight band partway down the hat
+  // Highlight band partway down
   for (let x = 6; x <= 8; x++) {
     px(x, 3, COLOR.hatHighlight);
   }
-  // Hat brim
+  // Hat brim (wider than the hat body)
   for (let x = 4; x <= 11; x++) {
-    px(x, 5, COLOR.hat);
+    px(x, 5, COLOR.hatBrim);
   }
 
   // Face (row 6-7), small, beneath the brim
@@ -96,7 +93,7 @@ export function generateMageTexture(scene: Phaser.Scene): void {
   px(6, 7, COLOR.eye);
   px(9, 7, COLOR.eye);
 
-  // Robe body (rows 8-14), with a taper for shoulders -> hem
+  // Robe body (rows 8-14), blue with taper for shoulders -> hem
   const robeRows: Array<[number, number]> = [
     [4, 11], // row 8 shoulders
     [4, 11],
@@ -109,7 +106,7 @@ export function generateMageTexture(scene: Phaser.Scene): void {
   robeRows.forEach(([x0, x1], i) => {
     const row = 8 + i;
     for (let x = x0; x <= x1; x++) {
-      px(x, row, (x === x0 || x === x1) ? COLOR.robeShade : COLOR.robe);
+      px(x, row, x === x0 || x === x1 ? COLOR.robeShade : COLOR.robe);
     }
   });
 

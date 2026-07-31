@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { MAGE_TEXTURE_KEY } from '../game/mageSprite';
 import { FOREST_GRASS_KEY, FOREST_TREE_KEY, FOREST_BUSH_KEY, generateForestTextures } from '../game/forestBackground';
+import { ENEMY_TEXTURE_KEYS, BOSS_TEXTURE_KEYS } from '../game/enemySprites';
 import { createWorld } from '../game/types';
 import type { World } from '../game/types';
 import { xpForLevel } from '../game/player';
@@ -13,6 +14,7 @@ import {
   updateEnemies,
   updateEffects,
   updateParticles,
+  updateBossFight,
   tryDash,
   type InputState,
 } from '../game/simulation';
@@ -37,6 +39,12 @@ export class GameScene extends Phaser.Scene {
   private keySpace!: Phaser.Input.Keyboard.Key;
   private keyG!: Phaser.Input.Keyboard.Key;
   private keyEsc!: Phaser.Input.Keyboard.Key;
+  private keyQ!: Phaser.Input.Keyboard.Key;
+  // UHJK alternative movement keys (vi-style)
+  private keyU!: Phaser.Input.Keyboard.Key;
+  private keyH!: Phaser.Input.Keyboard.Key;
+  private keyJ!: Phaser.Input.Keyboard.Key;
+  private keyK!: Phaser.Input.Keyboard.Key;
 
   private world!: World;
   private ui!: UIManager;
@@ -50,6 +58,16 @@ export class GameScene extends Phaser.Scene {
 
   // Pool of damage-popup text objects.
   private popupTexts: Phaser.GameObjects.Text[] = [];
+
+  // Pixel-art enemy sprite pool, keyed by EnemyState object identity (enemies
+  // array entries are spliced/pushed freely each frame, so identity keying
+  // is simplest — unused sprites are hidden+recycled, not destroyed, to
+  // avoid texture-manager churn during heavy spawn bursts).
+  private enemySpritePool: Phaser.GameObjects.Sprite[] = [];
+  private enemySpriteByRef = new Map<World['enemies'][number], Phaser.GameObjects.Sprite>();
+
+  private bossSprite: Phaser.GameObjects.Sprite | null = null;
+  private currentBossDefId: string | null = null;
 
   constructor() {
     super('Game');
@@ -84,6 +102,11 @@ export class GameScene extends Phaser.Scene {
     this.keySpace = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.keyG = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.G);
     this.keyEsc = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+    this.keyQ = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.Q);
+    this.keyU = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.U);
+    this.keyH = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.H);
+    this.keyJ = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.J);
+    this.keyK = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.K);
 
     this.keySpace.on('down', () => {
       if (this.world.running && !this.world.grimoireOpen) tryDash(this.world);
@@ -91,6 +114,12 @@ export class GameScene extends Phaser.Scene {
     this.keyG.on('down', () => this.toggleGrimoire());
     this.keyEsc.on('down', () => {
       if (this.world.grimoireOpen) this.toggleGrimoire();
+    });
+    // Q toggles auto-aim on/off at any time during a run.
+    this.keyQ.on('down', () => {
+      if (!this.world.running) return;
+      this.world.autoAim = !this.world.autoAim;
+      this.world.flash(this.world.autoAim ? 'AUTO-AIM ON' : 'AUTO-AIM OFF', this.world.autoAim ? 'var(--frost)' : 'var(--gold)');
     });
 
     // DOM UI overlay, layered above the canvas.
@@ -117,6 +146,7 @@ export class GameScene extends Phaser.Scene {
     Object.assign(this.world, {
       running: true,
       grimoireOpen: false,
+      autoAim: true,
       player: {
         x: width / 2,
         y: height / 2,
@@ -125,6 +155,7 @@ export class GameScene extends Phaser.Scene {
         hp: 100,
         invuln: 1,
         facing: { x: 0, y: -1 },
+        aimAngle: -Math.PI / 2,
         dashCd: 0,
         dashing: 0,
         adrenaline: 0,
@@ -147,7 +178,8 @@ export class GameScene extends Phaser.Scene {
       decoys: [],
       cd: { bolt: 0.3, boltCastCount: 0, fireNova: 0, iceLance: 0, frostArmor: 0, frostArmorActive: 0, arcaneBurst: 0, vines: 0, shadowBolt: 0 },
       spawnTimer: 1,
-      bossTimer: 90,
+      bossTimer: 130,
+      bossFight: null,
     });
     this.ui.renderTree(this.world);
     this.ui.setGrimoireVisible(false);
@@ -165,13 +197,21 @@ export class GameScene extends Phaser.Scene {
 
     if (this.world.running && !this.world.grimoireOpen) {
       const input: InputState = {
-        left: this.cursors.left.isDown || this.keyA.isDown,
-        right: this.cursors.right.isDown || this.keyD.isDown,
-        up: this.cursors.up.isDown || this.keyW.isDown,
-        down: this.cursors.down.isDown || this.keyS.isDown,
+        left: this.cursors.left.isDown || this.keyA.isDown || this.keyH.isDown,
+        right: this.cursors.right.isDown || this.keyD.isDown || this.keyK.isDown,
+        up: this.cursors.up.isDown || this.keyW.isDown || this.keyU.isDown,
+        down: this.cursors.down.isDown || this.keyS.isDown || this.keyJ.isDown,
       };
       this.world.elapsed += dt;
       updatePlayer(this.world, input, dt);
+      // Mouse-aim: bolt/ice lance/shadow bolt fire toward the cursor instead
+      // of auto-targeting the nearest foe. Updated every frame so aim stays
+      // responsive even between casts.
+      const pointer = this.input.activePointer;
+      const p = this.world.player;
+      const dx = pointer.worldX - p.x;
+      const dy = pointer.worldY - p.y;
+      if (Math.hypot(dx, dy) > 2) p.aimAngle = Math.atan2(dy, dx);
       updateSpellTimers(this.world, dt);
       updateProjectiles(this.world, dt);
       updateDecoys(this.world, dt);
@@ -179,6 +219,7 @@ export class GameScene extends Phaser.Scene {
       updateEffects(this.world, dt);
       updateParticles(this.world, dt);
       updateSpawns(this.world, dt);
+      updateBossFight(this.world, dt);
       this.ui.updateHUD(this.world);
       if (this.world.grimoireOpen) this.ui.updateNodeStates(this.world);
       else this.ui.updateNodeStates(this.world);
@@ -288,7 +329,10 @@ export class GameScene extends Phaser.Scene {
     });
 
     // enemies
-    world.enemies.forEach((e) => this.drawEnemy(g, e));
+    this.renderEnemies();
+
+    // boss fight (sprite, telegraphs, bullet-hell projectiles, healthbar)
+    this.renderBossFight(g);
 
     // projectiles
     world.projectiles.forEach((pr) => {
@@ -311,45 +355,131 @@ export class GameScene extends Phaser.Scene {
     this.drawPopups();
   }
 
-  private drawEnemy(g: Phaser.GameObjects.Graphics, e: World['enemies'][number]): void {
+  /**
+   * Renders regular enemies as pooled pixel-art Sprites (procedurally
+   * generated in enemySprites.ts) instead of raw Graphics primitives.
+   * Frozen/slowed/marked visual states are applied via sprite tint + a
+   * Graphics outline ring (kept on fxGraphics) rather than fillStyle swaps.
+   */
+  private renderEnemies(): void {
     const world = this.world;
-    const frozen = e.frozenUntil > world.elapsed;
-    const color = frozen ? 0xa9d8ef : Phaser.Display.Color.HexStringToColor(e.color).color;
-    g.fillStyle(color, 1);
-    if (e.type === 'slime') {
-      g.fillEllipse(e.x, e.y, e.r * 2, e.r * 1.6);
-    } else if (e.type === 'skel') {
-      g.fillRect(e.x - e.r * 0.6, e.y - e.r, e.r * 1.2, e.r * 2);
-      g.fillCircle(e.x, e.y - e.r * 1.1, e.r * 0.55);
-    } else if (e.type === 'wisp') {
-      const points: Phaser.Math.Vector2[] = [];
-      for (let i = 0; i < 5; i++) {
-        const a = (i / 5) * Math.PI * 2;
-        points.push(new Phaser.Math.Vector2(e.x + Math.cos(a) * e.r, e.y + Math.sin(a) * e.r));
-        points.push(new Phaser.Math.Vector2(e.x + Math.cos(a + 0.3) * e.r * 0.4, e.y + Math.sin(a + 0.3) * e.r * 0.4));
+    const g = this.fxGraphics;
+    const seen = new Set<World['enemies'][number]>();
+
+    world.enemies.forEach((e) => {
+      seen.add(e);
+      let spr = this.enemySpriteByRef.get(e);
+      if (!spr) {
+        spr = this.enemySpritePool.find((s) => !s.visible);
+        if (!spr) {
+          spr = this.add.sprite(0, 0, ENEMY_TEXTURE_KEYS[e.type]).setDepth(4.5);
+          this.enemySpritePool.push(spr);
+        }
+        spr.setTexture(ENEMY_TEXTURE_KEYS[e.type]);
+        this.enemySpriteByRef.set(e, spr);
       }
-      g.fillPoints(points, true);
-    } else {
-      g.fillCircle(e.x, e.y, e.r);
-      g.fillStyle(0xeeda9e, 1);
-      g.fillCircle(e.x - e.r * 0.3, e.y - e.r * 0.2, 2.4);
-      g.fillCircle(e.x + e.r * 0.3, e.y - e.r * 0.2, 2.4);
+      // Native art is sized to roughly match each type's collision radius;
+      // scale so the sprite's visual footprint tracks e.r (base r values in
+      // ETYPES were the tuning reference for each native texture's size).
+      const scale = e.type === 'slime' ? e.r / 7 : e.type === 'skel' ? e.r / 9 : e.type === 'wisp' ? e.r / 6.5 : e.r / 10;
+      spr.setScale(scale * 1.35);
+      spr.setPosition(Math.round(e.x), Math.round(e.y));
+      spr.setVisible(true);
+      spr.setDepth(4.5 + e.y * 0.0001);
+
+      const frozen = e.frozenUntil > world.elapsed;
+      const slowed = !frozen && e.slowUntil > world.elapsed;
+      if (frozen) spr.setTint(0xa9d8ef);
+      else if (slowed) spr.setTint(0xc9d8e8);
+      else spr.clearTint();
+
+      if (e.marked > world.elapsed) {
+        g.lineStyle(2, 0xc4728f, 1);
+        g.strokeCircle(e.x, e.y, e.r + 4);
+      }
+      if (e.hp < e.maxHp) {
+        const w = 28;
+        g.fillStyle(0x1a1c2c, 1);
+        g.fillRect(e.x - w / 2, e.y - e.r - 12, w, 5);
+        g.fillStyle(0xc15b5b, 1);
+        g.fillRect(e.x - w / 2, e.y - e.r - 12, w * Math.max(0, e.hp / e.maxHp), 5);
+      }
+    });
+
+    // Recycle sprites for enemies no longer present (dead/removed this frame).
+    this.enemySpriteByRef.forEach((spr, ref) => {
+      if (!seen.has(ref)) {
+        spr.setVisible(false);
+        this.enemySpriteByRef.delete(ref);
+      }
+    });
+  }
+
+  /**
+   * Renders the active boss (bigger pixel-art sprite), its telegraphed
+   * warnings (rings/lines), its bullet-hell projectiles, and a large
+   * boss healthbar. No-op when no boss fight is active — also tears down
+   * the boss sprite the frame a fight ends so it doesn't linger.
+   */
+  private renderBossFight(g: Phaser.GameObjects.Graphics): void {
+    const world = this.world;
+    const fight = world.bossFight;
+    if (!fight) {
+      if (this.bossSprite) {
+        this.bossSprite.destroy();
+        this.bossSprite = null;
+        this.currentBossDefId = null;
+      }
+      return;
     }
-    if (e.marked > world.elapsed) {
-      g.lineStyle(2, 0xc4728f, 1);
-      g.strokeCircle(e.x, e.y, e.r + 4);
+    const boss = fight.boss;
+
+    if (!this.bossSprite || this.currentBossDefId !== boss.defId) {
+      this.bossSprite?.destroy();
+      this.bossSprite = this.add.sprite(boss.x, boss.y, BOSS_TEXTURE_KEYS[boss.defId]).setDepth(4.8);
+      this.currentBossDefId = boss.defId;
     }
-    if (e.isBoss || e.hp < e.maxHp) {
-      const w = e.isBoss ? 60 : 28;
-      g.fillStyle(0x1a1c2c, 1);
-      g.fillRect(e.x - w / 2, e.y - e.r - 12, w, 5);
-      g.fillStyle(e.isBoss ? 0xc4728f : 0xc15b5b, 1);
-      g.fillRect(e.x - w / 2, e.y - e.r - 12, w * Math.max(0, e.hp / e.maxHp), 5);
-    }
-    if (e.telegraph && e.telegraph > 0) {
-      g.lineStyle(3, 0xc4728f, 0.35 * (1 - e.telegraph));
-      g.strokeCircle(e.x, e.y, 150 * (1 - e.telegraph));
-    }
+    this.bossSprite.setPosition(Math.round(boss.x), Math.round(boss.y));
+    this.bossSprite.setScale(1.5);
+    const frozenLike = boss.slowUntil > world.elapsed;
+    if (frozenLike) this.bossSprite.setTint(0xc9d8e8);
+    else this.bossSprite.clearTint();
+
+    // Telegraphs (warning shapes before an attack lands/fires).
+    boss.telegraphs.forEach((tg) => {
+      const alpha = 0.75 * (tg.t / tg.dur);
+      const color = Phaser.Display.Color.HexStringToColor(tg.color).color;
+      if (tg.kind === 'ring') {
+        g.lineStyle(3, color, alpha);
+        g.strokeCircle(tg.x, tg.y, tg.radius ?? 40);
+      } else if (tg.kind === 'line') {
+        const len = tg.length ?? 1000;
+        const w = tg.width ?? 24;
+        const ang = tg.angle ?? 0;
+        g.save();
+        g.translateCanvas(tg.x, tg.y);
+        g.rotateCanvas(ang);
+        g.fillStyle(color, alpha * 0.35);
+        g.fillRect(0, -w / 2, len, w);
+        g.restore();
+      }
+    });
+
+    // Bullet-hell projectiles.
+    boss.projectiles.forEach((pr) => {
+      const color = Phaser.Display.Color.HexStringToColor(pr.color).color;
+      g.fillStyle(color, 1);
+      g.fillCircle(pr.x, pr.y, pr.r);
+      g.fillStyle(0xffffff, 0.5);
+      g.fillCircle(pr.x, pr.y, pr.r * 0.4);
+    });
+
+    // Large boss healthbar above the sprite.
+    const w = 130;
+    g.fillStyle(0x0d0e16, 0.9);
+    g.fillRect(boss.x - w / 2, boss.y - boss.r - 24, w, 9);
+    g.fillStyle(Phaser.Display.Color.HexStringToColor(boss.color).color, 1);
+    g.fillRect(boss.x - w / 2, boss.y - boss.r - 24, w * Math.max(0, boss.hp / boss.maxHp), 9);
   }
 
   private drawPlayer(): void {
@@ -357,6 +487,9 @@ export class GameScene extends Phaser.Scene {
     this.mage.setPosition(Math.round(p.x), Math.round(p.y));
     const blink = p.invuln > 0 && Math.floor(this.world.elapsed * 16) % 2 === 0;
     this.mage.setAlpha(blink ? 0.4 : 1);
+    // Flip the sprite horizontally to face the mouse-aim direction (staff
+    // visually points toward wherever bolts/ice lance/shadow bolt will fire).
+    this.mage.setFlipX(Math.cos(p.aimAngle) < 0);
 
     // frost armor ring + ambient glow via the fx graphics, drawn behind the sprite depth-wise is
     // acceptable given the sprite renders on its own GameObject above fxGraphics depth.
