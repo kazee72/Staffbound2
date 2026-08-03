@@ -115,6 +115,7 @@ export class GameScene extends Phaser.Scene {
   private snapRecvTime = 0;
   /** Guest mode: guest's own player slot (from host's welcome). */
   private myPlayerSlot = 0;
+  private helloSent = false;
   /** Guest mode: local grimoire purchased set (sent to host for validation). */
   private guestPurchased: Set<string> = new Set();
   /** Guest mode: local SP / spSpent (mirrored from host acks). */
@@ -139,6 +140,7 @@ export class GameScene extends Phaser.Scene {
     this.snapshotTick = 0;
     this.netTickAccum = 0;
     this.myPlayerSlot = 0;
+    this.helloSent = false;
     this.guestPurchased = new Set();
     this.guestSP = 0;
     this.guestSpSpent = 0;
@@ -271,6 +273,19 @@ export class GameScene extends Phaser.Scene {
   private handleHostMessage(msg: ClientMsg | HostMsg, fromPeerId: string): void {
     switch (msg.t) {
       case 'hello': {
+        // Check if we already have a NetPlayer for this peer (prevents
+        // duplicate creation from the re-hello handshake flow).
+        const existing = this.world.netPlayers?.find((p) => p.peerId === fromPeerId);
+        if (existing) {
+          // Already registered — just re-send their welcome with their real ID.
+          const players: PlayerInfo[] = [
+            { id: 0, name: 'Host', isHost: true, peerId: netManager.getPeerId() },
+            ...this.world.netPlayers!.map((p) => ({ id: p.id, name: p.name, isHost: false, peerId: p.peerId })),
+          ];
+          const welcome: HostMsg = { t: 'welcome', you: existing.id, players };
+          netManager.sendToGuest(fromPeerId, welcome);
+          break;
+        }
         // Guest connected — create their NetPlayer entry
         const newId = (this.world.netPlayers?.length ?? 0) + 1; // host is 0
         const state = this.createNetPlayerState(newId, msg.meta);
@@ -287,7 +302,7 @@ export class GameScene extends Phaser.Scene {
           np.state.purchased.add(nodeId);
         }
         this.world.netPlayers?.push(np);
-        // Send welcome
+        // Send welcome with the guest's real player ID
         const players: PlayerInfo[] = [
           { id: 0, name: 'Host', isHost: true, peerId: netManager.getPeerId() },
           ...this.world.netPlayers!.map((p) => ({ id: p.id, name: p.name, isHost: false, peerId: p.peerId })),
@@ -453,10 +468,15 @@ export class GameScene extends Phaser.Scene {
   private handleGuestMsg(msg: ClientMsg | HostMsg): void {
     switch (msg.t) {
       case 'welcome':
-        this.myPlayerSlot = msg.you;
-        // Re-send hello to host so GameScene's handler creates our NetPlayer.
-        // (The original hello was consumed by the LobbyScene before scene transition.)
-        {
+        // Only update player slot if this is a real welcome (not the initial
+        // re-hello trigger from setupHostNetworking which sends you: 0).
+        if (msg.you > 0 || msg.players.length > 0) {
+          this.myPlayerSlot = msg.you;
+        }
+        // Re-send hello ONCE so the host's GameScene creates our NetPlayer.
+        // Guard with a flag to prevent infinite welcome->hello loops.
+        if (!this.helloSent) {
+          this.helloSent = true;
           const meta: MetaPayload = {
             dmgMult: 1, cdMult: 1, moveMult: 1, hpMult: 1, xpMult: 1,
             critChance: 0, critDmgMult: 1, regenPerSec: 0, lifestealPct: 0,
@@ -558,7 +578,8 @@ export class GameScene extends Phaser.Scene {
     const aim = Math.hypot(dx, dy) > 2 ? Math.atan2(dy, dx) : p.aimAngle;
     p.aimAngle = aim;
 
-    const msg: ClientMsg = { t: 'input', mvx, mvy, dash: false, aim };
+    const dash = this.keySpace.isDown;
+    const msg: ClientMsg = { t: 'input', mvx, mvy, dash, aim };
     netManager.sendToHost(msg);
   }
 
