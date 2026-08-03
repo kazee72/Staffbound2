@@ -102,8 +102,11 @@ export function castBolt(world: World): void {
   }
   if (baseAng === null) baseAng = p.aimAngle;
   const projSpeed = 480 * projectileSpeedMult(world);
+  // Twin Casting (V_B): fire a second bolt shortly after the first (burst),
+  // NOT a shotgun spread. The extra bolt fires at the same angle with a tiny
+  // delay so it reads as a quick 2-round burst rather than two side-by-side.
   for (let i = 0; i < count; i++) {
-    const ang = baseAng + (i - (count - 1) / 2) * 0.18;
+    const ang = baseAng + i * 0.04; // very slight offset per shot, not a spread
     let dmg = 8 + world.level * 0.6;
     if (hasNode(world.purchased, 'F_A')) dmg *= 1.2;
     dmg *= spellDamageMult(world);

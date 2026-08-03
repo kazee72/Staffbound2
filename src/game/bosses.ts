@@ -93,7 +93,7 @@ export const BOSS_DEFS: BossDef[] = [
 export const BOSS_DEF_BY_ID: Record<string, BossDef> = {};
 BOSS_DEFS.forEach((d) => (BOSS_DEF_BY_ID[d.id] = d));
 
-const REST_DURATION = 1.1;
+const REST_DURATION = 0.7;
 
 function dist(x1: number, y1: number, x2: number, y2: number): number {
   return Math.hypot(x1 - x2, y1 - y2);

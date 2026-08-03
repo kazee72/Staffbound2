@@ -105,16 +105,16 @@ export function getStageDef(stage: number): StageDef {
 }
 
 /**
- * Get all enemy types available at the given stage — all types from stage 1
- * up to the current stage's unlocks, accumulated.
+ * Get enemy types available at the given stage. Each stage has its own
+ * set of enemies — base types (slime/skel/wisp/wraith) are always
+ * available, plus whatever this specific stage unlocks. Previous stages'
+ * special enemies are NOT carried forward (each stage feels distinct).
  */
 export function availableEnemyTypes(stage: number): EnemyType[] {
   const types: EnemyType[] = ['slime', 'skel', 'wisp', 'wraith'];
-  for (let s = 1; s <= stage; s++) {
-    const def = getStageDef(s);
-    for (const t of def.unlocksEnemies) {
-      if (!types.includes(t)) types.push(t);
-    }
+  const def = getStageDef(stage);
+  for (const t of def.unlocksEnemies) {
+    if (!types.includes(t)) types.push(t);
   }
   return types;
 }

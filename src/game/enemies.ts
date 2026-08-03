@@ -91,31 +91,32 @@ export function spawnEnemy(world: World, forceType?: EnemyType): void {
 }
 
 /**
- * Starts a boss-exclusive fight: clears every currently-alive regular enemy,
- * picks a random boss definition (scaled by day), and installs
- * `world.bossFight`. Regular spawning is paused for as long as
- * `world.bossFight` is non-null (see updateSpawns).
+ * Spawns the boss appropriate for the current stage.
+ * Stage 1 → Elder Wraith, Stage 2 → Ember Colossus, Stage 3 → Rime Sovereign,
+ * Stage 4 → Bramble Horror, Stage 5+ → cycles with tougher stats.
  */
 export function spawnBoss(world: World): void {
   const day = currentDay(world);
-  const stage = world.stage;
   world.enemies.length = 0;
 
-  const def = BOSS_DEFS[(Math.random() * BOSS_DEFS.length) | 0];
-  const stageScale = 1 + (stage - 1) * 0.3 + (day - 1) * 0.1;
+  // Pick boss by stage (cycling for stage 5+).
+  const bossIndex = (world.stage - 1) % BOSS_DEFS.length;
+  const def = BOSS_DEFS[bossIndex];
+  const stageBonus = 1 + (world.stage - 1) * 0.35;
+  const dayBonus = 1 + (day - 1) * 0.12;
   const boss: BossState = {
     defId: def.id,
     name: def.name,
     x: world.W / 2,
     y: -60,
-    hp: (def.baseHp + day * def.hpPerDay) * stageScale,
-    maxHp: (def.baseHp + day * def.hpPerDay) * stageScale,
-    dmg: def.baseDmg * (1 + (stage - 1) * 0.2 + (day - 1) * 0.16),
-    spd: def.spd,
+    hp: (def.baseHp + day * def.hpPerDay) * stageBonus,
+    maxHp: (def.baseHp + day * def.hpPerDay) * stageBonus,
+    dmg: def.baseDmg * (1 + (day - 1) * 0.16) * stageBonus,
+    spd: def.spd * (1 + (world.stage - 1) * 0.08),
     r: def.r,
     color: def.color,
     seed: Math.random() * 1000,
-    xpValue: def.xpValue,
+    xpValue: def.xpValue * Math.floor(stageBonus),
     burning: 0,
     burnT: 0,
     slowUntil: 0,
@@ -123,11 +124,12 @@ export function spawnBoss(world: World): void {
     marked: 0,
     patternIndex: -1,
     activePattern: null,
-    patternT: 1.5, // brief entrance rest before first attack
+    patternT: 1.5,
     patternData: {},
     projectiles: [],
     telegraphs: [],
   };
+  void dayBonus;
   world.bossFight = { boss };
   world.flash(def.flavor, def.flashColor);
 }

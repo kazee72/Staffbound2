@@ -179,6 +179,42 @@
 }
 
 /* Skill cooldown bar (bottom-center) */
+#bossBar {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  pointer-events: none;
+}
+.bossBarLabel {
+  font-family: 'Cinzel', serif;
+  font-size: 8px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.bossBarTrack {
+  width: 200px;
+  height: 5px;
+  background: #20233a;
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid #2c3050;
+}
+.bossBarFill {
+  height: 100%;
+  width: 0%;
+  background: var(--gold);
+  border-radius: 2px;
+  transition: width 0.1s linear;
+}
+
+/* Skill cooldown bar (bottom-center) */
 #cooldownBar {
   position: absolute;
   bottom: 24px;

@@ -40,6 +40,8 @@ export class UIManager {
   private spBadge: HTMLSpanElement;
   private grimoireBtn: HTMLButtonElement;
   private cooldownBar: HTMLDivElement;
+  private bossBar: HTMLDivElement;
+  private bossBarFill: HTMLDivElement;
   private cooldownSlots: Record<string, { container: HTMLDivElement; fill: HTMLDivElement; time: HTMLDivElement; label: string }>;
 
   private startOverlay: HTMLDivElement;
@@ -121,6 +123,13 @@ export class UIManager {
     this.spBadge = hud.querySelector('#spBadge')!;
     this.grimoireBtn = hud.querySelector('#grimoireBtn')!;
     this.grimoireBtn.addEventListener('click', () => this.onToggleGrimoire());
+
+    // Boss spawn progress bar (top-center of screen)
+    this.bossBar = document.createElement('div');
+    this.bossBar.id = 'bossBar';
+    this.bossBar.innerHTML = `<div class="bossBarLabel">NEXT BOSS</div><div class="bossBarTrack"><div class="bossBarFill"></div></div>`;
+    this.root.appendChild(this.bossBar);
+    this.bossBarFill = this.bossBar.querySelector('.bossBarFill')!;
 
     // Skill cooldown bar (bottom-center of screen)
     this.cooldownBar = document.createElement('div');
@@ -406,6 +415,23 @@ export class UIManager {
     this.dashTxt.textContent = p.dashCd > 0 ? p.dashCd.toFixed(1) + 's' : 'ready';
     this.aimTxt.textContent = world.autoAim ? 'auto' : 'mouse';
     this.aimTxt.style.color = world.autoAim ? 'var(--frost)' : 'var(--gold)';
+
+    // Boss spawn progress bar: fills as bossTimer counts down.
+    if (world.bossFight) {
+      this.bossBar.style.display = 'none';
+    } else {
+      this.bossBar.style.display = 'flex';
+      const bossMaxTimer = 130;
+      const progress = Math.max(0, Math.min(1, 1 - world.bossTimer / bossMaxTimer));
+      this.bossBarFill.style.width = (progress * 100) + '%';
+      if (progress >= 0.85) {
+        this.bossBarFill.style.background = 'var(--umbral)';
+        this.bossBarFill.style.boxShadow = '0 0 8px var(--umbral)';
+      } else {
+        this.bossBarFill.style.background = 'var(--gold)';
+        this.bossBarFill.style.boxShadow = 'none';
+      }
+    }
     const sp = availableSP(world);
     this.spBadge.style.display = sp > 0 ? 'flex' : 'none';
     this.spBadge.textContent = String(sp);

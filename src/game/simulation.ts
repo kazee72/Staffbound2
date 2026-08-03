@@ -180,8 +180,17 @@ export function updateProjectiles(world: World, dt: number): void {
     const pr = world.projectiles[i];
     if (pr.homing) {
       const t = nearestEnemy(world, pr.x, pr.y);
+      let targetX: number | null = null;
+      let targetY: number | null = null;
       if (t) {
-        const ang = Math.atan2(t.y - pr.y, t.x - pr.x);
+        targetX = t.x;
+        targetY = t.y;
+      } else if (world.bossFight) {
+        targetX = world.bossFight.boss.x;
+        targetY = world.bossFight.boss.y;
+      }
+      if (targetX !== null && targetY !== null) {
+        const ang = Math.atan2(targetY - pr.y, targetX - pr.x);
         const curAng = Math.atan2(pr.vy, pr.vx);
         let diff = ang - curAng;
         while (diff > Math.PI) diff -= 2 * Math.PI;
@@ -394,8 +403,8 @@ export function updateBossFight(world: World, dt: number): void {
     world.stage++;
     const stageDef = getStageDef(world.stage);
     // Brief breather before the next boss + stage transition banner.
-    world.bossTimer = 25;
-    world.spawnTimer = 2;
+    world.bossTimer = 30; // ~30s breather to let the player explore the new stage
+    world.spawnTimer = 4; // 4s pause before enemies start spawning in the new stage
 
     // Flash the stage transition banner (slightly delayed so it follows the boss death flash).
     setTimeout(() => {
