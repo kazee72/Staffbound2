@@ -34,6 +34,10 @@ export function damageEnemy(world: World, e: EnemyState, amount: number, opts: D
   if (hasNode(world.purchased, 'R_G') && (e.frozenUntil > world.elapsed || e.slowUntil > world.elapsed)) dmg *= 1.15;
   // Nightmare (S_K): marked enemies take 25% more damage from all sources.
   if (hasNode(world.purchased, 'S_K') && e.marked > world.elapsed) dmg *= 1.25;
+  // Stage 3+ enemy armor: enemies in later stages reduce incoming damage by
+  // 20%, making them meaningfully tankier and forcing players to invest in
+  // build power (crit/multipliers) to keep up.
+  if (world.stage >= 3) dmg *= 0.8;
   e.hp -= dmg;
   if (crit) e.marked = world.elapsed + 4;
   if (lifestealPct(world) > 0) healPlayer(world, dmg * lifestealPct(world));

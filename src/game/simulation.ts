@@ -282,6 +282,11 @@ export function updateEnemies(world: World, dt: number): void {
     let spd = e.spd;
     if (e.slowUntil > world.elapsed) spd *= 1 - e.slowAmt;
     if (e.frozenUntil > world.elapsed) spd = 0;
+    // Time-based speed scaling: enemies get +1% speed per 10 seconds of
+    // elapsed run time, capped at +50% (reaches max at 500s / ~8.3min).
+    // Keeps pressure high in long runs so players can't just kite forever.
+    const timeScale = 1 + Math.min(0.5, world.elapsed * 0.001);
+    spd *= timeScale;
     if (e.rootBleed && e.rootBleed > world.elapsed) damageEnemy(world, e, 4 * dt, { allowCrit: false });
     if (e.burning > world.elapsed) damageEnemy(world, e, 3 * dt, { allowCrit: false });
 

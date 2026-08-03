@@ -128,6 +128,8 @@ export interface BossState {
   activePattern: BossAttackId | null;
   /** Seconds elapsed within the active pattern (or rest countdown when idle). */
   patternT: number;
+  /** Current combat phase (1 = 100-66% HP, 2 = 66-33%, 3 = 33-0%). */
+  phase: number;
   /** Free-form scratch state for a pattern's internal bookkeeping (shot counts, spin angle, etc). */
   patternData: Record<string, number>;
 

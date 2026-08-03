@@ -46,8 +46,11 @@ export function spawnEnemy(world: World, forceType?: EnemyType): void {
   const pool = availableEnemyTypes(stage).filter((k) => day >= ETYPES[k].minDay && stage >= ETYPES[k].minStage);
   const type = forceType || pool[(Math.random() * pool.length) | 0] || 'slime';
   const base = ETYPES[type];
-  // Enemy stats scale with both stage and day.
-  const scale = 1 + (stage - 1) * 0.5 + (day - 1) * 0.15;
+  // Enemy stats scale with both stage and day. Stage HP scaling is steeper
+  // (0.8/stage) so later stages feel meaningfully tankier; day scaling stays
+  // gentle. Damage scales 0.5/stage (up from 0.35) so tankier foes also hit
+  // harder — later stages require real build investment to survive.
+  const scale = 1 + (stage - 1) * 0.8 + (day - 1) * 0.15;
   const edge = (Math.random() * 4) | 0;
   let x: number, y: number;
   const { W, H } = world;
@@ -70,7 +73,7 @@ export function spawnEnemy(world: World, forceType?: EnemyType): void {
     y,
     hp: base.hp * scale,
     maxHp: base.hp * scale,
-    dmg: base.dmg * (1 + (stage - 1) * 0.2 + (day - 1) * 0.18),
+    dmg: base.dmg * (1 + (stage - 1) * 0.5 + (day - 1) * 0.18),
     spd: base.spd,
     r: base.r,
     color: base.color,
@@ -157,6 +160,7 @@ export function spawnBoss(world: World): void {
     slowUntil: 0,
     slowAmt: 0,
     marked: 0,
+    phase: 1,
     patternIndex: -1,
     activePattern: null,
     patternT: 1.5,

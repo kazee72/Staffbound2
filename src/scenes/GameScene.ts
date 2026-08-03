@@ -126,7 +126,7 @@ export class GameScene extends Phaser.Scene {
   /** Guest mode: time since last snapshot received (for interpolation timing). */
   private snapRecvTime = 0;
   /** Guest mode: guest's own player slot (from host's welcome). */
-  private myPlayerSlot = 0;
+  private myPlayerSlot = -1; // -1 = not yet assigned by host
   private helloSent = false;
   /** Guest mode: local grimoire purchased set (sent to host for validation). */
   private guestPurchased: Set<string> = new Set();
@@ -151,7 +151,7 @@ export class GameScene extends Phaser.Scene {
     this.curSnap = null;
     this.snapshotTick = 0;
     this.netTickAccum = 0;
-    this.myPlayerSlot = 0;
+    this.myPlayerSlot = -1;
     this.helloSent = false;
     this.guestPurchased = new Set();
     this.guestSP = 0;
@@ -277,8 +277,9 @@ export class GameScene extends Phaser.Scene {
     // re-send their hello to the new scene's message handler.
     const connectedPeerIds = netManager.getGuestIds();
     for (const peerId of connectedPeerIds) {
-      // Send a "re-hello" request so the guest re-sends its hello message
-      const reHelloMsg: HostMsg = { t: 'welcome', you: 0, players: [] };
+      // Send a placeholder welcome to trigger the guest to re-send its hello
+      // to the new GameScene's message handler. you: -1 means "not yet assigned".
+      const reHelloMsg: HostMsg = { t: 'welcome', you: -1, players: [] };
       netManager.sendToGuest(peerId, reHelloMsg);
     }
   }
@@ -543,11 +544,8 @@ export class GameScene extends Phaser.Scene {
   private handleGuestMsg(msg: ClientMsg | HostMsg): void {
     switch (msg.t) {
       case 'welcome':
-        // Only update player slot if this is a real welcome (not the initial
-        // re-hello trigger from setupHostNetworking which sends you: 0).
-        if (msg.you > 0 || msg.players.length > 0) {
-          this.myPlayerSlot = msg.you;
-        }
+        // Always update player slot from the host's welcome message.
+        this.myPlayerSlot = msg.you;
         // Re-send hello ONCE so the host's GameScene creates our NetPlayer.
         // Guard with a flag to prevent infinite welcome->hello loops.
         if (!this.helloSent) {
@@ -688,7 +686,8 @@ export class GameScene extends Phaser.Scene {
     this.world.elapsed = snap.elapsed;
 
     // Draw player (self) — find our slot in the snapshot
-    const mySnap = snap.players.find((p) => p.id === this.myPlayerSlot);
+    // Find our own player slot in the snapshot (if assigned yet).
+    const mySnap = this.myPlayerSlot >= 0 ? snap.players.find((p) => p.id === this.myPlayerSlot) : null;
     if (mySnap) {
       const interp = this.lerpPlayer(prev, mySnap, alpha);
       this.world.player.x = interp.x;
@@ -698,13 +697,12 @@ export class GameScene extends Phaser.Scene {
       this.world.player.dashing = mySnap.dashing ? 1 : 0;
       this.world.player.aimAngle = mySnap.aimAngle;
       this.world.player.dashCd = mySnap.dashCd;
+      this.world.level = mySnap.level;
       // Update HP for HUD
       if (mySnap.downed && this.world.player.hp > 0) {
         this.world.player.hp = 0;
       }
-      // Sync skill points from the host's authoritative snapshot — the host
-      // grants SP on level-up (see simulateNetPlayers), and the guest has no
-      // other way to learn about SP earned outside of a buySkill round-trip.
+      // Sync skill points from the host's authoritative snapshot
       this.guestSP = mySnap.sp;
       this.guestSpSpent = mySnap.spSpent;
       this.world.sp = mySnap.sp;
@@ -712,12 +710,12 @@ export class GameScene extends Phaser.Scene {
       if (this.world.grimoireOpen) {
         this.ui.updateNodeStates(this.world);
       }
+      // Draw self (using the mage sprite)
+      this.drawPlayer();
     }
 
-    // Draw self (using the mage sprite)
-    this.drawPlayer();
-
     // Draw ALL other players from the snapshot (including the host as P1).
+    // If myPlayerSlot is -1 (not yet assigned), draw ALL players as others.
     // The guest's own player is already drawn above via drawPlayer(), so
     // skip self by myPlayerSlot.
     this.renderOtherPlayerSprites(snap, prev, alpha);
@@ -894,7 +892,7 @@ export class GameScene extends Phaser.Scene {
 
   private updateGuestHUD(snap: SnapshotView): void {
     // Update the world's level to match our player's level from snapshot
-    const mySnap = snap.players.find((p) => p.id === this.myPlayerSlot);
+    const mySnap = this.myPlayerSlot >= 0 ? snap.players.find((p) => p.id === this.myPlayerSlot) : null;
     if (mySnap) {
       this.world.level = mySnap.level;
       this.world.player.hp = mySnap.hp;
@@ -1101,8 +1099,18 @@ export class GameScene extends Phaser.Scene {
       bossTimer: 130,
       bossFight: null,
       stage: 1,
+      // Reset transient per-run fields so a restart starts fully clean.
+      pendingBossAbilityUnlocks: [],
+      pendingAbilityDisplay: null,
     });
     this.lastStage = 1; // reset stage tracking on new run
+    // Clear any leftover boss sprite from a previous run so a stale boss
+    // isn't rendered on top of the fresh stage-1 scene.
+    if (this.bossSprite) {
+      this.bossSprite.destroy();
+      this.bossSprite = null;
+      this.currentBossDefId = null;
+    }
     this.ui.renderTree(this.world);
     this.ui.setGrimoireVisible(false);
 

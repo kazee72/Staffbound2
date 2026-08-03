@@ -28,6 +28,9 @@ export interface BossDef {
   xpValue: number;
   flavor: string;
   flashColor: string;
+  /** Attack patterns available per phase (index 0 = phase 1, etc). */
+  phasePatterns: BossAttackId[][];
+  /** Legacy flat pattern list (phase 1 patterns). */
   patterns: BossAttackId[];
 }
 
@@ -37,13 +40,18 @@ export const BOSS_DEFS: BossDef[] = [
     name: 'Elder Wraith',
     color: '#5b3f73',
     r: 22,
-    baseHp: 550,
-    hpPerDay: 165,
+    baseHp: 1650,
+    hpPerDay: 495,
     baseDmg: 22,
-    spd: 46,
+    spd: 69,
     xpValue: 80,
     flavor: 'AN ELDER WRAITH STIRS',
     flashColor: 'var(--umbral)',
+    phasePatterns: [
+      ['stomp', 'radialBurst', 'aimedVolley'],
+      ['stomp', 'radialBurst', 'aimedVolley', 'spiral'],
+      ['stomp', 'radialBurst', 'aimedVolley', 'spiral', 'expandRing'],
+    ],
     patterns: ['stomp', 'radialBurst', 'aimedVolley'],
   },
   {
@@ -51,13 +59,18 @@ export const BOSS_DEFS: BossDef[] = [
     name: 'Ember Colossus',
     color: '#b6491f',
     r: 25,
-    baseHp: 620,
-    hpPerDay: 185,
+    baseHp: 1860,
+    hpPerDay: 555,
     baseDmg: 20,
-    spd: 42,
+    spd: 63,
     xpValue: 95,
     flavor: 'THE EMBER COLOSSUS AWAKENS',
     flashColor: 'var(--ember)',
+    phasePatterns: [
+      ['radialBurst', 'lineBeam', 'expandRing'],
+      ['radialBurst', 'lineBeam', 'expandRing', 'aimedVolley'],
+      ['radialBurst', 'lineBeam', 'expandRing', 'aimedVolley', 'spiral'],
+    ],
     patterns: ['radialBurst', 'lineBeam', 'expandRing'],
   },
   {
@@ -65,13 +78,18 @@ export const BOSS_DEFS: BossDef[] = [
     name: 'Rime Sovereign',
     color: '#4f7fa8',
     r: 23,
-    baseHp: 580,
-    hpPerDay: 170,
+    baseHp: 1740,
+    hpPerDay: 510,
     baseDmg: 19,
-    spd: 44,
+    spd: 66,
     xpValue: 90,
     flavor: 'THE RIME SOVEREIGN DESCENDS',
     flashColor: 'var(--frost)',
+    phasePatterns: [
+      ['spiral', 'expandRing', 'aimedVolley'],
+      ['spiral', 'expandRing', 'aimedVolley', 'radialBurst'],
+      ['spiral', 'expandRing', 'aimedVolley', 'radialBurst', 'lineBeam'],
+    ],
     patterns: ['spiral', 'expandRing', 'aimedVolley'],
   },
   {
@@ -79,13 +97,18 @@ export const BOSS_DEFS: BossDef[] = [
     name: 'Bramble Horror',
     color: '#4d7a3d',
     r: 24,
-    baseHp: 650,
-    hpPerDay: 195,
+    baseHp: 1950,
+    hpPerDay: 585,
     baseDmg: 21,
-    spd: 40,
+    spd: 60,
     xpValue: 100,
     flavor: 'A BRAMBLE HORROR TEARS FREE OF THE EARTH',
     flashColor: 'var(--verdant)',
+    phasePatterns: [
+      ['stomp', 'spiral', 'radialBurst'],
+      ['stomp', 'spiral', 'radialBurst', 'expandRing'],
+      ['stomp', 'spiral', 'radialBurst', 'expandRing', 'lineBeam'],
+    ],
     patterns: ['stomp', 'spiral', 'radialBurst'],
   },
 ];
@@ -93,18 +116,40 @@ export const BOSS_DEFS: BossDef[] = [
 export const BOSS_DEF_BY_ID: Record<string, BossDef> = {};
 BOSS_DEFS.forEach((d) => (BOSS_DEF_BY_ID[d.id] = d));
 
-const REST_DURATION = 0.7;
+const REST_DURATION = 0.4;
+
+/** Phase thresholds (fraction of maxHp). Phase 1: 100-66%, Phase 2: 66-33%, Phase 3: 33-0%. */
+const PHASE_THRESHOLDS = [0.66, 0.33];
+
+/** Returns the phase (1-3) for a boss based on its current HP fraction. */
+function phaseFor(boss: BossState): number {
+  const frac = boss.hp / boss.maxHp;
+  if (frac <= PHASE_THRESHOLDS[1]) return 3;
+  if (frac <= PHASE_THRESHOLDS[0]) return 2;
+  return 1;
+}
+
+/** Per-phase attack-speed multiplier (patterns tick faster, projectiles fly faster). */
+function phaseSpeedMult(phase: number): number {
+  return phase === 3 ? 1.45 : phase === 2 ? 1.2 : 1;
+}
+
+/** Per-phase projectile-speed multiplier. */
+function phaseProjSpeedMult(phase: number): number {
+  return phase === 3 ? 1.35 : phase === 2 ? 1.15 : 1;
+}
 
 function dist(x1: number, y1: number, x2: number, y2: number): number {
   return Math.hypot(x1 - x2, y1 - y2);
 }
 
 function addProjectile(boss: BossState, x: number, y: number, angle: number, speed: number, dmg: number, r = 6): void {
+  const psm = phaseProjSpeedMult(boss.phase);
   boss.projectiles.push({
     x,
     y,
-    vx: Math.cos(angle) * speed,
-    vy: Math.sin(angle) * speed,
+    vx: Math.cos(angle) * speed * psm,
+    vy: Math.sin(angle) * speed * psm,
     r,
     dmg,
     color: boss.color,
@@ -307,10 +352,25 @@ export function updateBoss(world: World, dt: number): void {
     damagePlayer(world, boss.dmg * 0.6 * dt * (1 - damageReduction(world)));
   }
 
+  // Phase transitions: detect HP threshold crossings and flash a banner.
+  const newPhase = phaseFor(boss);
+  if (newPhase !== boss.phase) {
+    boss.phase = newPhase;
+    // Reset pattern rotation so the new phase's pattern pool starts fresh.
+    boss.patternIndex = -1;
+    boss.activePattern = null;
+    boss.patternT = 0.6;
+    boss.patternData = {};
+    world.flash('PHASE ' + newPhase, def.flashColor);
+    burst(world, boss.x, boss.y, boss.color, 30, 200);
+  }
+
   // Pattern rotation.
+  const phasePatterns = def.phasePatterns[boss.phase - 1] || def.patterns;
+  const psm = phaseSpeedMult(boss.phase);
   if (boss.activePattern) {
-    boss.patternT += dt;
-    const finished = tickPattern(world, boss, boss.activePattern, dt);
+    boss.patternT += dt * psm;
+    const finished = tickPattern(world, boss, boss.activePattern, dt * psm);
     if (finished) {
       boss.activePattern = null;
       boss.patternT = REST_DURATION;
@@ -319,8 +379,8 @@ export function updateBoss(world: World, dt: number): void {
   } else {
     boss.patternT -= dt;
     if (boss.patternT <= 0) {
-      boss.patternIndex = (boss.patternIndex + 1) % def.patterns.length;
-      boss.activePattern = def.patterns[boss.patternIndex];
+      boss.patternIndex = (boss.patternIndex + 1) % phasePatterns.length;
+      boss.activePattern = phasePatterns[boss.patternIndex];
       boss.patternT = 0;
       boss.patternData = {};
     }

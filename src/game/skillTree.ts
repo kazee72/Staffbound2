@@ -61,6 +61,7 @@ export const LOCAL: LocalNode[] = [
   { id: 'I',  tier: 6, off: 0,   pre: ['F'] },                 // post-capstone
   { id: 'J',  tier: 6, off: 18,  pre: ['F'], radius: 1000 },   // post-capstone side (pulled in slightly from tier 6 max)
   { id: 'K',  tier: 4, off: -22, pre: ['E1'] },               // extra side node
+  { id: 'L',  tier: 5, off: 22,  pre: ['E2'], radius: 920 },    // AoE side node (post-capstone-adjacent)
 ];
 
 export const VOID_EXTRA: LocalNode[] = [{ id: 'X', tier: 1, off: 20, pre: ['A'] }];
