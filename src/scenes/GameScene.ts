@@ -342,7 +342,7 @@ export class GameScene extends Phaser.Scene {
       cd: {
         bolt: 0.3, boltCastCount: 0, fireNova: 0, iceLance: 0, frostArmor: 0,
         frostArmorActive: 0, arcaneBurst: 0, vines: 0, shadowBolt: 0,
-        timeWarp: 0, overgrowth: 0, shadowBlink: 0, eternalFrost: 0, apexSurge: 0, cull: 0,
+        timeWarp: 0, overgrowth: 0, shadowBlink: 0, eternalFrost: 0, apexSurge: 0, cull: 0, magmaCore: 0,
       },
       wisps: [],
       decoys: [],
@@ -501,7 +501,7 @@ export class GameScene extends Phaser.Scene {
       sp: 0, spSpent: 0,
       slain: 0, elapsed: 0,
       enemies: [], projectiles: [], effects: [], particles: [], popups: [], wisps: [], decoys: [],
-      cd: { bolt: 0, boltCastCount: 0, fireNova: 0, iceLance: 0, frostArmor: 0, frostArmorActive: 0, arcaneBurst: 0, vines: 0, shadowBolt: 0, timeWarp: 0, overgrowth: 0, shadowBlink: 0, eternalFrost: 0, apexSurge: 0, cull: 0 },
+      cd: { bolt: 0, boltCastCount: 0, fireNova: 0, iceLance: 0, frostArmor: 0, frostArmorActive: 0, arcaneBurst: 0, vines: 0, shadowBolt: 0, timeWarp: 0, overgrowth: 0, shadowBlink: 0, eternalFrost: 0, apexSurge: 0, cull: 0, magmaCore: 0 },
       spawnTimer: 0, bossTimer: 130, bossFight: null,
     });
     this.ui.renderTree(this.world);
@@ -949,7 +949,7 @@ export class GameScene extends Phaser.Scene {
       popups: [],
       wisps: [],
       decoys: [],
-      cd: { bolt: 0.3, boltCastCount: 0, fireNova: 0, iceLance: 0, frostArmor: 0, frostArmorActive: 0, arcaneBurst: 0, vines: 0, shadowBolt: 0, timeWarp: 0, overgrowth: 0, shadowBlink: 0, eternalFrost: 0, apexSurge: 0, cull: 0 },
+      cd: { bolt: 0.3, boltCastCount: 0, fireNova: 0, iceLance: 0, frostArmor: 0, frostArmorActive: 0, arcaneBurst: 0, vines: 0, shadowBolt: 0, timeWarp: 0, overgrowth: 0, shadowBlink: 0, eternalFrost: 0, apexSurge: 0, cull: 0, magmaCore: 0 },
       spawnTimer: 1,
       bossTimer: 130,
       bossFight: null,

@@ -34,8 +34,8 @@ import type { NetPlayerState } from '../game/types';
 import { currentDay } from '../game/enemies';
 
 // Enemy type ID map (string ↔ number for compact serialization)
-const ENEMY_TYPE_IDS: Record<EnemyType, number> = { slime: 0, skel: 1, wisp: 2, wraith: 3 };
-const ENEMY_TYPE_NAMES: string[] = ['slime', 'skel', 'wisp', 'wraith'];
+const ENEMY_TYPE_IDS: Record<EnemyType, number> = { slime: 0, skel: 1, wisp: 2, wraith: 3, ghoul: 4, iceWolf: 5, shadowWraith: 6 };
+const ENEMY_TYPE_NAMES: string[] = ['slime', 'skel', 'wisp', 'wraith', 'ghoul', 'iceWolf', 'shadowWraith'];
 
 // Boss def IDs (compact)
 const BOSS_DEF_IDS: Record<string, number> = {
@@ -160,7 +160,7 @@ function toNetPlayer(
     phoenixCd: 0, undyingCd: 0, stillTime: 0,
     purchased: new Set<string>(), sp: 0, spSpent: 0,
     xp: 0, xpNext: 24,
-    cd: { bolt: 0, boltCastCount: 0, fireNova: 0, iceLance: 0, frostArmor: 0, frostArmorActive: 0, arcaneBurst: 0, vines: 0, shadowBolt: 0, timeWarp: 0, overgrowth: 0, shadowBlink: 0, eternalFrost: 0, apexSurge: 0, cull: 0 },
+    cd: { bolt: 0, boltCastCount: 0, fireNova: 0, iceLance: 0, frostArmor: 0, frostArmorActive: 0, arcaneBurst: 0, vines: 0, shadowBolt: 0, timeWarp: 0, overgrowth: 0, shadowBlink: 0, eternalFrost: 0, apexSurge: 0, cull: 0, magmaCore: 0 },
     wisps: [], decoys: [],
   };
 }

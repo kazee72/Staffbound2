@@ -4,6 +4,7 @@ import { cooldownMult, spellDamageMult, projectileSpeedMult, healPlayer, maxHP }
 import { hasNode } from './skillTree';
 import { damageEnemy, damageBoss } from './combat';
 import { burst } from './visuals';
+import { hasBossAbility } from './metaProgression';
 
 function dist2(x1: number, y1: number, x2: number, y2: number): number {
   const dx = x1 - x2;
@@ -436,6 +437,30 @@ export function updateSpellTimers(world: World, dt: number): void {
           burst(world, e.x, e.y, '#c4728f', 10, 100);
         }
       });
+    }
+  }
+
+  // Magma Core (Ember Colossus boss ability): passive fire pulse every 8s.
+  if (hasBossAbility(world, 'emberColossus')) {
+    if (world.cd.magmaCore > 0) {
+      world.cd.magmaCore -= dt;
+    } else {
+      world.cd.magmaCore = 8;
+      const radius = 100;
+      const dmg = (20 + world.level * 0.8) * spellDamageMult(world);
+      world.enemies.forEach((e) => {
+        if (!e.dead && dist2(e.x, e.y, world.player.x, world.player.y) < radius * radius) {
+          damageEnemy(world, e, dmg, { allowCrit: false, burn: true, color: '#e2793d' });
+        }
+      });
+      if (world.bossFight) {
+        const boss = world.bossFight.boss;
+        if (dist2(boss.x, boss.y, world.player.x, world.player.y) < radius * radius) {
+          damageBoss(world, boss, dmg, { burn: true, color: '#e2793d' });
+        }
+      }
+      world.effects.push({ type: 'ring', x: world.player.x, y: world.player.y, r: 0, maxR: radius, color: '#e2793d', life: 0.4, t: 0 });
+      burst(world, world.player.x, world.player.y, '#e2793d', 12, 120, 0.35);
     }
   }
 

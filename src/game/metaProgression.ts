@@ -53,6 +53,8 @@ export const META_UPGRADES: MetaUpgradeDef[] = [
 export interface MetaState {
   essence: number;
   ranks: Record<string, number>;
+  /** Boss ability unlocks, keyed by boss defId (e.g. 'elderWraith'). */
+  bossAbilities: Record<string, boolean>;
 }
 
 export const META_BY_ID: Record<string, MetaUpgradeDef> = {};
@@ -65,6 +67,8 @@ export function loadMeta(): MetaState {
     if (raw) {
       const parsed = JSON.parse(raw) as MetaState;
       if (typeof parsed.essence === 'number' && parsed.ranks) {
+        // Ensure bossAbilities field exists (backward compat with old saves).
+        if (!parsed.bossAbilities) parsed.bossAbilities = {};
         return parsed;
       }
     }
@@ -72,7 +76,7 @@ export function loadMeta(): MetaState {
     // corrupt or unavailable — fall through to fresh state
   }
   // Fresh state: grant 1 free rank of Arcane Resonance as a head-start.
-  return { essence: 0, ranks: { dmg: 1 } };
+  return { essence: 0, ranks: { dmg: 1 }, bossAbilities: {} };
 }
 
 /** Persist meta state to localStorage. */
@@ -231,4 +235,40 @@ export function metaProjSpeedMult(world: World): number {
 /** Dash-distance multiplier from Long Stride meta (1.0 if unpurchased). */
 export function metaDashDistMult(world: World): number {
   return 1 + metaRank(world, 'dashdist') * META_BY_ID['dashdist'].perRank;
+}
+
+// ---------------- Boss ability accessors ----------------
+
+/** Check if a boss ability (by boss defId) is unlocked in the persistent meta state. */
+export function hasBossAbility(world: World, bossId: string): boolean {
+  const meta = metaStateOf(world);
+  return !!meta.bossAbilities[bossId];
+}
+
+/** Get all unlocked boss ability IDs. */
+export function unlockedBossAbilities(world: World): string[] {
+  const meta = metaStateOf(world);
+  return Object.keys(meta.bossAbilities).filter((k) => meta.bossAbilities[k]);
+}
+
+/**
+ * Bank pending boss ability unlocks (collected during the run) into the
+ * persistent meta state on death. Returns the list of newly-unlocked
+ * ability boss IDs (for the game-over display).
+ */
+export function bankBossAbilities(world: World): string[] {
+  const pending = world.pendingBossAbilityUnlocks;
+  if (!pending || pending.length === 0) return [];
+  const meta = metaStateOf(world);
+  const newlyUnlocked: string[] = [];
+  for (const bossId of pending) {
+    if (!meta.bossAbilities[bossId]) {
+      meta.bossAbilities[bossId] = true;
+      newlyUnlocked.push(bossId);
+    }
+  }
+  if (newlyUnlocked.length > 0) saveMeta(meta);
+  // Clear pending unlocks so they can't be double-banked.
+  world.pendingBossAbilityUnlocks = [];
+  return newlyUnlocked;
 }

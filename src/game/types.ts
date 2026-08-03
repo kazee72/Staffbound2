@@ -26,7 +26,16 @@ export interface PlayerState {
   stillTime: number;
 }
 
-export type EnemyType = 'slime' | 'skel' | 'wisp' | 'wraith';
+export type EnemyType = 'slime' | 'skel' | 'wisp' | 'wraith' | 'ghoul' | 'iceWolf' | 'shadowWraith';
+
+/** Enemy behavior special flags beyond the base type stats. */
+export interface EnemyBehavior {
+  /** Teleports toward the player periodically (shadow wraith). */
+  teleport?: boolean;
+  /** Applies a freeze on contact (ice wolf). */
+  freezeOnContact?: boolean;
+  /** Extra fast melee (ghoul — already encoded via high spd). */
+}
 
 export interface EnemyState {
   type: EnemyType;
@@ -49,6 +58,12 @@ export interface EnemyState {
   marked: number;
   rootBleed?: number;
   dead?: boolean;
+  /** Special behavior flags (teleport, freezeOnContact). */
+  teleport?: boolean;
+  /** Teleport cooldown timer for shadow wraiths. */
+  teleportCd?: number;
+  /** Applies freeze on contact (ice wolf). */
+  freezeOnContact?: boolean;
 }
 
 /**
@@ -232,6 +247,8 @@ export interface Cooldowns {
   apexSurge: number;
   /** Cull (S_J) — periodic execute on low-HP enemies. */
   cull: number;
+  /** Magma Core boss ability — passive periodic fire pulse. */
+  magmaCore: number;
 }
 
 export interface SkillNode {
@@ -285,6 +302,11 @@ export interface World {
   bossTimer: number;
   /** Explicit boss-fight state — see BossFightState doc comment. Null = normal spawning. */
   bossFight: BossFightState | null;
+
+  /** Current stage (starts at 1, increments on each boss kill). */
+  stage: number;
+  /** Boss ability unlocks pending banking to localStorage on death. Keyed by boss defId. */
+  pendingBossAbilityUnlocks: string[];
 
   purchased: Set<string>;
 
@@ -415,10 +437,13 @@ export function createWorld(W: number, H: number, flash: (text: string, color: s
       eternalFrost: 0,
       apexSurge: 0,
       cull: 0,
+      magmaCore: 0,
     },
     spawnTimer: 0,
     bossTimer: 20,
     bossFight: null,
+    stage: 1,
+    pendingBossAbilityUnlocks: [],
     purchased: new Set<string>(),
     flash,
   };

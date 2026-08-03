@@ -18,6 +18,9 @@ export const ENEMY_TEXTURE_KEYS = {
   skel: 'enemySkel',
   wisp: 'enemyWisp',
   wraith: 'enemyWraith',
+  ghoul: 'enemyGhoul',
+  iceWolf: 'enemyIceWolf',
+  shadowWraith: 'enemyShadowWraith',
 } as const;
 
 export const BOSS_TEXTURE_KEYS: Record<string, string> = {
@@ -37,6 +40,9 @@ export function generateEnemyTextures(scene: Phaser.Scene): void {
   generateSkel(scene);
   generateWisp(scene);
   generateWraith(scene);
+  generateGhoul(scene);
+  generateIceWolf(scene);
+  generateShadowWraith(scene);
   generateElderWraithBoss(scene);
   generateEmberColossusBoss(scene);
   generateRimeSovereignBoss(scene);
@@ -263,6 +269,180 @@ function generateWraith(scene: Phaser.Scene): void {
   // faint arms suggestion
   px(g, 2, 10, robeDark, 0.7);
   px(g, 13, 10, robeDark, 0.7);
+
+  g.generateTexture(KEY, W, H);
+  g.destroy();
+}
+
+// ---------------- GHOUL (14x18) — fast zombie, greenish-brown hunched figure ----------------
+function generateGhoul(scene: Phaser.Scene): void {
+  const KEY = ENEMY_TEXTURE_KEYS.ghoul;
+  if (scene.textures.exists(KEY)) return;
+  const W = 14;
+  const H = 18;
+  const g = scene.make.graphics({ x: 0, y: 0 }, false);
+
+  const skin = 0x6a7a4e;
+  const skinDark = 0x4a5a36;
+  const skinLight = 0x8a9a6e;
+  const eye = 0xff6644;
+  const outline = 0x1a2010;
+
+  // Hunched body
+  for (let y = 5; y < 14; y++) {
+    const t = (y - 5) / 9;
+    const halfW = 4 + Math.sin(t * Math.PI) * 1.5;
+    const cx = 7;
+    for (let x = Math.round(cx - halfW); x <= Math.round(cx + halfW); x++) {
+      if (x < 0 || x >= W) continue;
+      const edge = x === Math.round(cx - halfW) || x === Math.round(cx + halfW);
+      px(g, x, y, edge ? outline : (x + y) % 4 === 0 ? skinDark : skin);
+    }
+  }
+  // Head (hunched forward, smaller)
+  for (let y = 2; y < 6; y++) {
+    for (let x = 5; x <= 9; x++) {
+      const edge = x === 5 || x === 9 || y === 2;
+      px(g, x, y, edge ? outline : y === 3 ? skinLight : skin);
+    }
+  }
+  // Glowing red eyes
+  px(g, 6, 4, eye);
+  px(g, 8, 4, eye);
+  px(g, 6, 4, 0xffffff, 0.3);
+  // Jagged mouth
+  px(g, 6, 5, skinDark);
+  px(g, 8, 5, skinDark);
+  // Arms (long, dangling)
+  for (let y = 7; y < 13; y++) {
+    px(g, 3, y, skin);
+    px(g, 11, y, skin);
+  }
+  // Claws
+  px(g, 3, 13, skinDark);
+  px(g, 11, 13, skinDark);
+  // Legs
+  for (let y = 14; y < 18; y++) {
+    px(g, 5, y, (y % 2 === 0) ? skinDark : skin);
+    px(g, 8, y, (y % 2 === 0) ? skinDark : skin);
+  }
+
+  g.fillStyle(0x000000, 0.25);
+  g.fillEllipse(7, 17.5, 8, 2);
+
+  g.generateTexture(KEY, W, H);
+  g.destroy();
+}
+
+// ---------------- ICE WOLF (16x14) — fast blue wolf, sleek predator ----------------
+function generateIceWolf(scene: Phaser.Scene): void {
+  const KEY = ENEMY_TEXTURE_KEYS.iceWolf;
+  if (scene.textures.exists(KEY)) return;
+  const W = 16;
+  const H = 14;
+  const g = scene.make.graphics({ x: 0, y: 0 }, false);
+
+  const fur = 0xb8d8f0;
+  const furDark = 0x6890b0;
+  const furLight = 0xd8e8f8;
+  const eye = 0x88e0ff;
+  const outline = 0x203040;
+
+  // Body (sleek, elongated)
+  for (let y = 5; y < 11; y++) {
+    const t = (y - 5) / 6;
+    const halfW = 5 + Math.sin(t * Math.PI) * 2;
+    const cx = 8;
+    for (let x = Math.round(cx - halfW); x <= Math.round(cx + halfW); x++) {
+      if (x < 0 || x >= W) continue;
+      const edge = x === Math.round(cx - halfW) || x === Math.round(cx + halfW);
+      px(g, x, y, edge ? outline : y < 7 ? furLight : fur);
+    }
+  }
+  // Head (pointed snout facing right)
+  for (let y = 3; y < 8; y++) {
+    for (let x = 10; x <= 15; x++) {
+      const edge = x === 15 || y === 3 || (x === 10 && y < 6);
+      px(g, x, y, edge ? outline : y === 3 ? furLight : fur);
+    }
+  }
+  // Pointed ears
+  px(g, 10, 2, furDark);
+  px(g, 12, 2, furDark);
+  // Ice-blue eye
+  px(g, 12, 5, eye);
+  px(g, 12, 5, 0xffffff, 0.5);
+  // Legs
+  for (let y = 11; y < 14; y++) {
+    px(g, 4, y, furDark);
+    px(g, 7, y, fur);
+    px(g, 10, y, fur);
+    px(g, 13, y, furDark);
+  }
+  // Tail (curving up)
+  px(g, 0, 6, fur);
+  px(g, 1, 5, fur);
+  px(g, 0, 4, furDark, 0.7);
+  // Ice crystal spikes on back
+  px(g, 7, 4, 0xd4f0ff);
+  px(g, 9, 4, 0xd4f0ff);
+
+  g.fillStyle(0x000000, 0.25);
+  g.fillEllipse(8, 13.5, 10, 2);
+
+  g.generateTexture(KEY, W, H);
+  g.destroy();
+}
+
+// ---------------- SHADOW WRAITH (16x22) — teleporting dark entity with glowing core ----------------
+function generateShadowWraith(scene: Phaser.Scene): void {
+  const KEY = ENEMY_TEXTURE_KEYS.shadowWraith;
+  if (scene.textures.exists(KEY)) return;
+  const W = 16;
+  const H = 22;
+  const g = scene.make.graphics({ x: 0, y: 0 }, false);
+
+  const voidc = 0x2a1a40;
+  const voidDark = 0x1a0e28;
+  const glow = 0xc4a8ff;
+  const core = 0xf0d8ff;
+  const outline = 0x0a0612;
+
+  // Wispy tattered body — semi-transparent flowing shape
+  for (let y = 4; y < 20; y++) {
+    const t = (y - 4) / 16;
+    const halfW = 5 + Math.sin(t * Math.PI * 1.5) * 2.5;
+    const cx = 8;
+    for (let x = Math.round(cx - halfW); x <= Math.round(cx + halfW); x++) {
+      if (x < 0 || x >= W) continue;
+      const edge = x === Math.round(cx - halfW) || x === Math.round(cx + halfW);
+      const alpha = y > 16 ? 0.4 : 0.8;
+      px(g, x, y, edge ? voidDark : voidc, alpha);
+    }
+  }
+  // Glowing purple core in the center
+  for (let dy = -2; dy <= 2; dy++) {
+    for (let dx = -2; dx <= 2; dx++) {
+      const d = Math.hypot(dx, dy);
+      if (d < 2) {
+        px(g, 8 + dx, 11 + dy, d < 0.5 ? core : glow, 1 - d * 0.3);
+      }
+    }
+  }
+  // Glowing eyes (twin pinpoints above the core)
+  px(g, 6, 7, glow, 0.9);
+  px(g, 10, 7, glow, 0.9);
+  // Wispy tendrils at the bottom
+  const tendrils = [3, 6, 8, 10, 13];
+  tendrils.forEach((x, i) => {
+    px(g, x, 20, voidDark, 0.3);
+    px(g, x, 21, voidDark, 0.15);
+    void i;
+  });
+  // Faint outline at top
+  for (let x = 5; x <= 11; x++) {
+    px(g, x, 3, outline, 0.5);
+  }
 
   g.generateTexture(KEY, W, H);
   g.destroy();
