@@ -166,7 +166,7 @@ function toNetPlayer(
     phoenixCd: 0, undyingCd: 0, stillTime: 0,
     purchased: new Set<string>(), sp, spSpent,
     xp: 0, xpNext: 24,
-    cd: { bolt: 0, boltCastCount: 0, fireNova: 0, iceLance: 0, frostArmor: 0, frostArmorActive: 0, arcaneBurst: 0, vines: 0, shadowBolt: 0, timeWarp: 0, overgrowth: 0, shadowBlink: 0, eternalFrost: 0, apexSurge: 0, cull: 0, magmaCore: 0 },
+    cd: { bolt: 0, boltCastCount: 0, fireNova: 0, iceLance: 0, frostArmor: 0, frostArmorActive: 0, arcaneBurst: 0, vines: 0, shadowBolt: 0, timeWarp: 0, overgrowth: 0, shadowBlink: 0, eternalFrost: 0, apexSurge: 0, cull: 0, magmaCore: 0, arcaneExplosion: 0, lightningChain: 0, blizzard: 0, earthquake: 0, sporeBurst: 0, shadowNova: 0, whirlwindStrike: 0 },
     wisps: [], decoys: [],
   };
 }

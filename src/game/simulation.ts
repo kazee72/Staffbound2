@@ -6,7 +6,7 @@ import { damageEnemy, damageBoss } from './combat';
 import { nearestEnemy } from './spells';
 import { burst } from './visuals';
 import { updateBoss } from './bosses';
-import { addRunEssence, essenceForBossKill, metaDashDistMult, hasBossAbility } from './metaProgression';
+import { addRunEssence, essenceForBossKill, metaDashDistMult, hasBossAbility, bossAbilityRank } from './metaProgression';
 import { getStageDef, BOSS_ABILITY_BY_BOSS } from './stages';
 
 function clamp(v: number, a: number, b: number): number {
@@ -98,19 +98,24 @@ export function tryDash(world: World): void {
   if (hasNode(world.purchased, 'S_C2')) {
     world.decoys.push({ x: startX, y: startY, t: 0.6, boosted: hasNode(world.purchased, 'S_E2') });
   }
-  // Spectral Step (Elder Wraith boss ability): dash leaves a damaging trail
-  // along the dash path that damages enemies it passes through.
+  // Spectral Step (Elder Wraith boss ability): dash leaves a fire trail
+  // along the dash path that damages and burns enemies it passes through.
+  // Rank scales: 1=15dmg, 2=25, 3=35, 4=45, 5=60.
   if (hasBossAbility(world, 'elderWraith')) {
-    const trailDmg = 15 + world.level * 0.5;
+    const rank = bossAbilityRank(world, 'elderWraith');
+    const trailDmg = [15, 25, 35, 45, 60][rank - 1] + world.level * 0.5;
+    const trailRadius = rank >= 4 ? 28 : 20;
     const steps = 6;
     for (let s = 0; s <= steps; s++) {
       const t = s / steps;
       const tx = startX + (p.x - startX) * t;
       const ty = startY + (p.y - startY) * t;
-      burst(world, tx, ty, '#c4a8ff', 3, 60, 0.3);
+      burst(world, tx, ty, '#e2793d', 3, 60, 0.3);
+      // Visual: leave a brief ground fire effect.
+      world.effects.push({ type: 'ground', x: tx, y: ty, r: trailRadius, color: '#e2793d', life: 0.5, t: 0, dmg: trailDmg });
       world.enemies.forEach((e) => {
-        if (!e.dead && dist2(tx, ty, e.x, e.y) < 20 * 20) {
-          damageEnemy(world, e, trailDmg, { allowCrit: false, color: '#c4a8ff' });
+        if (!e.dead && dist2(tx, ty, e.x, e.y) < trailRadius * trailRadius) {
+          damageEnemy(world, e, trailDmg, { allowCrit: false, burn: true, color: '#e2793d' });
         }
       });
     }
@@ -121,13 +126,24 @@ export function damagePlayer(world: World, amount: number, attacker?: EnemyState
   const p = world.player;
   p.hp -= amount;
 
-  // Thorn Armor (Bramble Horror boss ability): reflect 20 damage back to the attacker.
+  // Thorn Armor (Bramble Horror boss ability): reflect damage back to the
+  // attacker, scaled by rank. Ranks 2+ also knock the attacker back.
+  // Rank scales: 1=20dmg, 2=30, 3=45, 4=65, 5=90.
   if (hasBossAbility(world, 'brambleHorror') && amount > 0) {
+    const rank = bossAbilityRank(world, 'brambleHorror');
+    const reflectDmg = [20, 30, 45, 65, 90][rank - 1];
+    const knockback = rank >= 2;
     if (attacker && !attacker.dead) {
-      damageEnemy(world, attacker, 20, { allowCrit: false, color: '#4d7a3d' });
+      damageEnemy(world, attacker, reflectDmg, { allowCrit: false, color: '#4d7a3d' });
+      if (knockback) {
+        const ka = Math.atan2(attacker.y - p.y, attacker.x - p.x);
+        const kDist = rank >= 4 ? 60 : 40;
+        attacker.x = clamp(attacker.x + Math.cos(ka) * kDist, 5, world.W - 5);
+        attacker.y = clamp(attacker.y + Math.sin(ka) * kDist, 5, world.H - 5);
+      }
     } else if (world.bossFight) {
       // Boss projectile hit — reflect to the boss.
-      damageBoss(world, world.bossFight.boss, 20, { allowCrit: false, color: '#4d7a3d' });
+      damageBoss(world, world.bossFight.boss, reflectDmg, { allowCrit: false, color: '#4d7a3d' });
     }
   }
 
@@ -264,12 +280,17 @@ export function updateEnemies(world: World, dt: number): void {
       }
     });
   }
-  // Frost Aura (Rime Sovereign boss ability): passively slow enemies within 60px by 20%.
+  // Frost Aura (Rime Sovereign boss ability): passively slow enemies near the
+  // player. Rank scales radius and slow strength.
+  // Rank 1: 80px/20%, 2: 100px/25%, 3: 120px/30%, 4: 140px/35%, 5: 160px/40%.
   if (hasBossAbility(world, 'rimeSovereign')) {
+    const rank = bossAbilityRank(world, 'rimeSovereign');
+    const radius = [80, 100, 120, 140, 160][rank - 1];
+    const slowAmt = [0.2, 0.25, 0.3, 0.35, 0.4][rank - 1];
     world.enemies.forEach((e) => {
-      if (!e.dead && dist2(e.x, e.y, p.x, p.y) < 60 * 60) {
+      if (!e.dead && dist2(e.x, e.y, p.x, p.y) < radius * radius) {
         e.slowUntil = world.elapsed + 0.5;
-        e.slowAmt = Math.max(e.slowAmt, 0.2);
+        e.slowAmt = Math.max(e.slowAmt, slowAmt);
       }
     });
   }

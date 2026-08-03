@@ -92,6 +92,7 @@ export const CONTENT: Record<string, Record<string, ContentEntry>> = {
     I: { name: 'Phoenix', desc: 'Once per run, when you would die, you erupt in a massive fire blast that damages all enemies and restores 50% HP.' },
     J: { name: 'Eternal Flame', desc: 'Your burn effects last twice as long and deal 50% more damage per second.' },
     K: { name: 'Heat Wave', desc: 'Burning enemies are slowed by an additional 30%.' },
+    L: { name: 'Arcane Explosion', desc: 'Every 6 seconds, a massive arcane burst erupts around you, dealing heavy damage to all nearby enemies.' },
   },
   R: {
     A: { name: 'Chill Touch', desc: 'Your bolts chill enemies, slowing them by 20% for 2s.' },
@@ -107,6 +108,7 @@ export const CONTENT: Record<string, Record<string, ContentEntry>> = {
     I: { name: 'Eternal Frost', desc: 'Every 25 seconds, all enemies on screen freeze solid for 4 seconds.' },
     J: { name: 'Avalanche', desc: 'Ice Lance now also drops ice shards on 3 random enemies near the impact point.' },
     K: { name: 'Frostbite Aura', desc: 'Enemies near you are passively chilled, slowing them by 15%.' },
+    L: { name: 'Blizzard', desc: 'Every 20 seconds, a howling blizzard slows ALL enemies on screen to 30% speed for 5 seconds.' },
   },
   V: {
     A: { name: 'Focused Mind', desc: 'Cast your bolt 20% more often.' },
@@ -123,6 +125,7 @@ export const CONTENT: Record<string, Record<string, ContentEntry>> = {
     I: { name: 'Time Warp', desc: 'Every 20 seconds, all enemies slow to 40% speed for 5 seconds.' },
     J: { name: 'Arcane Overflow', desc: 'Empowered casts now deal 4x damage instead of 3x, and fire 6 homing bolts.' },
     K: { name: 'Mana Shield', desc: 'When above 80% HP, take 20% less damage. A protective ward of raw mana.' },
+    L: { name: 'Lightning Chain', desc: 'Every 5 seconds, your bolts chain lightning to 3 nearby enemies, dealing 60% damage to each.' },
   },
   N: {
     A: { name: 'Verdant Touch', desc: 'Slaying a foe restores a little of your health.' },
@@ -138,6 +141,7 @@ export const CONTENT: Record<string, Record<string, ContentEntry>> = {
     I: { name: 'Overgrowth', desc: 'Every 12 seconds, a surge of life heals you for 20% max HP and damages all nearby enemies.' },
     J: { name: 'Nature\u2019s Wrath', desc: 'Your wisps fire 50% faster and their bolts pierce 1 enemy.' },
     K: { name: 'Thornskin', desc: 'When hit, reflect 15 damage back to the attacker as thorns.' },
+    L: { name: 'Spore Burst', desc: 'Every 8 seconds, toxic spores erupt around you, poisoning all nearby enemies for heavy damage over time.' },
   },
   S: {
     A: { name: 'Cold Reading', desc: 'Gain an 8% chance for any hit to land as a critical strike.' },
@@ -153,6 +157,7 @@ export const CONTENT: Record<string, Record<string, ContentEntry>> = {
     I: { name: 'Shadow Blink', desc: 'Every 15 seconds, you blink to the nearest enemy and mark all foes around them.' },
     J: { name: 'Cull', desc: 'Every 8 seconds, any enemy below 20% HP is instantly executed (marked foes at 30%).' },
     K: { name: 'Nightmare', desc: 'Marked enemies take 25% more damage from all sources.' },
+    L: { name: 'Shadow Nova', desc: 'Every 10 seconds, a wave of shadow energy erupts from you, marking and damaging all enemies in a large radius.' },
   },
   B: {
     A: { name: 'Traveler\u2019s Legs', desc: 'Move 15% faster.' },
@@ -168,6 +173,7 @@ export const CONTENT: Record<string, Record<string, ContentEntry>> = {
     I: { name: 'Fortress', desc: 'Standing still for 2+ seconds reduces incoming damage by an additional 25%.' },
     J: { name: 'Titan Heart', desc: 'Your max health is increased by another 40%, and regen is boosted by 50%.' },
     K: { name: 'Second Skin', desc: 'After taking damage, gain 1 second of invulnerability (6s internal cooldown).' },
+    L: { name: 'Earthquake', desc: 'Every 15 seconds, you slam the ground, stunning all enemies in a large radius for 2 seconds.' },
   },
   P: {
     A: { name: 'Honed Edge', desc: 'Your bolts and spells deal 10% more damage.' },
@@ -183,6 +189,7 @@ export const CONTENT: Record<string, Record<string, ContentEntry>> = {
     I: { name: 'Apex Surge', desc: 'Every 15 seconds, gain +50% damage and +20% crit chance for 4 seconds.' },
     J: { name: 'Perfection', desc: 'All your stats are increased by an additional 10%.' },
     K: { name: 'Velocity', desc: 'All your projectiles travel 40% faster, increasing effective range and DPS.' },
+    L: { name: 'Whirlwind Strike', desc: 'Every 7 seconds, you spin in a cyclone, striking all nearby enemies for heavy weapon damage.' },
   },
 };
 
@@ -222,7 +229,7 @@ BRANCHES.forEach((br) => {
       tier: loc.tier,
       x,
       y,
-      cost: loc.id === 'I' || loc.id === 'J' ? 6 : loc.id === 'K' ? 4 : COST_BY_TIER[loc.tier],
+      cost: loc.id === 'I' || loc.id === 'J' ? 6 : loc.id === 'K' ? 4 : loc.id === 'L' ? 5 : COST_BY_TIER[loc.tier],
       pre: loc.pre.map((p) => br.code + '_' + p),
       capstone: loc.id === 'F',
       name: content.name,

@@ -7,8 +7,8 @@
  */
 import './hud.css';
 import type { World } from '../game/types';
-import { availableSP, buySkill, hasNode, nodeIcon } from '../game/skillTree';
-import { SKILL_NODES, NODE_BY_ID, BRANCHES, CX, CY, TREE_W, TREE_H, RADII, radialPath } from '../game/skillTree';
+import { availableSP, buySkill, hasNode } from '../game/skillTree';
+import { SKILL_NODES, NODE_BY_ID, BRANCHES } from '../game/skillTree';
 import { maxHP } from '../game/player';
 import { currentDay } from '../game/enemies';
 import { PLACES } from '../game/waves';
@@ -60,11 +60,12 @@ export class UIManager {
   private metaGrimBtn: HTMLButtonElement;
 
   private grimoireOverlay: HTMLDivElement;
-  private treeSVG: SVGSVGElement;
-  private treeInner: HTMLDivElement;
   private spAvail: HTMLSpanElement;
   private closeGrimBtn: HTMLButtonElement;
   private tooltip: HTMLDivElement;
+  private staffSelectorEl: HTMLDivElement;
+  private branchViewEl: HTMLDivElement;
+  private currentBranch: string | null = null;
 
   private metaOverlay: HTMLDivElement;
   private metaEssenceTxt: HTMLSpanElement;
@@ -74,8 +75,6 @@ export class UIManager {
 
   private abilityOverlay: HTMLDivElement;
   private abilityContinueBtn: HTMLButtonElement;
-
-  private nodeDivs = new Map<string, HTMLDivElement>();
 
   onStart: () => void = () => {};
   onRetry: () => void = () => {};
@@ -214,7 +213,7 @@ export class UIManager {
     this.metaGrimBtn = this.gameOverOverlay.querySelector('#metaGrimBtn')!;
     this.metaGrimBtn.addEventListener('click', () => this.onOpenMetaGrimoire());
 
-    // Grimoire overlay
+    // Grimoire overlay — staff selector + branch column view
     this.grimoireOverlay = document.createElement('div');
     this.grimoireOverlay.className = 'overlay hidden';
     this.grimoireOverlay.id = 'grimoireOverlay';
@@ -223,26 +222,17 @@ export class UIManager {
       <div id="grimHeader">
         <div class="disp">THE GRIMOIRE</div>
         <div id="grimSP"><span id="spAvail">0</span> unspent skill points</div>
-        <button id="closeGrim">CLOSE &nbsp;(G)</button>
+        <button id="closeGrim">CLOSE (G)</button>
       </div>
-      <div id="treewrap">
-        <div id="treeinner">
-          <svg id="treeSVG"></svg>
-          <div class="core">YOUR<br>PATH</div>
-        </div>
+      <div id="grimStaffSelector">
+        <div class="staff-pick-title">CHOOSE YOUR PATH</div>
+        <div class="staff-row"></div>
       </div>
+      <div id="branchView" style="display:none;"></div>
     `;
     this.root.appendChild(this.grimoireOverlay);
-    this.treeSVG = this.grimoireOverlay.querySelector('#treeSVG')!;
-    this.treeInner = this.grimoireOverlay.querySelector('#treeinner')!;
-    // Size the tree container to the radial layout and place the hub core at CX/CY.
-    this.treeInner.style.width = TREE_W + 'px';
-    this.treeInner.style.height = TREE_H + 'px';
-    const coreEl = this.grimoireOverlay.querySelector('.core') as HTMLDivElement | null;
-    if (coreEl) {
-      coreEl.style.left = CX + 'px';
-      coreEl.style.top = CY + 'px';
-    }
+    this.staffSelectorEl = this.grimoireOverlay.querySelector('#grimStaffSelector')!;
+    this.branchViewEl = this.grimoireOverlay.querySelector('#branchView')!;
     this.spAvail = this.grimoireOverlay.querySelector('#spAvail')!;
     this.closeGrimBtn = this.grimoireOverlay.querySelector('#closeGrim')!;
     this.closeGrimBtn.addEventListener('click', () => this.onToggleGrimoire());
@@ -303,22 +293,6 @@ export class UIManager {
     footnote.textContent = 'a session-only tale — no record of this journey is kept once the page is closed';
     this.root.appendChild(footnote);
 
-    // Branch labels (static, drawn once) — placed radially just beyond the
-    // outermost tier of each branch, at the branch's base angle.
-    BRANCHES.forEach((br) => {
-      const labelR = RADII[6] + 50; // just beyond the outermost tier
-      const ang = (br.angle * Math.PI) / 180;
-      const lx = CX + Math.cos(ang) * labelR;
-      const ly = CY + Math.sin(ang) * labelR;
-      const lab = document.createElement('div');
-      lab.className = 'branchlabel';
-      lab.style.left = lx + 'px';
-      lab.style.top = ly + 'px';
-      lab.style.transform = 'translate(-50%,-50%)';
-      lab.style.color = br.color;
-      lab.textContent = br.name;
-      this.treeInner.appendChild(lab);
-    });
   }
 
   flash(text: string, color: string): void {
@@ -467,7 +441,10 @@ export class UIManager {
 
   setGrimoireVisible(open: boolean): void {
     this.grimoireOverlay.classList.toggle('hidden', !open);
-    if (open) this.renderTree(this.currentWorld!);
+    if (open) {
+      this.currentBranch = null;
+      this.renderStaffSelector(this.currentWorld!);
+    }
   }
 
   private currentWorld: World | null = null;
@@ -533,76 +510,143 @@ export class UIManager {
     }
   }
 
-  /** Full (re)render of the skill tree — connectors + node divs + labels. Called when opening the Grimoire or after a purchase. */
-  renderTree(world: World): void {
+  /** Render the staff selector — one staff per branch, flying in with animation. */
+  renderStaffSelector(world: World): void {
     this.currentWorld = world;
-    let lines = '';
-    SKILL_NODES.forEach((n) => {
-      n.pre.forEach((p) => {
-        const pn = NODE_BY_ID[p];
-        const lit = hasNode(world.purchased, p);
-        const d = radialPath(pn.x, pn.y, n.x, n.y);
-        lines += `<path d="${d}" style="stroke:${lit ? n.color : '#333a5c'};fill:none"${lit ? ' class="lit"' : ''}></path>`;
-      });
-      if (n.tier === 0) {
-        // Radial spoke from the hub center to each branch's first node.
-        lines += `<path class="spoke" d="M ${CX} ${CY} L ${n.x} ${n.y}"></path>`;
-      }
-    });
-    this.treeSVG.innerHTML = lines;
-
-    this.nodeDivs.forEach((div) => div.remove());
-    this.nodeDivs.clear();
-
-    SKILL_NODES.forEach((n) => {
-      const bought = hasNode(world.purchased, n.id);
-      const preOk = n.pre.every((p) => hasNode(world.purchased, p));
-      const afford = availableSP(world) >= n.cost;
-      const div = document.createElement('div');
-      div.className =
-        'node' + (n.capstone ? ' capstone' : '') + (bought ? ' bought' : !preOk ? ' locked' : afford ? ' affordable' : ' available');
-      div.style.left = n.x + 'px';
-      div.style.top = n.y + 'px';
-      div.style.borderColor = bought || afford ? n.color : 'var(--line)';
-      if (bought) {
-        div.style.background = n.color;
-        div.style.boxShadow = '0 0 16px ' + n.color;
-      }
-      // Show icon when unbought, checkmark when bought.
-      div.textContent = bought ? '✓' : nodeIcon(n);
-      div.addEventListener('click', () => {
-        if (preOk && !bought) {
-          if (this.onBuySkill) {
-            this.onBuySkill(n.id);
-          } else {
-            buySkill(world, n.id);
-          }
-          this.renderTree(world);
-        }
-      });
-      div.addEventListener('mouseenter', (e) => this.showTip(e as MouseEvent, world, n.id, bought, preOk));
-      div.addEventListener('mousemove', (e) => this.positionTip(e as MouseEvent));
-      div.addEventListener('mouseleave', () => {
-        this.tooltip.style.opacity = '0';
-      });
-      this.treeInner.appendChild(div);
-      this.nodeDivs.set(n.id, div);
+    this.currentBranch = null;
+    this.staffSelectorEl.style.display = 'flex';
+    this.branchViewEl.style.display = 'none';
+    const row = this.staffSelectorEl.querySelector('.staff-row') as HTMLDivElement;
+    row.innerHTML = '';
+    BRANCHES.forEach((br, i) => {
+      const pick = document.createElement('div');
+      pick.className = 'staff-pick';
+      pick.style.color = br.color;
+      pick.style.animationDelay = (i * 0.06) + 's';
+      pick.innerHTML = `
+        <div class="staff-orb"></div>
+        <div class="staff-shaft"></div>
+        <div class="staff-label">${br.name}</div>
+      `;
+      pick.addEventListener('click', () => this.renderBranchColumn(world, br.code));
+      row.appendChild(pick);
     });
     this.spAvail.textContent = String(availableSP(world));
   }
 
-  /** Lightweight per-frame refresh (locked/affordable/bought classes only) without rebuilding the whole DOM tree. */
-  updateNodeStates(world: World): void {
-    SKILL_NODES.forEach((n) => {
-      const div = this.nodeDivs.get(n.id);
-      if (!div) return;
-      const bought = hasNode(world.purchased, n.id);
-      const preOk = n.pre.every((p) => hasNode(world.purchased, p));
-      const afford = availableSP(world) >= n.cost;
-      div.className =
-        'node' + (n.capstone ? ' capstone' : '') + (bought ? ' bought' : !preOk ? ' locked' : afford ? ' affordable' : ' available');
+  /** Render a single branch as a vertical column of gem nodes. */
+  renderBranchColumn(world: World, branchCode: string): void {
+    this.currentWorld = world;
+    this.currentBranch = branchCode;
+    this.staffSelectorEl.style.display = 'none';
+    this.branchViewEl.style.display = 'flex';
+
+    const br = BRANCHES.find((b) => b.code === branchCode)!;
+    const branchNodes = SKILL_NODES.filter((n) => n.branch === branchCode).sort((a, b) => a.tier - b.tier);
+
+    // Build ordered list: main column (A,B,G,D,E1/E2,F,I) + side nodes (C1,C2,H,J,K) near their prereqs.
+    // We lay out vertically by tier; side nodes appear as small branches to the side.
+    const mainColumn = branchNodes.filter((n) => {
+      const id = n.id.split('_')[1];
+      return ['A', 'B', 'G', 'D', 'E1', 'E2', 'F', 'I'].includes(id);
     });
+    const sideNodes = branchNodes.filter((n) => {
+      const id = n.id.split('_')[1];
+      return ['C1', 'C2', 'H', 'J', 'K', 'X'].includes(id);
+    });
+
+    let html = `
+      <div class="branch-view-header">
+        <button class="branch-back">&larr; ALL PATHS</button>
+        <div class="branch-title" style="color:${br.color};text-shadow:0 0 16px ${br.color};">${br.name}</div>
+      </div>
+      <div class="branch-column">
+    `;
+
+    // Render main column with connectors, interleaving side nodes at appropriate tiers.
+    // For simplicity, render main column top to bottom, then add side nodes as a second column to the right.
+    // Actually, let's do a simpler layout: main column vertical, side nodes shown inline after their prerequisite tier.
+    
+    // Build a tier map for side nodes
+    const sideByTier: Record<number, typeof sideNodes> = {};
+    sideNodes.forEach((n) => {
+      const t = n.tier;
+      if (!sideByTier[t]) sideByTier[t] = [];
+      sideByTier[t].push(n);
+    });
+
+    mainColumn.forEach((n, idx) => {
+      // connector before node (except first)
+      if (idx > 0) {
+        const prev = mainColumn[idx - 1];
+        const lit = hasNode(world.purchased, prev.id);
+        html += `<div class="branch-connector${lit ? ' lit' : ''}" style="color:${prev.color};background:${lit ? prev.color : 'var(--line)'};"></div>`;
+      }
+      html += this.gemNodeHTML(n, world);
+      // Add side nodes for this tier after the main node
+      const sides = sideByTier[n.tier] || [];
+      sides.forEach((sn) => {
+        // connector to side node
+        const prereqBought = hasNode(world.purchased, n.id);
+        html += `<div class="branch-connector${prereqBought ? ' lit' : ''}" style="color:${sn.color};background:${prereqBought ? sn.color : 'var(--line)'};"></div>`;
+        html += this.gemNodeHTML(sn, world);
+      });
+    });
+
+    html += '</div>';
+    this.branchViewEl.innerHTML = html;
+
+    // Wire up back button
+    const backBtn = this.branchViewEl.querySelector('.branch-back') as HTMLButtonElement;
+    backBtn.addEventListener('click', () => this.renderStaffSelector(world));
+
+    // Wire up gem node clicks + tooltips
+    this.branchViewEl.querySelectorAll<HTMLDivElement>('.gem-node').forEach((div) => {
+      const id = div.getAttribute('data-id')!;
+      const node = NODE_BY_ID[id];
+      const bought = hasNode(world.purchased, id);
+      const preOk = node.pre.every((p) => hasNode(world.purchased, p));
+      div.addEventListener('click', () => {
+        if (preOk && !bought) {
+          if (this.onBuySkill) {
+            this.onBuySkill(id);
+          } else {
+            buySkill(world, id);
+          }
+          this.renderBranchColumn(world, branchCode);
+        }
+      });
+      div.addEventListener('mouseenter', (e) => this.showTip(e as MouseEvent, world, id, bought, preOk));
+      div.addEventListener('mousemove', (e) => this.positionTip(e as MouseEvent));
+      div.addEventListener('mouseleave', () => {
+        this.tooltip.style.opacity = '0';
+      });
+    });
+
     this.spAvail.textContent = String(availableSP(world));
+  }
+
+  /** Generate HTML for a single gem node. */
+  private gemNodeHTML(n: typeof SKILL_NODES[0], world: World): string {
+    const bought = hasNode(world.purchased, n.id);
+    const preOk = n.pre.every((p) => hasNode(world.purchased, p));
+    const afford = availableSP(world) >= n.cost;
+    const cls = 'gem-node' + (n.capstone ? ' capstone' : '') + (bought ? ' bought' : !preOk ? ' locked' : afford ? ' affordable' : ' available');
+    const label = n.name.split(' ')[0]; // first word as short label
+    return `<div class="${cls}" data-id="${n.id}" style="color:${n.color};">
+      <div class="gem-shape"></div>
+      <div class="gem-inner">${label}</div>
+    </div>`;
+  }
+
+  /** Lightweight per-frame refresh of gem node states without rebuilding DOM. */
+  updateNodeStates(world: World): void {
+    if (this.currentBranch) {
+      // Re-render the branch column to update connector colors + node states
+      this.renderBranchColumn(world, this.currentBranch);
+    } else {
+      this.spAvail.textContent = String(availableSP(world));
+    }
   }
 
   private showTip(e: MouseEvent, world: World, id: string, bought: boolean, preOk: boolean): void {

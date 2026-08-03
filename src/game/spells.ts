@@ -4,7 +4,7 @@ import { cooldownMult, spellDamageMult, projectileSpeedMult, healPlayer, maxHP }
 import { hasNode } from './skillTree';
 import { damageEnemy, damageBoss } from './combat';
 import { burst } from './visuals';
-import { hasBossAbility } from './metaProgression';
+import { hasBossAbility, bossAbilityRank } from './metaProgression';
 
 function dist2(x1: number, y1: number, x2: number, y2: number): number {
   const dx = x1 - x2;
@@ -449,13 +449,17 @@ export function updateSpellTimers(world: World, dt: number): void {
   }
 
   // Magma Core (Ember Colossus boss ability): passive fire pulse every 8s.
+  // Rank scales radius and damage. Rank 1: 120px/20dmg, 2: 140/30, 3: 160/40,
+  // 4: 180/55, 5: 200/75. Always applies burn.
   if (hasBossAbility(world, 'emberColossus')) {
     if (world.cd.magmaCore > 0) {
       world.cd.magmaCore -= dt;
     } else {
       world.cd.magmaCore = 8;
-      const radius = 100;
-      const dmg = (20 + world.level * 0.8) * spellDamageMult(world);
+      const rank = bossAbilityRank(world, 'emberColossus');
+      const radius = [120, 140, 160, 180, 200][rank - 1];
+      const baseDmg = [20, 30, 40, 55, 75][rank - 1];
+      const dmg = (baseDmg + world.level * 0.8) * spellDamageMult(world);
       world.enemies.forEach((e) => {
         if (!e.dead && dist2(e.x, e.y, world.player.x, world.player.y) < radius * radius) {
           damageEnemy(world, e, dmg, { allowCrit: false, burn: true, color: '#e2793d' });
@@ -469,6 +473,182 @@ export function updateSpellTimers(world: World, dt: number): void {
       }
       world.effects.push({ type: 'ring', x: world.player.x, y: world.player.y, r: 0, maxR: radius, color: '#e2793d', life: 0.4, t: 0 });
       burst(world, world.player.x, world.player.y, '#e2793d', 12, 120, 0.35);
+    }
+  }
+
+  // ---------------- New AoE abilities (tier-5 L nodes) ----------------
+
+  // Arcane Explosion (F_L): every 6s, a massive arcane burst around the player.
+  if (hasNode(world.purchased, 'F_L')) {
+    if (world.cd.arcaneExplosion > 0) {
+      world.cd.arcaneExplosion -= dt;
+    } else {
+      world.cd.arcaneExplosion = 6;
+      const radius = 160;
+      const dmg = (28 + world.level * 0.7) * spellDamageMult(world);
+      world.effects.push({ type: 'ring', x: world.player.x, y: world.player.y, r: 0, maxR: radius, color: '#c7bdf5', life: 0.5, t: 0 });
+      forEachTargetInRange(
+        world,
+        world.player.x,
+        world.player.y,
+        radius,
+        (e) => damageEnemy(world, e, dmg, { burn: true, color: '#c7bdf5' }),
+        () => damageBoss(world, world.bossFight!.boss, dmg, { burn: true, color: '#c7bdf5' }),
+      );
+      burst(world, world.player.x, world.player.y, '#c7bdf5', 26, 200);
+      world.flash('ARCANE EXPLOSION', '#c7bdf5');
+    }
+  }
+
+  // Lightning Chain (V_L): every 5s, chain lightning to 3 nearby enemies.
+  if (hasNode(world.purchased, 'V_L')) {
+    if (world.cd.lightningChain > 0) {
+      world.cd.lightningChain -= dt;
+    } else {
+      world.cd.lightningChain = 5;
+      const p = world.player;
+      const chainDmg = (12 + world.level * 0.4) * spellDamageMult(world) * 0.6;
+      // Find up to 3 nearest enemies and chain lightning between them.
+      const sorted = world.enemies
+        .filter((e) => !e.dead)
+        .map((e) => ({ e, d: dist2(p.x, p.y, e.x, e.y) }))
+        .sort((a, b) => a.d - b.d)
+        .slice(0, 3);
+      let prevX = p.x, prevY = p.y;
+      for (const { e } of sorted) {
+        // Visual: ring effect at each chain target
+        world.effects.push({ type: 'ring', x: e.x, y: e.y, r: 0, maxR: 30, color: '#9d8ce0', life: 0.3, t: 0 });
+        burst(world, prevX, prevY, '#9d8ce0', 6, 80, 0.2);
+        damageEnemy(world, e, chainDmg, { color: '#9d8ce0' });
+        prevX = e.x;
+        prevY = e.y;
+      }
+      if (sorted.length > 0) world.flash('LIGHTNING CHAIN', '#9d8ce0');
+    }
+  }
+
+  // Blizzard (R_L): every 20s, slow ALL enemies on screen to 30% for 5s.
+  if (hasNode(world.purchased, 'R_L')) {
+    if (world.cd.blizzard > 0) {
+      world.cd.blizzard -= dt;
+    } else {
+      world.cd.blizzard = 20;
+      world.flash('BLIZZARD', '#b8d8f0');
+      world.enemies.forEach((e) => {
+        if (!e.dead) {
+          e.slowUntil = world.elapsed + 5;
+          e.slowAmt = Math.max(e.slowAmt, 0.7);
+        }
+      });
+      if (world.bossFight) {
+        const boss = world.bossFight.boss;
+        boss.slowUntil = world.elapsed + 5;
+        boss.slowAmt = Math.max(boss.slowAmt, 0.5);
+      }
+    }
+  }
+
+  // Earthquake (B_L): every 15s, stun all enemies in a large radius for 2s.
+  if (hasNode(world.purchased, 'B_L')) {
+    if (world.cd.earthquake > 0) {
+      world.cd.earthquake -= dt;
+    } else {
+      world.cd.earthquake = 15;
+      const radius = 200;
+      world.flash('EARTHQUAKE', '#c9a869');
+      world.effects.push({ type: 'ring', x: world.player.x, y: world.player.y, r: 0, maxR: radius, color: '#c9a869', life: 0.6, t: 0 });
+      world.enemies.forEach((e) => {
+        if (!e.dead && dist2(e.x, e.y, world.player.x, world.player.y) < radius * radius) {
+          // Stun = freeze for 2 seconds
+          e.frozenUntil = world.elapsed + 2;
+          damageEnemy(world, e, 20 + world.level * 0.5, { allowCrit: false, color: '#c9a869' });
+        }
+      });
+      if (world.bossFight) {
+        const boss = world.bossFight.boss;
+        if (dist2(boss.x, boss.y, world.player.x, world.player.y) < radius * radius) {
+          boss.slowUntil = world.elapsed + 2;
+          boss.slowAmt = Math.max(boss.slowAmt, 0.8);
+          damageBoss(world, boss, 20 + world.level * 0.5, { color: '#c9a869' });
+        }
+      }
+      burst(world, world.player.x, world.player.y, '#c9a869', 24, 220);
+    }
+  }
+
+  // Spore Burst (N_L): every 8s, toxic spores erupt around the player.
+  if (hasNode(world.purchased, 'N_L')) {
+    if (world.cd.sporeBurst > 0) {
+      world.cd.sporeBurst -= dt;
+    } else {
+      world.cd.sporeBurst = 8;
+      const radius = 140;
+      const dmg = (18 + world.level * 0.5) * spellDamageMult(world);
+      world.effects.push({ type: 'ring', x: world.player.x, y: world.player.y, r: 0, maxR: radius, color: '#8bc48a', life: 0.5, t: 0 });
+      forEachTargetInRange(
+        world,
+        world.player.x,
+        world.player.y,
+        radius,
+        (e) => {
+          damageEnemy(world, e, dmg, { burn: true, color: '#8bc48a' });
+          e.slowUntil = world.elapsed + 3;
+          e.slowAmt = Math.max(e.slowAmt, 0.3);
+        },
+        () => damageBoss(world, world.bossFight!.boss, dmg, { burn: true, color: '#8bc48a' }),
+      );
+      burst(world, world.player.x, world.player.y, '#8bc48a', 22, 180);
+      world.flash('SPORE BURST', '#8bc48a');
+    }
+  }
+
+  // Shadow Nova (S_L): every 10s, shadow energy marks and damages all in radius.
+  if (hasNode(world.purchased, 'S_L')) {
+    if (world.cd.shadowNova > 0) {
+      world.cd.shadowNova -= dt;
+    } else {
+      world.cd.shadowNova = 10;
+      const radius = 170;
+      const dmg = (22 + world.level * 0.5) * spellDamageMult(world);
+      world.effects.push({ type: 'ring', x: world.player.x, y: world.player.y, r: 0, maxR: radius, color: '#c4728f', life: 0.5, t: 0 });
+      forEachTargetInRange(
+        world,
+        world.player.x,
+        world.player.y,
+        radius,
+        (e) => {
+          damageEnemy(world, e, dmg, { color: '#c4728f' });
+          e.marked = world.elapsed + 4;
+        },
+        () => {
+          damageBoss(world, world.bossFight!.boss, dmg, { color: '#c4728f' });
+          world.bossFight!.boss.marked = world.elapsed + 4;
+        },
+      );
+      burst(world, world.player.x, world.player.y, '#c4728f', 24, 200);
+      world.flash('SHADOW NOVA', '#c4728f');
+    }
+  }
+
+  // Whirlwind Strike (P_L): every 7s, cyclone strikes all nearby enemies.
+  if (hasNode(world.purchased, 'P_L')) {
+    if (world.cd.whirlwindStrike > 0) {
+      world.cd.whirlwindStrike -= dt;
+    } else {
+      world.cd.whirlwindStrike = 7;
+      const radius = 120;
+      const dmg = (25 + world.level * 0.6) * spellDamageMult(world);
+      world.effects.push({ type: 'ring', x: world.player.x, y: world.player.y, r: 0, maxR: radius, color: '#4fd6c0', life: 0.4, t: 0 });
+      forEachTargetInRange(
+        world,
+        world.player.x,
+        world.player.y,
+        radius,
+        (e) => damageEnemy(world, e, dmg, { color: '#4fd6c0' }),
+        () => damageBoss(world, world.bossFight!.boss, dmg, { color: '#4fd6c0' }),
+      );
+      burst(world, world.player.x, world.player.y, '#4fd6c0', 20, 160);
+      world.flash('WHIRLWIND', '#4fd6c0');
     }
   }
 

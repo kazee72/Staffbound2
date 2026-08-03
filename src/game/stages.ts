@@ -125,6 +125,8 @@ export interface BossAbilityDef {
   bossName: string;
   abilityName: string;
   desc: string;
+  /** Per-rank description for the Meta Grimoire upgrade panel (index 0 = rank 1). */
+  rankDescs: string[];
 }
 
 export const BOSS_ABILITIES: BossAbilityDef[] = [
@@ -132,25 +134,53 @@ export const BOSS_ABILITIES: BossAbilityDef[] = [
     bossId: 'elderWraith',
     bossName: 'Elder Wraith',
     abilityName: 'Spectral Step',
-    desc: 'Your dash leaves a brief damaging trail along its path.',
+    desc: 'Your dash leaves a fire trail along its path that burns enemies.',
+    rankDescs: [
+      'Leave a fire trail on dash path (15 trail dmg + burn).',
+      'Trail dmg 25 + longer burn.',
+      'Trail dmg 35 + even longer burn.',
+      'Trail dmg 45 + wider trail.',
+      'Trail dmg 60 + max burn duration.',
+    ],
   },
   {
     bossId: 'emberColossus',
     bossName: 'Ember Colossus',
     abilityName: 'Magma Core',
     desc: 'Passively emit a fire pulse every 8s that damages and burns nearby enemies.',
+    rankDescs: [
+      'Pulse radius 120, 20 dmg + burn.',
+      'Pulse radius 140, 30 dmg + burn.',
+      'Pulse radius 160, 40 dmg + burn.',
+      'Pulse radius 180, 55 dmg + burn.',
+      'Pulse radius 200, 75 dmg + burn.',
+    ],
   },
   {
     bossId: 'rimeSovereign',
     bossName: 'Rime Sovereign',
     abilityName: 'Frost Aura',
-    desc: 'Enemies within 60px of you are passively slowed by 20%.',
+    desc: 'Enemies near you are passively slowed.',
+    rankDescs: [
+      'Slow 20% within 80px.',
+      'Slow 25% within 100px.',
+      'Slow 30% within 120px.',
+      'Slow 35% within 140px.',
+      'Slow 40% within 160px.',
+    ],
   },
   {
     bossId: 'brambleHorror',
     bossName: 'Bramble Horror',
     abilityName: 'Thorn Armor',
-    desc: 'When hit, reflect 20 damage back to the attacker.',
+    desc: 'When hit, reflect damage back to the attacker and knock them back.',
+    rankDescs: [
+      'Reflect 20 dmg to attacker.',
+      'Reflect 30 dmg + knockback.',
+      'Reflect 45 dmg + knockback.',
+      'Reflect 65 dmg + strong knockback.',
+      'Reflect 90 dmg + strong knockback.',
+    ],
   },
 ];
 

@@ -253,6 +253,20 @@ export interface Cooldowns {
   cull: number;
   /** Magma Core boss ability — passive periodic fire pulse. */
   magmaCore: number;
+  /** Arcane Explosion (F_L) — periodic AoE burst around the player. */
+  arcaneExplosion: number;
+  /** Lightning Chain (V_L) — periodic chaining bolt to 3 nearby enemies. */
+  lightningChain: number;
+  /** Blizzard (R_L) — periodic global slow of all enemies. */
+  blizzard: number;
+  /** Earthquake (B_L) — periodic stun of all enemies in radius. */
+  earthquake: number;
+  /** Spore Burst (N_L) — periodic toxic AoE around the player. */
+  sporeBurst: number;
+  /** Shadow Nova (S_L) — periodic shadow AoE marking enemies. */
+  shadowNova: number;
+  /** Whirlwind Strike (P_L) — periodic melee cyclone. */
+  whirlwindStrike: number;
 }
 
 export interface SkillNode {
@@ -445,6 +459,13 @@ export function createWorld(W: number, H: number, flash: (text: string, color: s
       apexSurge: 0,
       cull: 0,
       magmaCore: 0,
+      arcaneExplosion: 0,
+      lightningChain: 0,
+      blizzard: 0,
+      earthquake: 0,
+      sporeBurst: 0,
+      shadowNova: 0,
+      whirlwindStrike: 0,
     },
     spawnTimer: 0,
     bossTimer: 20,

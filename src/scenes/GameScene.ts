@@ -390,6 +390,7 @@ export class GameScene extends Phaser.Scene {
         bolt: 0.3, boltCastCount: 0, fireNova: 0, iceLance: 0, frostArmor: 0,
         frostArmorActive: 0, arcaneBurst: 0, vines: 0, shadowBolt: 0,
         timeWarp: 0, overgrowth: 0, shadowBlink: 0, eternalFrost: 0, apexSurge: 0, cull: 0, magmaCore: 0,
+        arcaneExplosion: 0, lightningChain: 0, blizzard: 0, earthquake: 0, sporeBurst: 0, shadowNova: 0, whirlwindStrike: 0,
       },
       wisps: [],
       decoys: [],
@@ -633,10 +634,9 @@ export class GameScene extends Phaser.Scene {
       sp: 0, spSpent: 0,
       slain: 0, elapsed: 0,
       enemies: [], projectiles: [], effects: [], particles: [], popups: [], wisps: [], decoys: [],
-      cd: { bolt: 0, boltCastCount: 0, fireNova: 0, iceLance: 0, frostArmor: 0, frostArmorActive: 0, arcaneBurst: 0, vines: 0, shadowBolt: 0, timeWarp: 0, overgrowth: 0, shadowBlink: 0, eternalFrost: 0, apexSurge: 0, cull: 0, magmaCore: 0 },
+      cd: { bolt: 0, boltCastCount: 0, fireNova: 0, iceLance: 0, frostArmor: 0, frostArmorActive: 0, arcaneBurst: 0, vines: 0, shadowBolt: 0, timeWarp: 0, overgrowth: 0, shadowBlink: 0, eternalFrost: 0, apexSurge: 0, cull: 0, magmaCore: 0, arcaneExplosion: 0, lightningChain: 0, blizzard: 0, earthquake: 0, sporeBurst: 0, shadowNova: 0, whirlwindStrike: 0 },
       spawnTimer: 0, bossTimer: 130, bossFight: null,
     });
-    this.ui.renderTree(this.world);
     this.ui.setGrimoireVisible(false);
     this.createPlayerListHUD();
   }
@@ -1094,7 +1094,7 @@ export class GameScene extends Phaser.Scene {
       popups: [],
       wisps: [],
       decoys: [],
-      cd: { bolt: 0.3, boltCastCount: 0, fireNova: 0, iceLance: 0, frostArmor: 0, frostArmorActive: 0, arcaneBurst: 0, vines: 0, shadowBolt: 0, timeWarp: 0, overgrowth: 0, shadowBlink: 0, eternalFrost: 0, apexSurge: 0, cull: 0, magmaCore: 0 },
+      cd: { bolt: 0.3, boltCastCount: 0, fireNova: 0, iceLance: 0, frostArmor: 0, frostArmorActive: 0, arcaneBurst: 0, vines: 0, shadowBolt: 0, timeWarp: 0, overgrowth: 0, shadowBlink: 0, eternalFrost: 0, apexSurge: 0, cull: 0, magmaCore: 0, arcaneExplosion: 0, lightningChain: 0, blizzard: 0, earthquake: 0, sporeBurst: 0, shadowNova: 0, whirlwindStrike: 0 },
       spawnTimer: 1,
       bossTimer: 130,
       bossFight: null,
@@ -1111,7 +1111,6 @@ export class GameScene extends Phaser.Scene {
       this.bossSprite = null;
       this.currentBossDefId = null;
     }
-    this.ui.renderTree(this.world);
     this.ui.setGrimoireVisible(false);
 
     // In host mode, create the player list HUD
@@ -1336,6 +1335,9 @@ export class GameScene extends Phaser.Scene {
       const spr = this.add.image(x, y, FOREST_TREE_KEY).setOrigin(0.5, 1).setScale(scale);
       spr.setAlpha(0.85 + rand() * 0.15);
       spr.setTint(rand() > 0.5 ? 0xffffff : 0xd8e4d0);
+      // Depth-sort by y so enemies that are below (higher y) render in front,
+      // and enemies above (lower y) render behind trees — same formula as enemies.
+      spr.setDepth(4 + y * 0.0001);
       this.decorLayer.add(spr);
     }
   }
@@ -1383,6 +1385,8 @@ export class GameScene extends Phaser.Scene {
       spr.setAlpha(0.85 + rand() * 0.15);
       // Subtle tint variation for depth.
       spr.setTint(rand() > 0.5 ? 0xffffff : 0xd8d0c8);
+      // Depth-sort by y so enemies behind/below trees render correctly.
+      spr.setDepth(4 + y * 0.0001);
       this.decorLayer.add(spr);
     }
   }

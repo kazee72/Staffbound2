@@ -57,8 +57,13 @@ export const META_UPGRADES: MetaUpgradeDef[] = [
 export interface MetaState {
   essence: number;
   ranks: Record<string, number>;
-  /** Boss ability unlocks, keyed by boss defId (e.g. 'elderWraith'). */
+  /** Boss ability unlock state — keyed by boss defId (e.g. 'elderWraith').
+   *  Legacy boolean form (bossAbilities) is migrated to bossAbilityRanks on load. */
   bossAbilities: Record<string, boolean>;
+  /** Boss ability upgrade ranks (1-indexed; rank 0 = not yet earned).
+   *  Rank 1 is granted for free when the boss is first defeated; ranks 2+
+   *  are purchased with essence in the Meta Grimoire. */
+  bossAbilityRanks: Record<string, number>;
 }
 
 export const META_BY_ID: Record<string, MetaUpgradeDef> = {};
@@ -73,6 +78,14 @@ export function loadMeta(): MetaState {
       if (typeof parsed.essence === 'number' && parsed.ranks) {
         // Ensure bossAbilities field exists (backward compat with old saves).
         if (!parsed.bossAbilities) parsed.bossAbilities = {};
+        // Ensure bossAbilityRanks field exists; migrate legacy boolean
+        // unlocks into rank 1 so previously-earned abilities stay active.
+        if (!parsed.bossAbilityRanks) parsed.bossAbilityRanks = {};
+        for (const k of Object.keys(parsed.bossAbilities)) {
+          if (parsed.bossAbilities[k] && !parsed.bossAbilityRanks[k]) {
+            parsed.bossAbilityRanks[k] = 1;
+          }
+        }
         return parsed;
       }
     }
@@ -80,7 +93,7 @@ export function loadMeta(): MetaState {
     // corrupt or unavailable — fall through to fresh state
   }
   // Fresh state: grant 1 free rank of Arcane Resonance as a head-start.
-  return { essence: 0, ranks: { dmg: 1 }, bossAbilities: {} };
+  return { essence: 0, ranks: { dmg: 1 }, bossAbilities: {}, bossAbilityRanks: {} };
 }
 
 /** Persist meta state to localStorage. */
@@ -243,22 +256,29 @@ export function metaDashDistMult(world: World): number {
 
 // ---------------- Boss ability accessors ----------------
 
-/** Check if a boss ability (by boss defId) is unlocked in the persistent meta state. */
+/** Check if a boss ability (by boss defId) is earned (rank >= 1). */
 export function hasBossAbility(world: World, bossId: string): boolean {
   const meta = metaStateOf(world);
-  return !!meta.bossAbilities[bossId];
+  return (meta.bossAbilityRanks[bossId] || 0) >= 1;
 }
 
-/** Get all unlocked boss ability IDs. */
+/** Get the current upgrade rank of a boss ability (0 = not earned). */
+export function bossAbilityRank(world: World, bossId: string): number {
+  const meta = metaStateOf(world);
+  return meta.bossAbilityRanks[bossId] || 0;
+}
+
+/** Get all earned boss ability IDs (rank >= 1). */
 export function unlockedBossAbilities(world: World): string[] {
   const meta = metaStateOf(world);
-  return Object.keys(meta.bossAbilities).filter((k) => meta.bossAbilities[k]);
+  return Object.keys(meta.bossAbilityRanks).filter((k) => (meta.bossAbilityRanks[k] || 0) >= 1);
 }
 
 /**
  * Bank pending boss ability unlocks (collected during the run) into the
- * persistent meta state on death. Returns the list of newly-unlocked
- * ability boss IDs (for the game-over display).
+ * persistent meta state on death. Defeating a boss for the first time grants
+ * rank 1 for free. Returns the list of newly-unlocked ability boss IDs
+ * (for the game-over display).
  */
 export function bankBossAbilities(world: World): string[] {
   const pending = world.pendingBossAbilityUnlocks;
@@ -266,7 +286,9 @@ export function bankBossAbilities(world: World): string[] {
   const meta = metaStateOf(world);
   const newlyUnlocked: string[] = [];
   for (const bossId of pending) {
-    if (!meta.bossAbilities[bossId]) {
+    if ((meta.bossAbilityRanks[bossId] || 0) < 1) {
+      meta.bossAbilityRanks[bossId] = 1;
+      // Keep legacy boolean in sync for any code that still reads it.
       meta.bossAbilities[bossId] = true;
       newlyUnlocked.push(bossId);
     }
@@ -275,4 +297,39 @@ export function bankBossAbilities(world: World): string[] {
   // Clear pending unlocks so they can't be double-banked.
   world.pendingBossAbilityUnlocks = [];
   return newlyUnlocked;
+}
+
+/**
+ * Purchase the next upgrade rank of a boss ability with essence. Rank 1
+ * must be earned by defeating the boss; ranks 2+ are purchased here.
+ * Returns true on success.
+ */
+export function buyBossAbilityRank(world: World, bossId: string): boolean {
+  const meta = metaStateOf(world);
+  const rank = meta.bossAbilityRanks[bossId] || 0;
+  if (rank < 1) return false; // must defeat the boss first
+  const maxRank = BOSS_ABILITY_MAX_RANK;
+  if (rank >= maxRank) return false;
+  const cost = bossAbilityCostAt(rank + 1);
+  if (meta.essence < cost) return false;
+  meta.essence -= cost;
+  meta.bossAbilityRanks[bossId] = rank + 1;
+  saveMeta(meta);
+  return true;
+}
+
+/** Essence cost to buy rank `r` (2-indexed; rank 1 is free from the boss kill). */
+export function bossAbilityCostAt(rank: number): number {
+  // Rank 2: 40, Rank 3: 70, Rank 4: 110, Rank 5: 160
+  return 25 + (rank - 1) * 25 + (rank - 2) * 15;
+}
+
+/** Maximum upgrade rank for boss abilities. */
+export const BOSS_ABILITY_MAX_RANK = 5;
+
+/** Cost to buy the NEXT rank of a boss ability (0 if maxed or not yet earned). */
+export function bossAbilityNextCost(world: World, bossId: string): number {
+  const rank = bossAbilityRank(world, bossId);
+  if (rank < 1 || rank >= BOSS_ABILITY_MAX_RANK) return 0;
+  return bossAbilityCostAt(rank + 1);
 }
