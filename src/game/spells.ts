@@ -102,16 +102,21 @@ export function castBolt(world: World): void {
   }
   if (baseAng === null) baseAng = p.aimAngle;
   const projSpeed = 480 * projectileSpeedMult(world);
-  // Twin Casting (V_B): fire a second bolt shortly after the first (burst),
-  // NOT a shotgun spread. The extra bolt fires at the same angle with a tiny
-  // delay so it reads as a quick 2-round burst rather than two side-by-side.
+  // Twin Casting (V_B): fire a second bolt on the exact same trajectory as
+  // the first, just spawned a bit behind so it looks like a quick burst
+  // (one bolt following the other), NOT a shotgun spread.
   for (let i = 0; i < count; i++) {
-    const ang = baseAng + i * 0.04; // very slight offset per shot, not a spread
+    const ang = baseAng; // same angle for all bolts — same trajectory
+    // Offset spawn position backward along the fire direction so bolt 2
+    // trails behind bolt 1 instead of overlapping it.
+    const spawnOffset = i * 14; // 14px behind per bolt
+    const sx = p.x - Math.cos(ang) * spawnOffset;
+    const sy = p.y - Math.sin(ang) * spawnOffset;
     let dmg = 8 + world.level * 0.6;
     if (hasNode(world.purchased, 'F_A')) dmg *= 1.2;
     dmg *= spellDamageMult(world);
     if (empowered) dmg *= hasNode(world.purchased, 'V_J') ? 4 : 3; // Arcane Overflow (V_J): 4x instead of 3x
-    fireProjectile(world, p.x, p.y, Math.cos(ang), Math.sin(ang), projSpeed, dmg, '#9d8ce0', hasNode(world.purchased, 'V_C1') ? 1 : 0, {
+    fireProjectile(world, sx, sy, Math.cos(ang), Math.sin(ang), projSpeed, dmg, '#9d8ce0', hasNode(world.purchased, 'V_C1') ? 1 : 0, {
       homing: hasNode(world.purchased, 'V_C2'),
       burn: hasNode(world.purchased, 'F_A'),
       slow: hasNode(world.purchased, 'R_A') ? 0.2 : 0,
@@ -121,7 +126,7 @@ export function castBolt(world: World): void {
       const splashCount = hasNode(world.purchased, 'V_J') ? 6 : 4;
       for (let k = 0; k < splashCount; k++) {
         const a2 = Math.random() * Math.PI * 2;
-        fireProjectile(world, p.x, p.y, Math.cos(a2), Math.sin(a2), 380, dmg * 0.4, '#c7bdf5', 0, { homing: true, mini: true });
+        fireProjectile(world, sx, sy, Math.cos(a2), Math.sin(a2), 380, dmg * 0.4, '#c7bdf5', 0, { homing: true, mini: true });
       }
     }
   }
