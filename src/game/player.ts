@@ -32,6 +32,8 @@ export function critChance(world: World): number {
     (hasNode(world.purchased, 'S_G') ? 0.05 : 0) +
     (hasNode(world.purchased, 'P_C1') ? 0.06 : 0) +
     (hasNode(world.purchased, 'P_F') ? 0.1 : 0) +
+    // Twin Critical (V_H): +5% crit chance for all bolts
+    (hasNode(world.purchased, 'V_H') ? 0.05 : 0) +
     // Apex Surge (P_I): +20% crit while surge is active
     (hasNode(world.purchased, 'P_I') && world.cd.apexSurge > 0.5 ? 0.2 : 0) +
     metaCritChance(world)
@@ -55,7 +57,6 @@ export function maxHP(world: World): number {
     (hasNode(p, 'B_E1') ? 0.5 : 0) +
     (hasNode(p, 'F_H') ? 0.15 : 0) +
     (hasNode(p, 'R_H') ? 0.15 : 0) +
-    (hasNode(p, 'V_H') ? 0.15 : 0) +
     (hasNode(p, 'N_H') ? 0.15 : 0) +
     (hasNode(p, 'S_H') ? 0.15 : 0) +
     (hasNode(p, 'P_H') ? 0.15 : 0) +

@@ -115,7 +115,7 @@ export const CONTENT: Record<string, Record<string, ContentEntry>> = {
     G: { name: 'Arcane Reservoir', desc: 'Each bolt has a 10% chance to cost no cooldown at all.' },
     C2: { name: 'Homing Rune', desc: 'Bolts gently curve toward the nearest foe.' },
     D: { name: 'Overcharge', desc: 'Every fifth cast is empowered, dealing triple damage.' },
-    H: { name: 'Mind Over Matter', desc: 'A disciplined mind, a durable body. +15% max health.' },
+    H: { name: 'Twin Critical', desc: 'Your Twin Casting second bolt can also land critical strikes, and crit chance is +5% for both bolts.' },
     E1: { name: 'Mirror Image', desc: 'Unlocks Arcane Burst, a ring of bolts fired in every direction.' },
     E2: { name: 'Ley Line Tap', desc: 'All spell cooldowns reduced by 20%.' },
     F: { name: 'Overload', desc: 'Capstone. Empowered casts also release a spray of homing bolts.' },
