@@ -255,6 +255,17 @@ export class GameScene extends Phaser.Scene {
       this.handleGuestDisconnect(peerId);
     };
     netManager.onHostDisconnect = null;
+
+    // Re-send welcome to any guests that were already connected from the lobby.
+    // Their hello was handled by the LobbyScene, but the GameScene needs to
+    // create their NetPlayer. We do this by asking each connected guest to
+    // re-send their hello to the new scene's message handler.
+    const connectedPeerIds = netManager.getGuestIds();
+    for (const peerId of connectedPeerIds) {
+      // Send a "re-hello" request so the guest re-sends its hello message
+      const reHelloMsg: HostMsg = { t: 'welcome', you: 0, players: [] };
+      netManager.sendToGuest(peerId, reHelloMsg);
+    }
   }
 
   private handleHostMessage(msg: ClientMsg | HostMsg, fromPeerId: string): void {
@@ -443,6 +454,17 @@ export class GameScene extends Phaser.Scene {
     switch (msg.t) {
       case 'welcome':
         this.myPlayerSlot = msg.you;
+        // Re-send hello to host so GameScene's handler creates our NetPlayer.
+        // (The original hello was consumed by the LobbyScene before scene transition.)
+        {
+          const meta: MetaPayload = {
+            dmgMult: 1, cdMult: 1, moveMult: 1, hpMult: 1, xpMult: 1,
+            critChance: 0, critDmgMult: 1, regenPerSec: 0, lifestealPct: 0,
+            damageReduction: 0, dashCdMult: 1, projSpeedMult: 1, dashDistMult: 1,
+          };
+          const helloMsg: ClientMsg = { t: 'hello', name: 'Guest', roomCode: '', meta, purchased: Array.from(this.guestPurchased) };
+          netManager.sendToHost(helloMsg);
+        }
         break;
       case 'players':
         break;
