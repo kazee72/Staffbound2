@@ -527,7 +527,8 @@
 .gem-node.gem-box {
   border-radius: 6px;
   border: 1.5px solid currentColor;
-  background: var(--panel);
+  background: #15172a;
+  z-index: 2;
 }
 .gem-node:hover {
   transform: scale(1.12);
@@ -545,10 +546,12 @@
 }
 .gem-node.available {
   border-color: currentColor;
+  background: #15172a;
   opacity: 0.7;
 }
 .gem-node.affordable {
   border-color: currentColor;
+  background: #15172a;
   box-shadow: 0 0 10px currentColor;
   opacity: 0.9;
 }
