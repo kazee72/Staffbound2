@@ -232,7 +232,7 @@ export function updateProjectiles(world: World, dt: number): void {
         }
       }
     }
-    if (!hit && (pr.life <= 0 || pr.x < -50 || pr.x > world.W + 50 || pr.y < -50 || pr.y > world.H + 50)) {
+    if (!hit && (pr.x < -50 || pr.x > world.W + 50 || pr.y < -50 || pr.y > world.H + 50)) {
       world.projectiles.splice(i, 1);
     }
   }
