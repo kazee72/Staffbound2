@@ -550,7 +550,7 @@ export class UIManager {
     return map[color] ?? 0;
   }
 
-  /** Render a single branch as a tree-branch layout with the staff GIF at center. */
+  /** Render a single branch as a radial layout with the staff GIF at center. */
   renderBranchColumn(world: World, branchCode: string): void {
     this.currentWorld = world;
     this.currentBranch = branchCode;
@@ -558,45 +558,52 @@ export class UIManager {
     this.branchViewEl.style.display = 'flex';
 
     const br = BRANCHES.find((b) => b.code === branchCode)!;
-    const branchNodes = SKILL_NODES.filter((n) => n.branch === branchCode).sort((a, b) => a.tier - b.tier);
+    const branchNodes = SKILL_NODES.filter((n) => n.branch === branchCode);
 
-    // Group nodes by tier
-    const byTier: Record<number, typeof branchNodes> = {};
-    branchNodes.forEach((n) => {
-      if (!byTier[n.tier]) byTier[n.tier] = [];
-      byTier[n.tier].push(n);
-    });
+    // Use a local radial layout: the staff is at the center, nodes radiate
+    // outward in all directions like the big radial tree, but only for this
+    // one branch. We re-project each node's angular offset from the branch
+    // base angle into a local coordinate system centered on the staff.
 
-    // Build a branch-like layout: the staff GIF is at the center as the back button.
-    // Nodes are arranged in tiers going upward. Main column nodes (off=0) are
-    // centered, side nodes (off!=0) branch off to the left/right based on their
-    // angular offset sign. Connectors are diagonal lines (SVG) from parent to child.
+    // Use a smaller set of radii scaled for the single-branch view
+    const LOCAL_RADII = [60, 110, 165, 225, 290, 360, 430];
+    const TIER_HEIGHT = 0; // not used, radial instead
 
-    // Compute positions for each node (relative coordinates)
-    const TIER_HEIGHT = 70; // vertical gap between tiers
-    const HORIZONTAL_SCALE = 2.5; // how many px per unit of angular offset
-    const positions: Record<string, { x: number; y: number; tier: number }> = {};
-
+    // The branch base angle is where tier-0 sits. We want nodes to spread
+    // in all directions from center, so we use the node's angular offset
+    // as the angle and the tier as the radius.
+    const positions: Record<string, { x: number; y: number }> = {};
     branchNodes.forEach((n) => {
       const idPart = n.id.split('_')[1];
-      const off = (idPart && LOCAL.find((l) => l.id === idPart)?.off) || 0;
-      // For Void's extra X node
-      const voidX = branchCode === 'V' && idPart === 'X' ? 20 : off;
+      const localDef = LOCAL.find((l) => l.id === idPart);
+      const voidExtra = branchCode === 'V' && idPart === 'X'
+        ? { off: 20, radius: undefined as number | undefined }
+        : null;
+      const off = (voidExtra ?? localDef)?.off ?? 0;
+      const radiusOverride = (voidExtra ?? localDef)?.radius;
+      const tier = n.tier;
+      const r = radiusOverride ? radiusOverride * 0.42 : LOCAL_RADII[tier] ?? 430;
+
+      // Spread nodes in a circle around the staff. Use the angular offset
+      // as the angle, and for main-column nodes (off=0), stack them going
+      // upward (north). Side nodes branch off at their offset angles.
+      // To make it look like a radial branch, we map off=0 to angle=-90°
+      // (straight up) and spread side nodes relative to that.
+      const angleDeg = -90 + off * 1.8; // scale offset for wider spread
+      const angleRad = (angleDeg * Math.PI) / 180;
+
       positions[n.id] = {
-        x: (voidX || off) * HORIZONTAL_SCALE,
-        y: -n.tier * TIER_HEIGHT, // negative = upward
-        tier: n.tier,
+        x: Math.cos(angleRad) * r,
+        y: Math.sin(angleRad) * r,
       };
     });
 
-    // Find the max tier to determine canvas height
-    const maxTier = Math.max(...branchNodes.map((n) => n.tier));
-    const canvasW = 400;
-    const canvasH = (maxTier + 1) * TIER_HEIGHT + 100;
-    const centerX = canvasW / 2;
-    const baseY = canvasH - 50; // staff sits near the bottom
+    // Canvas size: needs to fit the largest radius + node size + padding
+    const maxR = Math.max(...Object.values(positions).map((p) => Math.hypot(p.x, p.y)));
+    const canvasSize = Math.ceil(maxR * 2 + 120);
+    const center = canvasSize / 2;
 
-    // Build SVG connectors
+    // Build SVG connectors (curved lines from parent to child)
     let svgLines = '';
     branchNodes.forEach((n) => {
       n.pre.forEach((preId) => {
@@ -604,15 +611,14 @@ export class UIManager {
         const cur = positions[n.id];
         if (!pre || !cur) return;
         const lit = hasNode(world.purchased, preId);
-        const x1 = centerX + pre.x;
-        const y1 = baseY + pre.y;
-        const x2 = centerX + cur.x;
-        const y2 = baseY + cur.y;
-        // Draw a slightly curved branch line
+        const x1 = center + pre.x;
+        const y1 = center + pre.y;
+        const x2 = center + cur.x;
+        const y2 = center + cur.y;
         const midX = (x1 + x2) / 2;
-        const midY = (y1 + y2) / 2 - 5; // slight upward curve
-        const color = lit ? br.color : 'var(--line)';
-        svgLines += `<path d="M ${x1} ${y1} Q ${midX} ${midY} ${x2} ${y2}" stroke="${color}" stroke-width="${lit ? 3 : 1.5}" fill="none" opacity="${lit ? 0.8 : 0.3}" />`;
+        const midY = (y1 + y2) / 2;
+        const color = lit ? br.color : '#3a3d5c';
+        svgLines += `<path d="M ${x1} ${y1} Q ${midX} ${midY} ${x2} ${y2}" stroke="${color}" stroke-width="${lit ? 3 : 1.5}" fill="none" opacity="${lit ? 0.8 : 0.35}" />`;
       });
     });
 
@@ -621,25 +627,25 @@ export class UIManager {
       <div class="branch-view-header">
         <div class="branch-title" style="color:${br.color};text-shadow:0 0 16px ${br.color};">${br.name}</div>
       </div>
-      <div class="branch-canvas" style="width:${canvasW}px;height:${canvasH}px;position:relative;">
+      <div class="branch-canvas" style="width:${canvasSize}px;height:${canvasSize}px;position:relative;margin:0 auto;">
         <svg class="branch-svg" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;">
           ${svgLines}
         </svg>
     `;
 
-    // Staff GIF at center-bottom (back button)
+    // Staff GIF at center (back button)
     html += `
-      <div class="branch-staff-btn" style="position:absolute;left:${centerX - 24}px;top:${baseY}px;width:48px;height:48px;cursor:pointer;">
+      <div class="branch-staff-btn" style="position:absolute;left:${center - 28}px;top:${center - 28}px;width:56px;height:56px;cursor:pointer;z-index:5;">
         <img src="assets/icons/staff.gif" alt="Back"
-             style="width:48px;height:48px;filter:hue-rotate(${this.hueRotateFor(br.color)}deg) saturate(1.4) drop-shadow(0 0 8px ${br.color});" />
+             style="width:56px;height:56px;filter:hue-rotate(${this.hueRotateFor(br.color)}deg) saturate(1.4) drop-shadow(0 0 12px ${br.color});" />
       </div>
     `;
 
-    // Nodes as square boxes positioned by their branch offsets
+    // Nodes as square boxes at their radial positions
     branchNodes.forEach((n) => {
       const pos = positions[n.id];
-      const x = centerX + pos.x;
-      const y = baseY + pos.y;
+      const x = center + pos.x;
+      const y = center + pos.y;
       html += this.nodeBoxHTML(n, world, x, y);
     });
 
@@ -674,6 +680,7 @@ export class UIManager {
     });
 
     this.spAvail.textContent = String(availableSP(world));
+    void TIER_HEIGHT;
   }
 
   /** Generate HTML for a single square node at absolute position. */
