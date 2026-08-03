@@ -603,18 +603,32 @@ export class UIManager {
     const canvasSize = Math.ceil(maxR * 2 + 120);
     const center = canvasSize / 2;
 
-    // Build SVG connectors (curved lines from parent to child)
+    // Build SVG connectors (curved lines from parent to child).
+    // Lines are shortened so they don't overlap behind node boxes.
     let svgLines = '';
+    const NODE_HALF = 22; // approximate half-size of a node box
     branchNodes.forEach((n) => {
       n.pre.forEach((preId) => {
         const pre = positions[preId];
         const cur = positions[n.id];
         if (!pre || !cur) return;
         const lit = hasNode(world.purchased, preId);
-        const x1 = center + pre.x;
-        const y1 = center + pre.y;
-        const x2 = center + cur.x;
-        const y2 = center + cur.y;
+        // Full coords
+        const fx = center + pre.x;
+        const fy = center + pre.y;
+        const tx = center + cur.x;
+        const ty = center + cur.y;
+        // Direction from pre to cur
+        const dx = tx - fx;
+        const dy = ty - fy;
+        const dist = Math.hypot(dx, dy) || 1;
+        const ux = dx / dist;
+        const uy = dy / dist;
+        // Shorten both endpoints by NODE_HALF so the line stops at the box edge
+        const x1 = fx + ux * NODE_HALF;
+        const y1 = fy + uy * NODE_HALF;
+        const x2 = tx - ux * NODE_HALF;
+        const y2 = ty - uy * NODE_HALF;
         const midX = (x1 + x2) / 2;
         const midY = (y1 + y2) / 2;
         const color = lit ? br.color : '#3a3d5c';
