@@ -420,22 +420,11 @@
   transform: translateY(-6px) scale(1.08);
   filter: drop-shadow(0 0 14px currentColor);
 }
-.staff-pick .staff-shaft {
-  width: 5px;
-  flex: 1;
-  background: linear-gradient(180deg, currentColor 0%, currentColor 60%, rgba(255, 255, 255, 0.4) 100%);
-  border-radius: 3px;
-  box-shadow: 0 0 8px currentColor;
-}
-.staff-pick .staff-orb {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 35%, #fff8, currentColor 30%, currentColor 100%);
-  border: 2px solid currentColor;
-  box-shadow: 0 0 16px currentColor, 0 0 28px currentColor;
-  margin-bottom: -4px;
-  z-index: 2;
+.staff-pick .staff-gif {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  image-rendering: pixelated;
 }
 .staff-pick .staff-label {
   font-family: 'Cinzel', serif;
@@ -526,53 +515,45 @@
 .gem-node:hover {
   transform: scale(1.15);
 }
-/* hexagon gem shape */
-.gem-node .gem-shape {
-  width: 40px;
-  height: 44px;
-  background: var(--panel);
+/* Square box node (replaces hexagon gems) */
+.gem-node {
   position: relative;
-  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition: transform 0.15s;
 }
-.gem-node .gem-shape::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
-  background: currentColor;
-  opacity: 0;
-  transition: opacity 0.2s;
+.gem-node.gem-box {
+  border-radius: 6px;
+  border: 1.5px solid currentColor;
+  background: var(--panel);
 }
-.gem-node.bought .gem-shape {
-  background: linear-gradient(135deg, currentColor 0%, rgba(255, 255, 255, 0.3) 50%, currentColor 100%);
-  box-shadow: 0 0 18px currentColor, 0 0 32px currentColor;
+.gem-node:hover {
+  transform: scale(1.12);
+  z-index: 10;
 }
-.gem-node.bought .gem-shape::before {
-  opacity: 0;
+.gem-node.bought {
+  background: linear-gradient(135deg, currentColor 0%, rgba(255,255,255,0.15) 50%, currentColor 100%);
+  border-color: currentColor;
+  box-shadow: 0 0 14px currentColor;
 }
-.gem-node.locked .gem-shape {
-  background: #15172a00;
-  border: 1px solid #2a2d44;
-  opacity: 0.35;
+.gem-node.locked {
+  border-color: #2a2d44;
+  background: #15172a;
+  opacity: 0.4;
 }
-.gem-node.available .gem-shape {
-  background: var(--panel2);
-  border: 1px solid currentColor;
+.gem-node.available {
+  border-color: currentColor;
   opacity: 0.7;
 }
-.gem-node.affordable .gem-shape {
-  background: var(--panel2);
-  border: 1.5px solid currentColor;
+.gem-node.affordable {
+  border-color: currentColor;
   box-shadow: 0 0 10px currentColor;
-  opacity: 0.85;
+  opacity: 0.9;
 }
-.gem-node.capstone .gem-shape {
-  width: 54px;
-  height: 58px;
+.gem-node.capstone {
+  border-width: 2px;
 }
 .gem-node .gem-inner {
   font-family: 'Cinzel', serif;

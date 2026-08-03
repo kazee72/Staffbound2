@@ -8,7 +8,7 @@
 import './hud.css';
 import type { World } from '../game/types';
 import { availableSP, buySkill, hasNode } from '../game/skillTree';
-import { SKILL_NODES, NODE_BY_ID, BRANCHES } from '../game/skillTree';
+import { SKILL_NODES, NODE_BY_ID, BRANCHES, LOCAL } from '../game/skillTree';
 import { maxHP } from '../game/player';
 import { currentDay } from '../game/enemies';
 import { PLACES } from '../game/waves';
@@ -523,9 +523,10 @@ export class UIManager {
       pick.className = 'staff-pick';
       pick.style.color = br.color;
       pick.style.animationDelay = (i * 0.06) + 's';
+      // Use the actual staff GIF as the icon, tinted via CSS filter
       pick.innerHTML = `
-        <div class="staff-orb"></div>
-        <div class="staff-shaft"></div>
+        <img class="staff-gif" src="assets/icons/staff.gif" alt="${br.name}"
+             style="filter: hue-rotate(${this.hueRotateFor(br.color)}deg) saturate(1.4) drop-shadow(0 0 10px ${br.color});" />
         <div class="staff-label">${br.name}</div>
       `;
       pick.addEventListener('click', () => this.renderBranchColumn(world, br.code));
@@ -534,7 +535,22 @@ export class UIManager {
     this.spAvail.textContent = String(availableSP(world));
   }
 
-  /** Render a single branch as a vertical column of gem nodes. */
+  /** Approximate hue-rotate to match a target branch color. */
+  private hueRotateFor(color: string): number {
+    // Simple mapping by branch code since we know the colors
+    const map: Record<string, number> = {
+      '#e2793d': 0,    // Ember — orange (no rotation needed, staff is already warm)
+      '#8ec9e8': 200,  // Rime — blue
+      '#9d8ce0': 250,  // Void — purple
+      '#c4728f': 320,  // Umbral — pink
+      '#8bc48a': 100,  // Verdant — green
+      '#c9a869': 40,   // Warden — gold
+      '#4fd6c0': 160,  // Potency — teal
+    };
+    return map[color] ?? 0;
+  }
+
+  /** Render a single branch as a tree-branch layout with the staff GIF at center. */
   renderBranchColumn(world: World, branchCode: string): void {
     this.currentWorld = world;
     this.currentBranch = branchCode;
@@ -544,63 +560,97 @@ export class UIManager {
     const br = BRANCHES.find((b) => b.code === branchCode)!;
     const branchNodes = SKILL_NODES.filter((n) => n.branch === branchCode).sort((a, b) => a.tier - b.tier);
 
-    // Build ordered list: main column (A,B,G,D,E1/E2,F,I) + side nodes (C1,C2,H,J,K) near their prereqs.
-    // We lay out vertically by tier; side nodes appear as small branches to the side.
-    const mainColumn = branchNodes.filter((n) => {
-      const id = n.id.split('_')[1];
-      return ['A', 'B', 'G', 'D', 'E1', 'E2', 'F', 'I'].includes(id);
-    });
-    const sideNodes = branchNodes.filter((n) => {
-      const id = n.id.split('_')[1];
-      return ['C1', 'C2', 'H', 'J', 'K', 'X'].includes(id);
+    // Group nodes by tier
+    const byTier: Record<number, typeof branchNodes> = {};
+    branchNodes.forEach((n) => {
+      if (!byTier[n.tier]) byTier[n.tier] = [];
+      byTier[n.tier].push(n);
     });
 
+    // Build a branch-like layout: the staff GIF is at the center as the back button.
+    // Nodes are arranged in tiers going upward. Main column nodes (off=0) are
+    // centered, side nodes (off!=0) branch off to the left/right based on their
+    // angular offset sign. Connectors are diagonal lines (SVG) from parent to child.
+
+    // Compute positions for each node (relative coordinates)
+    const TIER_HEIGHT = 70; // vertical gap between tiers
+    const HORIZONTAL_SCALE = 2.5; // how many px per unit of angular offset
+    const positions: Record<string, { x: number; y: number; tier: number }> = {};
+
+    branchNodes.forEach((n) => {
+      const idPart = n.id.split('_')[1];
+      const off = (idPart && LOCAL.find((l) => l.id === idPart)?.off) || 0;
+      // For Void's extra X node
+      const voidX = branchCode === 'V' && idPart === 'X' ? 20 : off;
+      positions[n.id] = {
+        x: (voidX || off) * HORIZONTAL_SCALE,
+        y: -n.tier * TIER_HEIGHT, // negative = upward
+        tier: n.tier,
+      };
+    });
+
+    // Find the max tier to determine canvas height
+    const maxTier = Math.max(...branchNodes.map((n) => n.tier));
+    const canvasW = 400;
+    const canvasH = (maxTier + 1) * TIER_HEIGHT + 100;
+    const centerX = canvasW / 2;
+    const baseY = canvasH - 50; // staff sits near the bottom
+
+    // Build SVG connectors
+    let svgLines = '';
+    branchNodes.forEach((n) => {
+      n.pre.forEach((preId) => {
+        const pre = positions[preId];
+        const cur = positions[n.id];
+        if (!pre || !cur) return;
+        const lit = hasNode(world.purchased, preId);
+        const x1 = centerX + pre.x;
+        const y1 = baseY + pre.y;
+        const x2 = centerX + cur.x;
+        const y2 = baseY + cur.y;
+        // Draw a slightly curved branch line
+        const midX = (x1 + x2) / 2;
+        const midY = (y1 + y2) / 2 - 5; // slight upward curve
+        const color = lit ? br.color : 'var(--line)';
+        svgLines += `<path d="M ${x1} ${y1} Q ${midX} ${midY} ${x2} ${y2}" stroke="${color}" stroke-width="${lit ? 3 : 1.5}" fill="none" opacity="${lit ? 0.8 : 0.3}" />`;
+      });
+    });
+
+    // Build the HTML
     let html = `
       <div class="branch-view-header">
-        <button class="branch-back">&larr; ALL PATHS</button>
         <div class="branch-title" style="color:${br.color};text-shadow:0 0 16px ${br.color};">${br.name}</div>
       </div>
-      <div class="branch-column">
+      <div class="branch-canvas" style="width:${canvasW}px;height:${canvasH}px;position:relative;">
+        <svg class="branch-svg" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;">
+          ${svgLines}
+        </svg>
     `;
 
-    // Render main column with connectors, interleaving side nodes at appropriate tiers.
-    // For simplicity, render main column top to bottom, then add side nodes as a second column to the right.
-    // Actually, let's do a simpler layout: main column vertical, side nodes shown inline after their prerequisite tier.
-    
-    // Build a tier map for side nodes
-    const sideByTier: Record<number, typeof sideNodes> = {};
-    sideNodes.forEach((n) => {
-      const t = n.tier;
-      if (!sideByTier[t]) sideByTier[t] = [];
-      sideByTier[t].push(n);
-    });
+    // Staff GIF at center-bottom (back button)
+    html += `
+      <div class="branch-staff-btn" style="position:absolute;left:${centerX - 24}px;top:${baseY}px;width:48px;height:48px;cursor:pointer;">
+        <img src="assets/icons/staff.gif" alt="Back"
+             style="width:48px;height:48px;filter:hue-rotate(${this.hueRotateFor(br.color)}deg) saturate(1.4) drop-shadow(0 0 8px ${br.color});" />
+      </div>
+    `;
 
-    mainColumn.forEach((n, idx) => {
-      // connector before node (except first)
-      if (idx > 0) {
-        const prev = mainColumn[idx - 1];
-        const lit = hasNode(world.purchased, prev.id);
-        html += `<div class="branch-connector${lit ? ' lit' : ''}" style="color:${prev.color};background:${lit ? prev.color : 'var(--line)'};"></div>`;
-      }
-      html += this.gemNodeHTML(n, world);
-      // Add side nodes for this tier after the main node
-      const sides = sideByTier[n.tier] || [];
-      sides.forEach((sn) => {
-        // connector to side node
-        const prereqBought = hasNode(world.purchased, n.id);
-        html += `<div class="branch-connector${prereqBought ? ' lit' : ''}" style="color:${sn.color};background:${prereqBought ? sn.color : 'var(--line)'};"></div>`;
-        html += this.gemNodeHTML(sn, world);
-      });
+    // Nodes as square boxes positioned by their branch offsets
+    branchNodes.forEach((n) => {
+      const pos = positions[n.id];
+      const x = centerX + pos.x;
+      const y = baseY + pos.y;
+      html += this.nodeBoxHTML(n, world, x, y);
     });
 
     html += '</div>';
     this.branchViewEl.innerHTML = html;
 
-    // Wire up back button
-    const backBtn = this.branchViewEl.querySelector('.branch-back') as HTMLButtonElement;
+    // Wire up staff back button
+    const backBtn = this.branchViewEl.querySelector('.branch-staff-btn') as HTMLDivElement;
     backBtn.addEventListener('click', () => this.renderStaffSelector(world));
 
-    // Wire up gem node clicks + tooltips
+    // Wire up node clicks + tooltips
     this.branchViewEl.querySelectorAll<HTMLDivElement>('.gem-node').forEach((div) => {
       const id = div.getAttribute('data-id')!;
       const node = NODE_BY_ID[id];
@@ -626,15 +676,15 @@ export class UIManager {
     this.spAvail.textContent = String(availableSP(world));
   }
 
-  /** Generate HTML for a single gem node. */
-  private gemNodeHTML(n: typeof SKILL_NODES[0], world: World): string {
+  /** Generate HTML for a single square node at absolute position. */
+  private nodeBoxHTML(n: typeof SKILL_NODES[0], world: World, x: number, y: number): string {
     const bought = hasNode(world.purchased, n.id);
     const preOk = n.pre.every((p) => hasNode(world.purchased, p));
     const afford = availableSP(world) >= n.cost;
     const cls = 'gem-node' + (n.capstone ? ' capstone' : '') + (bought ? ' bought' : !preOk ? ' locked' : afford ? ' affordable' : ' available');
-    const label = n.name.split(' ')[0]; // first word as short label
-    return `<div class="${cls}" data-id="${n.id}" style="color:${n.color};">
-      <div class="gem-shape"></div>
+    const label = n.name.split(' ')[0];
+    const size = n.capstone ? 46 : 38;
+    return `<div class="${cls} gem-box" data-id="${n.id}" style="color:${n.color};position:absolute;left:${x - size/2}px;top:${y - size/2}px;width:${size}px;height:${size}px;">
       <div class="gem-inner">${label}</div>
     </div>`;
   }
