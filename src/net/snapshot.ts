@@ -32,6 +32,7 @@
 import type { BossState, Effect, EnemyType, Particle, Projectile, World } from '../game/types';
 import type { NetPlayerState } from '../game/types';
 import { currentDay } from '../game/enemies';
+import { maxHP } from '../game/player';
 
 // Enemy type ID map (string ↔ number for compact serialization)
 const ENEMY_TYPE_IDS: Record<EnemyType, number> = { slime: 0, skel: 1, wisp: 2, wraith: 3, ghoul: 4, iceWolf: 5, shadowWraith: 6 };
@@ -72,10 +73,10 @@ export function serializeSnapshot(world: World, tick: number): number[] {
 
   // Players: local player + net players (host is index 0)
   const players: NetPlayerState[] = [];
-  players.push(toNetPlayer(world.player, world, 0));
+  players.push(toNetPlayer(world.player, world, 0, world.level, maxHP(world)));
   if (world.netPlayers) {
     for (const np of world.netPlayers) {
-      players.push(toNetPlayer(np.state, world, np.id));
+      players.push(toNetPlayer(np.state, world, np.id, np.state.level, np.state.maxHp));
     }
   }
   out.push(players.length);
@@ -141,16 +142,18 @@ export function serializeSnapshot(world: World, tick: number): number[] {
 /** Build a NetPlayerState view of a player for snapshot serialization. */
 function toNetPlayer(
   p: { x: number; y: number; hp: number; invuln: number; dashing: number; aimAngle: number; dashCd: number },
-  world: World,
+  _world: World,
   id: number,
+  level: number,
+  maxHp: number,
 ): NetPlayerState {
   return {
     id,
     x: p.x,
     y: p.y,
     hp: p.hp,
-    maxHp: 100,
-    level: world.level,
+    maxHp,
+    level,
     invuln: p.invuln,
     dashing: p.dashing,
     aimAngle: p.aimAngle,
