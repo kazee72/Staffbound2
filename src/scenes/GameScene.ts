@@ -5,7 +5,7 @@ import { generateStageTextures } from '../game/stageBackground';
 import { getStageDef } from '../game/stages';
 import { ENEMY_TEXTURE_KEYS, BOSS_TEXTURE_KEYS } from '../game/enemySprites';
 import { createWorld } from '../game/types';
-import type { World, NetPlayer, NetPlayerState } from '../game/types';
+import type { World, NetPlayer, NetPlayerState, Projectile } from '../game/types';
 import { xpForLevel } from '../game/player';
 import { updateSpellTimers } from '../game/spells';
 import { updateSpawns } from '../game/waves';
@@ -421,7 +421,6 @@ export class GameScene extends Phaser.Scene {
       if (s.dashing > 0) s.dashing -= dt;
       if (s.dashCd > 0) s.dashCd -= dt;
       if (s.undyingCd > 0) s.undyingCd -= dt;
-      if (s.dashCd > 0) s.dashCd -= dt;
       // Handle dash
       if (np.input.dash && s.dashCd <= 0) {
         let dx = s.vx, dy = s.vy;
@@ -436,6 +435,55 @@ export class GameScene extends Phaser.Scene {
         s.dashCd = s.dashCdMax;
       }
       np.input.dash = false; // consume
+
+      // --- Spell casting for net players ---
+      // The host runs a simplified bolt cast for each net player using their
+      // own purchased set and cooldowns. This is intentionally simpler than
+      // the full spell system (which reads from world.purchased/world.cd) —
+      // it only handles the base bolt + Twin Casting + auto-aim, which is
+      // enough for guests to deal damage. Full spell system integration would
+      // require refactoring all spell functions to accept a player context.
+      s.cd.bolt -= dt;
+      if (s.cd.bolt <= 0) {
+        const cm = 1 - (s.purchased.has('V_E2') ? 0.2 : 0) - (s.purchased.has('P_B') ? 0.1 : 0);
+        s.cd.bolt = 0.55 * (1 - (s.purchased.has('V_A') ? 0.2 : 0)) * cm;
+        // Cast bolt: find target (auto-aim toward nearest enemy or boss)
+        let tx: number | null = null;
+        let ty: number | null = null;
+        let bd = Infinity;
+        for (const e of this.world.enemies) {
+          if (e.dead) continue;
+          const d = (e.x - s.x) ** 2 + (e.y - s.y) ** 2;
+          if (d < bd) { bd = d; tx = e.x; ty = e.y; }
+        }
+        if (tx === null && this.world.bossFight) {
+          tx = this.world.bossFight.boss.x;
+          ty = this.world.bossFight.boss.y;
+        }
+        if (tx !== null && ty !== null) {
+          const ang = Math.atan2(ty - s.y, tx - s.x);
+          let dmg = 8 + s.level * 0.6;
+          if (s.purchased.has('F_A')) dmg *= 1.2;
+          if (s.purchased.has('P_A')) dmg *= 1.1;
+          if (s.purchased.has('P_E1')) dmg *= 1.15;
+          const count = 1 + (s.purchased.has('V_B') ? 1 : 0);
+          for (let i = 0; i < count; i++) {
+            const a = ang + i * 0.04;
+            const sx = s.x - Math.cos(a) * (i * 14);
+            const sy = s.y - Math.sin(a) * (i * 14);
+            const pr: Projectile = {
+              x: sx, y: sy,
+              vx: Math.cos(a) * 480, vy: Math.sin(a) * 480,
+              dmg, color: '#c7bdf5', pierce: s.purchased.has('V_C1') ? 1 : 0,
+              r: 5, homing: s.purchased.has('V_C2'), life: 2,
+              burn: s.purchased.has('F_A'),
+              slow: s.purchased.has('R_A') ? 0.2 : 0,
+            };
+            this.world.projectiles.push(pr);
+          }
+        }
+      }
+
       // Check death
       if (s.hp <= 0) {
         s.downed = true;
@@ -587,6 +635,9 @@ export class GameScene extends Phaser.Scene {
   private renderFromSnapshot(dt: number): void {
     if (!this.curSnap) return;
 
+    // Clear the fx graphics layer (same as host's renderScene).
+    this.fxGraphics.clear();
+
     // Advance interpolation
     this.snapRecvTime += dt;
     // Snapshots arrive at ~20Hz (50ms), so we interpolate over 50ms.
@@ -616,12 +667,14 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Draw self
+    // Draw self (using the mage sprite)
     this.drawPlayer();
 
-    // Draw other players (guest mages)
+    // Draw ALL other players from the snapshot (including the host as P1).
+    // The guest's own player is already drawn above via drawPlayer(), so
+    // skip self by myPlayerSlot.
     snap.players.forEach((p) => {
-      if (p.id === this.myPlayerSlot) return; // skip self (already drawn)
+      if (p.id === this.myPlayerSlot) return; // skip self
       const interp = this.lerpPlayerById(prev, p, alpha);
       this.drawGuestMageSprite(p.id, interp.x, interp.y, p.aimAngle, p.invuln, p.dashing, p.downed, p.hp, p.maxHp);
     });
