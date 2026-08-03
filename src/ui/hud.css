@@ -527,7 +527,7 @@
 .gem-node.gem-box {
   border-radius: 6px;
   border: 1.5px solid currentColor;
-  background: #15172a;
+  background: #0d0e16;
   z-index: 2;
 }
 .gem-node:hover {
@@ -541,19 +541,20 @@
 }
 .gem-node.locked {
   border-color: #2a2d44;
-  background: #15172a;
-  opacity: 0.4;
+  background: #0d0e16;
+  color: #444868;
+}
+.gem-node.locked .gem-inner {
+  color: #444868;
 }
 .gem-node.available {
   border-color: currentColor;
-  background: #15172a;
-  opacity: 0.7;
+  background: #0d0e16;
 }
 .gem-node.affordable {
   border-color: currentColor;
-  background: #15172a;
+  background: #0d0e16;
   box-shadow: 0 0 10px currentColor;
-  opacity: 0.9;
 }
 .gem-node.capstone {
   border-width: 2px;
