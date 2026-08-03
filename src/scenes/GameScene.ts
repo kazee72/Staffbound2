@@ -18,7 +18,7 @@ import {
   tryDash,
   type InputState,
 } from '../game/simulation';
-import { NODE_BY_ID } from '../game/skillTree';
+import { NODE_BY_ID, buySkill } from '../game/skillTree';
 import { UIManager } from '../ui/UIManager';
 import { attachMeta, bankRunEssence, loadMeta, metaStartLevel, metaStartHP, type MetaState } from '../game/metaProgression';
 import { netManager } from '../net/netManager';
@@ -203,6 +203,7 @@ export class GameScene extends Phaser.Scene {
     this.ui.onToggleGrimoire = () => this.toggleGrimoire();
     this.ui.onBuySkill = (nodeId: string) => {
       if (this.netMode === 'guest') this.guestRequestBuySkill(nodeId);
+      else buySkill(this.world, nodeId);
     };
     this.ui.onOpenMetaGrimoire = () => this.openMetaGrimoire();
 
