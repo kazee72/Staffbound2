@@ -17,7 +17,9 @@ import {
   buyMetaRank,
   metaStateOf,
   getRunEssence,
+  hasBossAbility,
 } from '../game/metaProgression';
+import { BOSS_ABILITIES } from '../game/stages';
 
 const GAME_OVER_FLAVORS = [
   'the road was long, but not long enough',
@@ -69,6 +71,9 @@ export class UIManager {
   private metaRunEssenceTxt: HTMLSpanElement;
   private closeMetaBtn: HTMLButtonElement;
   private metaRowsEl: HTMLDivElement;
+
+  private abilityOverlay: HTMLDivElement;
+  private abilityContinueBtn: HTMLButtonElement;
 
   private nodeDivs = new Map<string, HTMLDivElement>();
 
@@ -271,6 +276,28 @@ export class UIManager {
     this.metaRowsEl = this.metaOverlay.querySelector('#metaRows')!;
     this.closeMetaBtn.addEventListener('click', () => this.hideMetaGrimoire());
 
+    // Ability unlock overlay — persistent purple/violet banner shown when a
+    // boss is defeated and drops a new ability. Pauses the game until dismissed.
+    this.abilityOverlay = document.createElement('div');
+    this.abilityOverlay.className = 'overlay hidden';
+    this.abilityOverlay.id = 'abilityOverlay';
+    this.abilityOverlay.style.zIndex = '28';
+    this.abilityOverlay.innerHTML = `
+      <div class="ability-title">NEW ABILITY UNLOCKED</div>
+      <div class="ability-name" id="abilityName"></div>
+      <div class="ability-boss" id="abilityBoss"></div>
+      <div class="ability-desc" id="abilityDesc"></div>
+      <button id="abilityContinueBtn" class="ability-continue">CONTINUE</button>
+    `;
+    this.root.appendChild(this.abilityOverlay);
+    this.abilityContinueBtn = this.abilityOverlay.querySelector('#abilityContinueBtn')!;
+    // Click anywhere on the overlay or the button to dismiss.
+    this.abilityOverlay.addEventListener('click', () => this.hideAbilityUnlock());
+    this.abilityContinueBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.hideAbilityUnlock();
+    });
+
     const footnote = document.createElement('div');
     footnote.id = 'footnote';
     footnote.textContent = 'a session-only tale — no record of this journey is kept once the page is closed';
@@ -345,6 +372,25 @@ export class UIManager {
     this.metaOverlay.classList.add('hidden');
   }
 
+  /** Show the persistent ability-unlock overlay (pauses game until dismissed). */
+  showAbilityUnlock(world: World): void {
+    const info = world.pendingAbilityDisplay;
+    if (!info) return;
+    this.abilityOverlay.querySelector('#abilityName')!.textContent = info.abilityName;
+    this.abilityOverlay.querySelector('#abilityBoss')!.textContent = 'Dropped by ' + info.bossName;
+    this.abilityOverlay.querySelector('#abilityDesc')!.textContent = info.desc;
+    this.abilityOverlay.classList.remove('hidden');
+  }
+
+  /** Dismiss the ability-unlock overlay and resume the game. */
+  hideAbilityUnlock(): void {
+    if (this.abilityOverlay.classList.contains('hidden')) return;
+    this.abilityOverlay.classList.add('hidden');
+    if (this.currentWorld) {
+      this.currentWorld.grimoireOpen = false; // unpause
+    }
+  }
+
   /** Render the meta upgrade rows from the world's attached meta state. */
   renderMetaTree(world: World): void {
     const meta = metaStateOf(world);
@@ -393,6 +439,30 @@ export class UIManager {
         }
       });
     });
+
+    // --- Boss Abilities section (purple/violet accent) ---
+    const bossSection = document.createElement('div');
+    bossSection.className = 'boss-ability-section';
+    bossSection.innerHTML = '<div class="boss-ability-header">BOSS ABILITIES</div>';
+    BOSS_ABILITIES.forEach((ability) => {
+      const unlocked = hasBossAbility(world, ability.bossId);
+      const row = document.createElement('div');
+      row.className = 'boss-ability-row' + (unlocked ? ' unlocked' : ' locked');
+      row.innerHTML = `
+        <div class="boss-ability-info">
+          <div class="boss-ability-name">${ability.abilityName}</div>
+          <div class="boss-ability-boss">from ${ability.bossName}</div>
+          <div class="boss-ability-desc">${ability.desc}</div>
+        </div>
+        <div class="boss-ability-status">
+          ${unlocked
+            ? '<span class="boss-ability-badge unlocked">✓ UNLOCKED</span>'
+            : '<span class="boss-ability-badge locked">LOCKED</span>'}
+        </div>
+      `;
+      bossSection.appendChild(row);
+    });
+    this.metaRowsEl.appendChild(bossSection);
   }
 
   setGrimoireVisible(open: boolean): void {

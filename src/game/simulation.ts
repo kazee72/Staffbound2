@@ -7,7 +7,7 @@ import { nearestEnemy } from './spells';
 import { burst } from './visuals';
 import { updateBoss } from './bosses';
 import { addRunEssence, essenceForBossKill, metaDashDistMult, hasBossAbility } from './metaProgression';
-import { getStageDef } from './stages';
+import { getStageDef, BOSS_ABILITY_BY_BOSS } from './stages';
 
 function clamp(v: number, a: number, b: number): number {
   return Math.max(a, Math.min(b, v));
@@ -389,13 +389,20 @@ export function updateBossFight(world: World, dt: number): void {
     if (!hasBossAbility(world, boss.defId)) {
       if (!world.pendingBossAbilityUnlocks.includes(boss.defId)) {
         world.pendingBossAbilityUnlocks.push(boss.defId);
-        const abilityName = BOSS_ABILITY_NAME_MAP[boss.defId] || boss.defId;
-        // Show a brief notification flash for the ability unlock.
-        setTimeout(() => {
-          if (world.running) {
-            world.flash('NEW ABILITY: ' + abilityName.toUpperCase(), '#c4a8ff');
-          }
-        }, 1200);
+        const abilityDef = BOSS_ABILITY_BY_BOSS[boss.defId];
+        if (abilityDef) {
+          // Queue a persistent ability-unlock overlay (UI shows it, game
+          // pauses until the player dismisses it by clicking).
+          setTimeout(() => {
+            if (world.running) {
+              world.pendingAbilityDisplay = {
+                abilityName: abilityDef.abilityName,
+                bossName: abilityDef.bossName,
+                desc: abilityDef.desc,
+              };
+            }
+          }, 1200);
+        }
       }
     }
 
@@ -416,11 +423,3 @@ export function updateBossFight(world: World, dt: number): void {
     world.bossFight = null;
   }
 }
-
-/** Map boss defId → ability display name, for the unlock flash. */
-const BOSS_ABILITY_NAME_MAP: Record<string, string> = {
-  elderWraith: 'Spectral Step',
-  emberColossus: 'Magma Core',
-  rimeSovereign: 'Frost Aura',
-  brambleHorror: 'Thorn Armor',
-};

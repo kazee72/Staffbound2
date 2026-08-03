@@ -308,6 +308,9 @@ export interface World {
   /** Boss ability unlocks pending banking to localStorage on death. Keyed by boss defId. */
   pendingBossAbilityUnlocks: string[];
 
+  /** When non-null, the UI should show a persistent ability-unlock overlay (pauses the game). */
+  pendingAbilityDisplay: { abilityName: string; bossName: string; desc: string } | null;
+
   purchased: Set<string>;
 
   /** Network players tracked by the host (host is index 0, not in this array). */
@@ -444,6 +447,7 @@ export function createWorld(W: number, H: number, flash: (text: string, color: s
     bossFight: null,
     stage: 1,
     pendingBossAbilityUnlocks: [],
+    pendingAbilityDisplay: null,
     purchased: new Set<string>(),
     flash,
   };

@@ -758,3 +758,142 @@
   letter-spacing: 2px;
   text-shadow: 0 0 10px rgba(238, 218, 158, 0.5);
 }
+
+/* --- Ability unlock overlay (purple/violet theme) --- */
+#abilityOverlay {
+  z-index: 28;
+  background: rgba(10, 8, 18, 0.96);
+  gap: 14px;
+}
+.ability-title {
+  font-family: 'Cinzel', serif;
+  font-size: clamp(18px, 3vw, 28px);
+  font-weight: 800;
+  letter-spacing: 4px;
+  color: #c4a8ff;
+  text-shadow: 0 0 24px rgba(196, 168, 255, 0.6), 0 0 46px rgba(139, 111, 174, 0.4);
+  margin-bottom: 4px;
+}
+.ability-name {
+  font-family: 'Cinzel', serif;
+  font-size: clamp(22px, 4vw, 34px);
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: #eeda9e;
+  text-shadow: 0 0 18px rgba(196, 168, 255, 0.5);
+  margin-bottom: 4px;
+}
+.ability-boss {
+  font-family: 'EB Garamond', serif;
+  font-style: italic;
+  font-size: 14px;
+  color: #b58ce0;
+  margin-bottom: 10px;
+}
+.ability-desc {
+  font-family: 'EB Garamond', serif;
+  font-size: 15px;
+  color: var(--text);
+  max-width: 440px;
+  line-height: 1.6;
+  margin-bottom: 10px;
+}
+.ability-continue {
+  margin-top: 8px;
+  background: transparent;
+  border: 1.5px solid #8b6fae;
+  color: #c4a8ff;
+  font-family: 'Cinzel', serif;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 11px 34px;
+  border-radius: 7px;
+  cursor: pointer;
+  letter-spacing: 3px;
+  transition: all 0.15s;
+}
+.ability-continue:hover {
+  background: rgba(139, 111, 174, 0.3);
+  color: #eeda9e;
+  box-shadow: 0 0 24px rgba(139, 111, 174, 0.6);
+}
+
+/* --- Boss abilities section in Meta Grimoire (purple/violet accent) --- */
+.boss-ability-section {
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(139, 111, 174, 0.3);
+}
+.boss-ability-header {
+  font-family: 'Cinzel', serif;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  color: #c4a8ff;
+  text-shadow: 0 0 12px rgba(139, 111, 174, 0.4);
+  margin-bottom: 10px;
+}
+.boss-ability-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: linear-gradient(90deg, rgba(26, 20, 40, 0.6), rgba(20, 16, 30, 0.4));
+  border: 1px solid rgba(139, 111, 174, 0.22);
+  border-radius: 9px;
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  transition: all 0.15s;
+}
+.boss-ability-row.unlocked {
+  border-color: rgba(196, 168, 255, 0.5);
+  box-shadow: 0 0 14px rgba(139, 111, 174, 0.18);
+}
+.boss-ability-row.locked {
+  opacity: 0.55;
+}
+.boss-ability-info {
+  flex: 1;
+  padding-right: 16px;
+}
+.boss-ability-name {
+  font-family: 'Cinzel', serif;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #c4a8ff;
+  letter-spacing: 1px;
+  margin-bottom: 2px;
+}
+.boss-ability-boss {
+  font-size: 11px;
+  font-style: italic;
+  color: #b58ce0;
+  margin-bottom: 4px;
+}
+.boss-ability-desc {
+  font-size: 11.5px;
+  color: var(--dim);
+  line-height: 1.35;
+}
+.boss-ability-status {
+  flex-shrink: 0;
+}
+.boss-ability-badge {
+  font-family: 'Cinzel', serif;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+.boss-ability-badge.unlocked {
+  color: #8bc48a;
+  border: 1.5px solid #8bc48a;
+  background: rgba(139, 196, 138, 0.12);
+  text-shadow: 0 0 8px rgba(139, 196, 138, 0.5);
+}
+.boss-ability-badge.locked {
+  color: var(--dim);
+  border: 1.5px solid var(--dim);
+  background: transparent;
+}

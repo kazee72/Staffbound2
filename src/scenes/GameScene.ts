@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { MAGE_TEXTURE_KEY } from '../game/mageSprite';
 import { FOREST_GRASS_KEY, FOREST_TREE_KEY, FOREST_BUSH_KEY, generateForestTextures } from '../game/forestBackground';
+import { generateStageTextures } from '../game/stageBackground';
+import { getStageDef } from '../game/stages';
 import { ENEMY_TEXTURE_KEYS, BOSS_TEXTURE_KEYS } from '../game/enemySprites';
 import { createWorld } from '../game/types';
 import type { World, NetPlayer, NetPlayerState } from '../game/types';
@@ -88,6 +90,9 @@ export class GameScene extends Phaser.Scene {
 
   private bossSprite: Phaser.GameObjects.Sprite | null = null;
   private currentBossDefId: string | null = null;
+
+  /** Tracks the last stage we applied background textures for (1 on init). */
+  private lastStage = 1;
 
   private metaState!: MetaState;
 
@@ -214,7 +219,8 @@ export class GameScene extends Phaser.Scene {
       this.world.W = gameSize.width;
       this.world.H = gameSize.height;
       this.grassLayer.setSize(gameSize.width, gameSize.height);
-      this.scatterForestDecor(gameSize.width, gameSize.height);
+      // Re-scatter decor for the current stage on resize.
+      this.updateStageBackground(this.world.stage);
       this.initFireflies();
     });
 
@@ -954,7 +960,9 @@ export class GameScene extends Phaser.Scene {
       spawnTimer: 1,
       bossTimer: 130,
       bossFight: null,
+      stage: 1,
     });
+    this.lastStage = 1; // reset stage tracking on new run
     this.ui.renderTree(this.world);
     this.ui.setGrimoireVisible(false);
 
@@ -1030,6 +1038,19 @@ export class GameScene extends Phaser.Scene {
       updateParticles(this.world, dt);
       updateSpawns(this.world, dt);
       updateBossFight(this.world, dt);
+
+      // Detect stage change (after a boss kill) and regenerate the background.
+      if (this.world.stage !== this.lastStage) {
+        this.lastStage = this.world.stage;
+        this.updateStageBackground(this.world.stage);
+      }
+
+      // Show persistent ability-unlock overlay (pauses the game until dismissed).
+      if (this.world.pendingAbilityDisplay) {
+        this.world.grimoireOpen = true; // pause flag
+        this.ui.showAbilityUnlock(this.world);
+        this.world.pendingAbilityDisplay = null;
+      }
 
       // HOST: simulate net players and broadcast snapshots
       if (this.netMode === 'host') {
@@ -1140,6 +1161,57 @@ export class GameScene extends Phaser.Scene {
       const spr = this.add.image(x, y, key).setOrigin(0.5, 1).setScale(scale);
       spr.setAlpha(0.85 + rand() * 0.15);
       spr.setTint(rand() > 0.5 ? 0xffffff : 0xd8e4d0);
+      this.decorLayer.add(spr);
+    }
+  }
+
+  /**
+   * Regenerate the background (grass tile texture + scattered decor) for the
+   * current stage. Stage 1 uses the original forest textures; stages 2+ use
+   * the procedural stage background textures (stageBackground.ts). Called
+   * when `world.stage` changes (after a boss kill).
+   */
+  private updateStageBackground(stage: number): void {
+    const { width, height } = this.scale;
+    const def = getStageDef(stage);
+
+    // Generate textures for this stage (idempotent — skips if already generated).
+    let tileKey: string;
+    let decorKey: string;
+    if (stage === 1) {
+      // Stage 1 uses the original forest textures.
+      generateForestTextures(this);
+      tileKey = FOREST_GRASS_KEY;
+      decorKey = FOREST_TREE_KEY;
+    } else {
+      const keys = generateStageTextures(this, def);
+      tileKey = keys.tileKey;
+      decorKey = keys.decorKey;
+    }
+
+    // Replace the grass tile texture.
+    this.grassLayer.setTexture(tileKey);
+
+    // Clear and re-scatter decor using the new stage's decor texture.
+    this.decorLayer.removeAll(true);
+    let seed = 4242 + stage * 7919;
+    const rand = () => {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      return (seed % 10000) / 10000;
+    };
+    const cx = width / 2;
+    const cy = height / 2;
+    const clearRadius = 160;
+    const count = Math.max(18, Math.round((width * height) / 55000));
+    for (let i = 0; i < count; i++) {
+      const x = rand() * width;
+      const y = rand() * height;
+      if (Math.hypot(x - cx, y - cy) < clearRadius) continue;
+      const scale = 1.3 + rand() * 0.9;
+      const spr = this.add.image(x, y, decorKey).setOrigin(0.5, 1).setScale(scale);
+      spr.setAlpha(0.85 + rand() * 0.15);
+      // Subtle tint variation for depth.
+      spr.setTint(rand() > 0.5 ? 0xffffff : 0xd8d0c8);
       this.decorLayer.add(spr);
     }
   }
