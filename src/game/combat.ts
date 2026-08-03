@@ -4,6 +4,7 @@ import { critChance, critDmgMult, gainXP, healPlayer, lifestealPct, resetAllCool
 import { hasNode } from './skillTree';
 import { addRunEssence, essenceForEnemyKill } from './metaProgression';
 import { burst, spawnPopup } from './visuals';
+import { spawnSlimeSplit } from './enemies';
 
 function dist2(x1: number, y1: number, x2: number, y2: number): number {
   const dx = x1 - x2;
@@ -58,6 +59,7 @@ export function killEnemy(world: World, e: EnemyState): void {
   addRunEssence(world, essenceForEnemyKill(world, e.xpValue));
   world.slain++;
   burst(world, e.x, e.y, e.color, 14, 150);
+  if (e.type === 'slime' && !e.splitChild) spawnSlimeSplit(world, e);
   if (hasNode(world.purchased, 'N_A')) healPlayer(world, 3);
   if (hasNode(world.purchased, 'N_F')) {
     healPlayer(world, 6);

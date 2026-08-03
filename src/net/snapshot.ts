@@ -16,7 +16,7 @@
  *   [2]          day (precomputed)
  *   [3]          bossActive (0/1)
  *   player count P, then P × PLAYER_FIELDS entries:
- *     id, x, y, hp, maxHp, level, invuln(0/1), dashing(0/1), aimAngle, dashCd, downed(0/1)
+ *     id, x, y, hp, maxHp, level, invuln(0/1), dashing(0/1), aimAngle, dashCd, downed(0/1), sp, spSpent
  *   enemy count E, then E × ENEMY_FIELDS entries:
  *     type(0-3), x, y, hp, maxHp, r, frozen(0/1), slowed(0/1), marked(0/1), burning(0/1)
  *   boss block (if bossActive=1): defId(0..N), x, y, hp, maxHp, r, slowUntilRelative(0/1), telegraphCount, telegraphs...[kind(0/1),x,y,r/length,width/radius,colorPacked,t,dur]
@@ -73,10 +73,10 @@ export function serializeSnapshot(world: World, tick: number): number[] {
 
   // Players: local player + net players (host is index 0)
   const players: NetPlayerState[] = [];
-  players.push(toNetPlayer(world.player, world, 0, world.level, maxHP(world)));
+  players.push(toNetPlayer(world.player, world, 0, world.level, maxHP(world), world.sp, world.spSpent));
   if (world.netPlayers) {
     for (const np of world.netPlayers) {
-      players.push(toNetPlayer(np.state, world, np.id, np.state.level, np.state.maxHp));
+      players.push(toNetPlayer(np.state, world, np.id, np.state.level, np.state.maxHp, np.state.sp, np.state.spSpent));
     }
   }
   out.push(players.length);
@@ -84,6 +84,7 @@ export function serializeSnapshot(world: World, tick: number): number[] {
     out.push(
       p.id, p.x, p.y, p.hp, p.maxHp, p.level,
       p.invuln > 0 ? 1 : 0, p.dashing > 0 ? 1 : 0, p.aimAngle, p.dashCd, p.downed ? 1 : 0,
+      p.sp, p.spSpent,
     );
   }
 
@@ -146,6 +147,8 @@ function toNetPlayer(
   id: number,
   level: number,
   maxHp: number,
+  sp: number,
+  spSpent: number,
 ): NetPlayerState {
   return {
     id,
@@ -161,7 +164,7 @@ function toNetPlayer(
     downed: p.hp <= 0,
     vx: 0, vy: 0, facing: { x: 0, y: -1 }, r: 9, dashCdMax: 3.4,
     phoenixCd: 0, undyingCd: 0, stillTime: 0,
-    purchased: new Set<string>(), sp: 0, spSpent: 0,
+    purchased: new Set<string>(), sp, spSpent,
     xp: 0, xpNext: 24,
     cd: { bolt: 0, boltCastCount: 0, fireNova: 0, iceLance: 0, frostArmor: 0, frostArmorActive: 0, arcaneBurst: 0, vines: 0, shadowBolt: 0, timeWarp: 0, overgrowth: 0, shadowBlink: 0, eternalFrost: 0, apexSurge: 0, cull: 0, magmaCore: 0 },
     wisps: [], decoys: [],
@@ -188,6 +191,7 @@ export interface SnapshotView {
 export interface SnapPlayer {
   id: number; x: number; y: number; hp: number; maxHp: number; level: number;
   invuln: boolean; dashing: boolean; aimAngle: number; dashCd: number; downed: boolean;
+  sp: number; spSpent: number;
 }
 
 export interface SnapEnemy {
@@ -239,6 +243,7 @@ export function deserializeSnapshot(data: number[]): SnapshotView {
       hp: readNum(data), maxHp: readNum(data), level: readNum(data),
       invuln: readNum(data) === 1, dashing: readNum(data) === 1,
       aimAngle: readNum(data), dashCd: readNum(data), downed: readNum(data) === 1,
+      sp: readNum(data), spSpent: readNum(data),
     });
   }
 

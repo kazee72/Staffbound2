@@ -64,6 +64,8 @@ export interface EnemyState {
   teleportCd?: number;
   /** Applies freeze on contact (ice wolf). */
   freezeOnContact?: boolean;
+  /** Marks a slime spawned by splitting a defeated slime — splits only once (children don't re-split). */
+  splitChild?: boolean;
 }
 
 /**

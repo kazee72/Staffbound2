@@ -116,7 +116,7 @@ export function castBolt(world: World): void {
     if (hasNode(world.purchased, 'F_A')) dmg *= 1.2;
     dmg *= spellDamageMult(world);
     if (empowered) dmg *= hasNode(world.purchased, 'V_J') ? 4 : 3; // Arcane Overflow (V_J): 4x instead of 3x
-    fireProjectile(world, sx, sy, Math.cos(ang), Math.sin(ang), projSpeed, dmg, '#9d8ce0', hasNode(world.purchased, 'V_C1') ? 1 : 0, {
+    fireProjectile(world, sx, sy, Math.cos(ang), Math.sin(ang), projSpeed, dmg, '#2f8fff', hasNode(world.purchased, 'V_C1') ? 1 : 0, {
       homing: hasNode(world.purchased, 'V_C2'),
       burn: hasNode(world.purchased, 'F_A'),
       slow: hasNode(world.purchased, 'R_A') ? 0.2 : 0,
@@ -126,7 +126,7 @@ export function castBolt(world: World): void {
       const splashCount = hasNode(world.purchased, 'V_J') ? 6 : 4;
       for (let k = 0; k < splashCount; k++) {
         const a2 = Math.random() * Math.PI * 2;
-        fireProjectile(world, sx, sy, Math.cos(a2), Math.sin(a2), 380, dmg * 0.4, '#c7bdf5', 0, { homing: true, mini: true });
+        fireProjectile(world, sx, sy, Math.cos(a2), Math.sin(a2), 380, dmg * 0.4, '#8ecbff', 0, { homing: true, mini: true });
       }
     }
   }

@@ -91,6 +91,41 @@ export function spawnEnemy(world: World, forceType?: EnemyType): void {
 }
 
 /**
+ * Splits a defeated slime into 2 smaller, weaker copies at its death spot.
+ * Split children are marked so they don't split again when killed.
+ */
+export function spawnSlimeSplit(world: World, parent: EnemyState): void {
+  const base = ETYPES.slime;
+  for (let i = 0; i < 2; i++) {
+    const ang = Math.random() * Math.PI * 2;
+    const dist = 12 + Math.random() * 10;
+    const hp = Math.max(1, parent.maxHp * 0.4);
+    const e: EnemyState = {
+      type: 'slime',
+      x: parent.x + Math.cos(ang) * dist,
+      y: parent.y + Math.sin(ang) * dist,
+      hp,
+      maxHp: hp,
+      dmg: parent.dmg * 0.55,
+      spd: base.spd * 1.15,
+      r: base.r * 0.6,
+      color: base.color,
+      xpValue: Math.max(1, Math.round(parent.xpValue * 0.4)),
+      wobble: base.wobble,
+      seed: Math.random() * 100,
+      burning: 0,
+      burnT: 0,
+      frozenUntil: 0,
+      slowUntil: 0,
+      slowAmt: 0,
+      marked: 0,
+      splitChild: true,
+    };
+    world.enemies.push(e);
+  }
+}
+
+/**
  * Spawns the boss appropriate for the current stage.
  * Stage 1 → Elder Wraith, Stage 2 → Ember Colossus, Stage 3 → Rime Sovereign,
  * Stage 4 → Bramble Horror, Stage 5+ → cycles with tougher stats.

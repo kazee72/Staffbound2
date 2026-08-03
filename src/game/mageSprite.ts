@@ -10,9 +10,11 @@
  * nearest-neighbor, this stays crisp with no blurring.
  */
 
+import { MAGE_TEXTURE_KEY } from './gifSprite';
+
 const GRID = 16;
 
-export const MAGE_TEXTURE_KEY = 'mage';
+export { MAGE_TEXTURE_KEY };
 
 // Palette — classic blue mage
 const COLOR = {

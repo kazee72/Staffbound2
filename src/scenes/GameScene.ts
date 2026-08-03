@@ -1,11 +1,13 @@
 import Phaser from 'phaser';
 import { MAGE_TEXTURE_KEY } from '../game/mageSprite';
-import { FOREST_GRASS_KEY, FOREST_TREE_KEY, FOREST_BUSH_KEY, generateForestTextures } from '../game/forestBackground';
+import { MAGE_ANIM_KEY, getMageScale } from '../game/gifSprite';
+import { FOREST_GRASS_KEY, FOREST_TREE_KEY, generateForestTextures } from '../game/forestBackground';
 import { generateStageTextures } from '../game/stageBackground';
 import { getStageDef } from '../game/stages';
 import { ENEMY_TEXTURE_KEYS, BOSS_TEXTURE_KEYS } from '../game/enemySprites';
+import { enemyVisualScale, SKEL_ANIM, SLIME_ANIM } from '../game/enemySpriteAssets';
 import { createWorld } from '../game/types';
-import type { World, NetPlayer, NetPlayerState, Projectile } from '../game/types';
+import type { World, NetPlayer, NetPlayerState, Projectile, EnemyType } from '../game/types';
 import { xpForLevel } from '../game/player';
 import { updateSpellTimers } from '../game/spells';
 import { updateSpawns } from '../game/waves';
@@ -86,7 +88,17 @@ export class GameScene extends Phaser.Scene {
   // is simplest — unused sprites are hidden+recycled, not destroyed, to
   // avoid texture-manager churn during heavy spawn bursts).
   private enemySpritePool: Phaser.GameObjects.Sprite[] = [];
-  private enemySpriteByRef = new Map<World['enemies'][number], Phaser.GameObjects.Sprite>();
+  /**
+   * Per-enemy render state (host only — guests render from index-pooled
+   * snapshot sprites with no stable per-enemy identity, see
+   * renderSnapshotEnemies). Tracks previous position/HP purely for the
+   * render layer, to drive idle/walk/hit animation switching without any
+   * changes to simulation or network protocol.
+   */
+  private enemySpriteByRef = new Map<
+    World['enemies'][number],
+    { spr: Phaser.GameObjects.Sprite; prevX: number; prevY: number; prevHp: number; hitUntil: number }
+  >();
 
   private bossSprite: Phaser.GameObjects.Sprite | null = null;
   private currentBossDefId: string | null = null;
@@ -165,7 +177,8 @@ export class GameScene extends Phaser.Scene {
     this.fxGraphics = this.add.graphics().setDepth(5);
 
     this.mage = this.add.sprite(width / 2, height / 2, MAGE_TEXTURE_KEY).setDepth(6);
-    this.mage.setScale(1.5);
+    this.mage.setScale(getMageScale());
+    if (this.anims.exists(MAGE_ANIM_KEY)) this.mage.play(MAGE_ANIM_KEY);
 
     this.cursors = this.input.keyboard!.createCursorKeys();
     this.keyW = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.W);
@@ -473,7 +486,7 @@ export class GameScene extends Phaser.Scene {
             const pr: Projectile = {
               x: sx, y: sy,
               vx: Math.cos(a) * 480, vy: Math.sin(a) * 480,
-              dmg, color: '#c7bdf5', pierce: s.purchased.has('V_C1') ? 1 : 0,
+              dmg, color: '#2f8fff', pierce: s.purchased.has('V_C1') ? 1 : 0,
               r: 5, homing: s.purchased.has('V_C2'), life: 2,
               burn: s.purchased.has('F_A'),
               slow: s.purchased.has('R_A') ? 0.2 : 0,
@@ -689,6 +702,16 @@ export class GameScene extends Phaser.Scene {
       if (mySnap.downed && this.world.player.hp > 0) {
         this.world.player.hp = 0;
       }
+      // Sync skill points from the host's authoritative snapshot — the host
+      // grants SP on level-up (see simulateNetPlayers), and the guest has no
+      // other way to learn about SP earned outside of a buySkill round-trip.
+      this.guestSP = mySnap.sp;
+      this.guestSpSpent = mySnap.spSpent;
+      this.world.sp = mySnap.sp;
+      this.world.spSpent = mySnap.spSpent;
+      if (this.world.grimoireOpen) {
+        this.ui.updateNodeStates(this.world);
+      }
     }
 
     // Draw self (using the mage sprite)
@@ -697,11 +720,7 @@ export class GameScene extends Phaser.Scene {
     // Draw ALL other players from the snapshot (including the host as P1).
     // The guest's own player is already drawn above via drawPlayer(), so
     // skip self by myPlayerSlot.
-    snap.players.forEach((p) => {
-      if (p.id === this.myPlayerSlot) return; // skip self
-      const interp = this.lerpPlayerById(prev, p, alpha);
-      this.drawGuestMageSprite(p.id, interp.x, interp.y, p.aimAngle, p.invuln, p.dashing, p.downed, p.hp, p.maxHp);
-    });
+    this.renderOtherPlayerSprites(snap, prev, alpha);
 
     // Render enemies, boss, projectiles, effects from snapshot
     this.renderSnapshotScene(snap);
@@ -734,8 +753,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private renderSnapshotScene(snap: SnapshotView): void {
+    // NOTE: fxGraphics is already cleared once per frame at the top of
+    // renderFromSnapshot(), before self/other player sprites are drawn onto
+    // it. Clearing again here would wipe those out before the frame renders.
     const g = this.fxGraphics;
-    g.clear();
 
     // Effects
     snap.effects.forEach((fx) => {
@@ -760,9 +781,7 @@ export class GameScene extends Phaser.Scene {
 
     // Projectiles
     snap.projectiles.forEach((pr) => {
-      const color = Phaser.Display.Color.HexStringToColor(pr.color).color;
-      g.fillStyle(color, 1);
-      g.fillCircle(pr.x, pr.y, pr.mini ? 3 : pr.r);
+      this.drawProjectileGlow(g, pr.x, pr.y, pr.mini ? 3 : pr.r, pr.color);
     });
 
     // Particles
@@ -787,14 +806,18 @@ export class GameScene extends Phaser.Scene {
 
     snap.enemies.forEach((e, i) => {
       seen.add(i);
-      const typeName = enemyTypeName(e.type) as 'slime' | 'skel' | 'wisp' | 'wraith';
+      const typeName = enemyTypeName(e.type) as EnemyType;
       const spr = this.enemySpritePool[i];
       spr.setTexture(ENEMY_TEXTURE_KEYS[typeName]);
-      const scale = e.type === 0 ? e.r / 7 : e.type === 1 ? e.r / 9 : e.type === 2 ? e.r / 6.5 : e.r / 10;
-      spr.setScale(scale * 1.35);
+      // Guests have no stable per-enemy identity across snapshots (see class
+      // comment on enemySpriteByRef), so unlike the host we can't infer
+      // movement/hit state frame-to-frame — always show idle for real-asset types.
+      this.playEnemyAnim(spr, typeName, 'idle');
+      spr.setScale(enemyVisualScale(typeName, e.r));
       spr.setPosition(Math.round(e.x), Math.round(e.y));
       spr.setVisible(true);
       spr.setDepth(4.5 + e.y * 0.0001);
+      this.applyEnemyFacing(spr, typeName, e.x);
       if (e.frozen) spr.setTint(0xa9d8ef);
       else if (e.slowed) spr.setTint(0xc9d8e8);
       else spr.clearTint();
@@ -947,7 +970,8 @@ export class GameScene extends Phaser.Scene {
   private ensureGuestMageSprites(count: number): void {
     while (this.guestMageSprites.length < count) {
       const spr = this.add.sprite(0, 0, MAGE_TEXTURE_KEY).setDepth(6);
-      spr.setScale(1.5);
+      spr.setScale(getMageScale());
+      if (this.anims.exists(MAGE_ANIM_KEY)) spr.play(MAGE_ANIM_KEY);
       spr.setVisible(false);
       this.guestMageSprites.push(spr);
     }
@@ -986,40 +1010,36 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  /** Draw a guest mage sprite at a given position (guest mode, from snapshot). */
-  private drawGuestMageSprite(
-    playerId: number, x: number, y: number, aim: number, invuln: boolean,
-    _dashing: boolean, downed: boolean, hp: number, maxHp: number,
-  ): void {
+  /** GUEST: render other players (including the host) as pooled mage sprites from the snapshot. */
+  private renderOtherPlayerSprites(snap: SnapshotView, prev: SnapshotView | null, alpha: number): void {
+    const others = snap.players.filter((p) => p.id !== this.myPlayerSlot);
+    this.ensureGuestMageSprites(others.length);
     const g = this.fxGraphics;
-    const tint = PLAYER_TINTS[playerId % PLAYER_TINTS.length];
-    // Shadow
-    g.fillStyle(0x000000, 0.35);
-    g.fillEllipse(x, y + 10, 18, 6);
-    // Body circle with tint
-    g.fillStyle(tint, downed ? 0.3 : 1);
-    g.fillCircle(x, y, 12);
-    // Staff direction indicator
-    const staffX = x + Math.cos(aim) * 16;
-    const staffY = y + Math.sin(aim) * 16;
-    g.lineStyle(3, tint, downed ? 0.3 : 0.8);
-    g.lineBetween(x, y, staffX, staffY);
-    // Invuln blink ring
-    if (invuln) {
-      g.lineStyle(1.5, 0xffffff, 0.5);
-      g.strokeCircle(x, y, 15);
-    }
-    // HP bar
-    if (hp < maxHp) {
-      const w = 28;
-      g.fillStyle(0x1a1c2c, 1);
-      g.fillRect(x - w / 2, y - 22, w, 5);
-      g.fillStyle(tint, 1);
-      g.fillRect(x - w / 2, y - 22, w * Math.max(0, hp / maxHp), 5);
-    }
-    if (downed) {
-      g.fillStyle(0xc15b5b, 0.6);
-      g.fillCircle(x, y, 14);
+    others.forEach((p, i) => {
+      const spr = this.guestMageSprites[i];
+      const interp = this.lerpPlayerById(prev, p, alpha);
+      const tint = PLAYER_TINTS[p.id % PLAYER_TINTS.length];
+      spr.setPosition(Math.round(interp.x), Math.round(interp.y));
+      spr.setVisible(true);
+      spr.setDepth(6 + interp.y * 0.0001);
+      spr.setTint(tint);
+      const blink = p.invuln && Math.floor(this.world.elapsed * 16) % 2 === 0;
+      spr.setAlpha(p.downed ? 0.3 : blink ? 0.4 : 1);
+      spr.setFlipX(Math.cos(p.aimAngle) < 0);
+      // Shadow
+      g.fillStyle(0x000000, 0.35);
+      g.fillEllipse(interp.x, interp.y + 10, 18, 6);
+      // HP bar
+      if (p.hp < p.maxHp) {
+        const w = 28;
+        g.fillStyle(0x1a1c2c, 1);
+        g.fillRect(interp.x - w / 2, interp.y - 22, w, 5);
+        g.fillStyle(tint, 1);
+        g.fillRect(interp.x - w / 2, interp.y - 22, w * Math.max(0, p.hp / p.maxHp), 5);
+      }
+    });
+    for (let i = others.length; i < this.guestMageSprites.length; i++) {
+      this.guestMageSprites[i].setVisible(false);
     }
   }
 
@@ -1282,10 +1302,11 @@ export class GameScene extends Phaser.Scene {
   // ---------------- rendering ----------------
 
   /**
-   * Scatters pixel-art trees/bushes around the play field's edges (kept clear
-   * of the center where the player starts) to sell the "forest" backdrop.
-   * Deterministic per viewport size so it doesn't look like it's dancing
-   * around on resize.
+   * Scatters trees around the play field's edges (kept clear of the center
+   * where the player starts) to sell the "forest" backdrop. Deterministic
+   * per viewport size so it doesn't look like it's dancing around on
+   * resize. Original procedural pixel-art silhouette, densely scattered
+   * with a wide size range for a layered forest-depth look.
    */
   private scatterForestDecor(width: number, height: number): void {
     this.decorLayer.removeAll(true);
@@ -1297,15 +1318,14 @@ export class GameScene extends Phaser.Scene {
     const cx = width / 2;
     const cy = height / 2;
     const clearRadius = 160; // keep the immediate spawn area clear of trees
-    const count = Math.max(18, Math.round((width * height) / 55000));
-    for (let i = 0; i < count; i++) {
+
+    const treeCount = Math.max(24, Math.round((width * height) / 28000));
+    for (let i = 0; i < treeCount; i++) {
       const x = rand() * width;
       const y = rand() * height;
       if (Math.hypot(x - cx, y - cy) < clearRadius) continue;
-      const isTree = rand() > 0.35;
-      const key = isTree ? FOREST_TREE_KEY : FOREST_BUSH_KEY;
-      const scale = isTree ? 1.4 + rand() * 0.8 : 1.3 + rand() * 0.7;
-      const spr = this.add.image(x, y, key).setOrigin(0.5, 1).setScale(scale);
+      const scale = 1.0 + Math.pow(rand(), 1.4) * 2.2;
+      const spr = this.add.image(x, y, FOREST_TREE_KEY).setOrigin(0.5, 1).setScale(scale);
       spr.setAlpha(0.85 + rand() * 0.15);
       spr.setTint(rand() > 0.5 ? 0xffffff : 0xd8e4d0);
       this.decorLayer.add(spr);
@@ -1320,24 +1340,20 @@ export class GameScene extends Phaser.Scene {
    */
   private updateStageBackground(stage: number): void {
     const { width, height } = this.scale;
-    const def = getStageDef(stage);
 
-    // Generate textures for this stage (idempotent — skips if already generated).
-    let tileKey: string;
-    let decorKey: string;
     if (stage === 1) {
-      // Stage 1 uses the original forest textures.
+      // Stage 1 uses the original forest textures + the full decor mix
+      // (procedural trees + real bush/grass/flower assets — see
+      // scatterForestDecor) rather than duplicating that scatter logic here.
       generateForestTextures(this);
-      tileKey = FOREST_GRASS_KEY;
-      decorKey = FOREST_TREE_KEY;
-    } else {
-      const keys = generateStageTextures(this, def);
-      tileKey = keys.tileKey;
-      decorKey = keys.decorKey;
+      this.grassLayer.setTexture(FOREST_GRASS_KEY);
+      this.scatterForestDecor(width, height);
+      return;
     }
 
-    // Replace the grass tile texture.
-    this.grassLayer.setTexture(tileKey);
+    const def = getStageDef(stage);
+    const keys = generateStageTextures(this, def);
+    this.grassLayer.setTexture(keys.tileKey);
 
     // Clear and re-scatter decor using the new stage's decor texture.
     this.decorLayer.removeAll(true);
@@ -1355,7 +1371,7 @@ export class GameScene extends Phaser.Scene {
       const y = rand() * height;
       if (Math.hypot(x - cx, y - cy) < clearRadius) continue;
       const scale = 1.3 + rand() * 0.9;
-      const spr = this.add.image(x, y, decorKey).setOrigin(0.5, 1).setScale(scale);
+      const spr = this.add.image(x, y, keys.decorKey).setOrigin(0.5, 1).setScale(scale);
       spr.setAlpha(0.85 + rand() * 0.15);
       // Subtle tint variation for depth.
       spr.setTint(rand() > 0.5 ? 0xffffff : 0xd8d0c8);
@@ -1433,9 +1449,7 @@ export class GameScene extends Phaser.Scene {
 
     // projectiles
     world.projectiles.forEach((pr) => {
-      const color = Phaser.Display.Color.HexStringToColor(pr.color).color;
-      g.fillStyle(color, 1);
-      g.fillCircle(pr.x, pr.y, pr.mini ? 3 : pr.r);
+      this.drawProjectileGlow(g, pr.x, pr.y, pr.mini ? 3 : pr.r, pr.color);
     });
 
     // player sprite
@@ -1452,6 +1466,30 @@ export class GameScene extends Phaser.Scene {
     this.drawPopups();
   }
 
+  /** Maps enemy type + render state to a real-asset animation key, where one exists. */
+  private enemyAnimFor(type: EnemyType, state: 'idle' | 'move' | 'hit'): string | null {
+    if (type === 'slime') return state === 'hit' ? SLIME_ANIM.hit : state === 'move' ? SLIME_ANIM.move : SLIME_ANIM.idle;
+    if (type === 'skel') return state === 'hit' ? SKEL_ANIM.hit : state === 'move' ? SKEL_ANIM.walk : SKEL_ANIM.idle;
+    return null; // no real-asset animations for this type — procedural texture stays static
+  }
+
+  /** Plays the given render-state's animation on an enemy sprite, if a real-asset animation exists for its type. */
+  private playEnemyAnim(spr: Phaser.GameObjects.Sprite, type: EnemyType, state: 'idle' | 'move' | 'hit'): void {
+    const key = this.enemyAnimFor(type, state);
+    if (key && this.anims.exists(key)) spr.play(key, true);
+  }
+
+  /**
+   * Flips the sprite to face the (local) player horizontally — skeleton art
+   * faces right by default, so it's flipped when the player is to its left.
+   * Only applies to types whose real-asset art has a "facing" concept
+   * (currently just skeleton — slimes are symmetric blobs).
+   */
+  private applyEnemyFacing(spr: Phaser.GameObjects.Sprite, type: EnemyType, enemyX: number): void {
+    if (type !== 'skel') return;
+    spr.setFlipX(this.world.player.x < enemyX);
+  }
+
   /**
    * Renders regular enemies as pooled pixel-art Sprites (procedurally
    * generated in enemySprites.ts) instead of raw Graphics primitives.
@@ -1465,24 +1503,39 @@ export class GameScene extends Phaser.Scene {
 
     world.enemies.forEach((e) => {
       seen.add(e);
-      let spr = this.enemySpriteByRef.get(e);
-      if (!spr) {
-        spr = this.enemySpritePool.find((s) => !s.visible);
+      let info = this.enemySpriteByRef.get(e);
+      if (!info) {
+        let spr = this.enemySpritePool.find((s) => !s.visible);
         if (!spr) {
           spr = this.add.sprite(0, 0, ENEMY_TEXTURE_KEYS[e.type]).setDepth(4.5);
           this.enemySpritePool.push(spr);
         }
         spr.setTexture(ENEMY_TEXTURE_KEYS[e.type]);
-        this.enemySpriteByRef.set(e, spr);
+        info = { spr, prevX: e.x, prevY: e.y, prevHp: e.hp, hitUntil: 0 };
+        this.enemySpriteByRef.set(e, info);
       }
+      const spr = info.spr;
       // Native art is sized to roughly match each type's collision radius;
       // scale so the sprite's visual footprint tracks e.r (base r values in
       // ETYPES were the tuning reference for each native texture's size).
-      const scale = e.type === 'slime' ? e.r / 7 : e.type === 'skel' ? e.r / 9 : e.type === 'wisp' ? e.r / 6.5 : e.r / 10;
-      spr.setScale(scale * 1.35);
+      spr.setScale(enemyVisualScale(e.type, e.r));
       spr.setPosition(Math.round(e.x), Math.round(e.y));
       spr.setVisible(true);
       spr.setDepth(4.5 + e.y * 0.0001);
+
+      // Idle/walk/hit animation switching (real-asset types only — see
+      // playEnemyAnim). Purely render-layer: infers movement/damage from
+      // frame-to-frame deltas, no simulation or network protocol changes.
+      if (e.hp < info.prevHp) info.hitUntil = world.elapsed + 0.3;
+      const moved = Math.hypot(e.x - info.prevX, e.y - info.prevY) > 0.4;
+      this.playEnemyAnim(spr, e.type, info.hitUntil > world.elapsed ? 'hit' : moved ? 'move' : 'idle');
+      info.prevX = e.x;
+      info.prevY = e.y;
+      info.prevHp = e.hp;
+
+      // Skeletons always face the player (real-asset art only — see
+      // enemyFacesFlipX). Other real-asset/procedural types are unaffected.
+      this.applyEnemyFacing(spr, e.type, e.x);
 
       const frozen = e.frozenUntil > world.elapsed;
       const slowed = !frozen && e.slowUntil > world.elapsed;
@@ -1504,9 +1557,9 @@ export class GameScene extends Phaser.Scene {
     });
 
     // Recycle sprites for enemies no longer present (dead/removed this frame).
-    this.enemySpriteByRef.forEach((spr, ref) => {
+    this.enemySpriteByRef.forEach((info, ref) => {
       if (!seen.has(ref)) {
-        spr.setVisible(false);
+        info.spr.setVisible(false);
         this.enemySpriteByRef.delete(ref);
       }
     });
@@ -1577,6 +1630,27 @@ export class GameScene extends Phaser.Scene {
     g.fillRect(boss.x - w / 2, boss.y - boss.r - 24, w, 9);
     g.fillStyle(Phaser.Display.Color.HexStringToColor(boss.color).color, 1);
     g.fillRect(boss.x - w / 2, boss.y - boss.r - 24, w * Math.max(0, boss.hp / boss.maxHp), 9);
+  }
+
+  /**
+   * Draws a projectile with a soft glow: an oversized low-alpha halo, a
+   * mid-alpha ring, the solid-color core, and a bright near-white highlight
+   * on top — same layered-circle technique already used for boss
+   * projectiles (see renderBossFight), just with an extra outer halo layer
+   * for a more pronounced "light" look. Shared by both the host's
+   * renderScene() and the guest's renderSnapshotScene() so projectiles look
+   * identical either way.
+   */
+  private drawProjectileGlow(g: Phaser.GameObjects.Graphics, x: number, y: number, r: number, colorHex: string): void {
+    const color = Phaser.Display.Color.HexStringToColor(colorHex).color;
+    g.fillStyle(color, 0.18);
+    g.fillCircle(x, y, r * 2.6);
+    g.fillStyle(color, 0.35);
+    g.fillCircle(x, y, r * 1.6);
+    g.fillStyle(color, 1);
+    g.fillCircle(x, y, r);
+    g.fillStyle(0xffffff, 0.8);
+    g.fillCircle(x, y, r * 0.4);
   }
 
   private drawPlayer(): void {

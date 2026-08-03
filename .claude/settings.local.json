@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs grep -lE \"NetPlayer|hello|welcome\")",
+      "Bash(npm run *)",
+      "Bash(npm view *)",
+      "Bash(npm install *)",
+      "Bash(xargs grep -ln \"delay\")",
+      "Bash(npx --yes playwright --version)",
+      "Read(//tmp/**)"
+    ]
+  }
+}

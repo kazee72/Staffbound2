@@ -250,3 +250,282 @@ Two follow-up visual tweaks requested after playtesting Phase 2:
 - Try UHJK movement keys alongside WASD.
 - Open the Grimoire (G) and confirm the grid layout with smaller nodes, straight lines, 7 columns.
 - During a boss fight, confirm your bolts/ice lance/shadow bolt actually damage the boss.
+
+## Multiplayer fixes: guest can't see other players, guest never gets skill points
+
+### Fixed
+- **Guest sees no other players (host or fellow guests):** `renderFromSnapshot()` cleared `fxGraphics`
+  once at the top, drew self + all other-player mage sprites onto it, then called
+  `renderSnapshotScene()` — which *also* called `g.clear()` first thing, wiping out every player
+  sprite just drawn before the frame ever rendered. Removed the redundant clear from
+  `renderSnapshotScene()` (src/scenes/GameScene.ts).
+- **Guest never earns/spends skill points:** the guest's local `guestSP`/`guestSpSpent` were only
+  ever updated by a `skillAck` reply from the host — but `guestRequestBuySkill()` refuses to even
+  send a `buySkill` message unless `guestSP - guestSpSpent >= cost` locally first, so a guest
+  starting at 0 SP could never make the first purchase request, and passive SP earned via
+  `simulateNetPlayers()` leveling on the host was never communicated to the guest at all. Added
+  `sp`/`spSpent` to the per-player block in the snapshot protocol (src/net/snapshot.ts,
+  `serializeSnapshot`/`deserializeSnapshot`/`SnapPlayer`/`toNetPlayer`) and now sync
+  `guestSP`/`guestSpSpent`/`world.sp`/`world.spSpent` from the guest's own snapshot entry every
+  frame in `renderFromSnapshot()` (src/scenes/GameScene.ts), refreshing the grimoire UI if open.
+
+### Verified
+- `npm run build` (tsc --noEmit && vite build) — zero TypeScript errors.
+
+### What to test manually
+- Host a game, join as a guest (second browser/tab), start the run: confirm the guest can see the
+  host's mage and any other guests moving around, not just enemies/effects.
+- As a guest, survive long enough to level up (or kill a few enemies near you) and open the
+  Grimoire (G): confirm skill points appear and a node can actually be purchased.
+
+## Character GIF support
+
+### Added
+- **public/assets/character/** (new folder, tracked via README.md) — drop a file named
+  `player.gif` here and the game uses it as the player mage's sprite, animation included.
+  No file present → silently falls back to the original procedural pixel-art mage.
+- **src/game/gifSprite.ts** (new) — decodes the GIF via `gifuct-js` at boot, correctly
+  compositing each frame against disposal method (GIF frames are often small dirty-rect
+  patches, not full frames), lays the composited frames into one canvas sprite sheet, and
+  registers a Phaser texture (`mage`) + looping animation (`mage-idle`) from it. Also exposes
+  `getMageScale()` so mage sprites display at the game's expected ~24px footprint regardless
+  of the source GIF's native resolution.
+- **src/scenes/BootScene.ts** — preloads the raw GIF bytes (`this.load.binary`), then tries
+  `buildCharacterGifTexture()` before falling back to `generateMageTexture()`.
+- **src/scenes/GameScene.ts** — the local player sprite (`this.mage`) and the host's net-player
+  mage sprites (`guestMageSprites`) both play `mage-idle` when present. Also replaced the
+  guest's other-player rendering (previously hand-drawn vector circles via
+  `drawGuestMageSprite`) with the same pooled-sprite approach (`renderOtherPlayerSprites`), so
+  a guest sees the host and other guests as the same animated mage sprite too, not circles.
+- Added dependency: `gifuct-js` (pure-JS GIF decoder, no native deps).
+
+### Verified
+- `npm run build` — zero TypeScript errors.
+- Browser (Playwright): booted with no `player.gif` present — no console errors, procedural
+  mage renders and plays normally.
+- Browser (Playwright): dropped a synthetic 4-frame test GIF at
+  `public/assets/character/player.gif` — decoded and rendered in-game as the player sprite
+  with no console errors, confirming the fetch → decode → composite → texture → animation
+  pipeline works end-to-end. Removed the test file afterward; the folder now only has the
+  README for the user to drop their real GIF into.
+
+### What to test manually
+- Drop a real character GIF at `public/assets/character/player.gif`, reload, and confirm it
+  appears (animated) in place of the pixel-art mage in solo play.
+- In multiplayer, confirm the host sees guests as the animated GIF sprite, and guests see the
+  host + other guests the same way (each still tinted per-player-slot as before).
+
+## Real slime + skeleton sprites (replacing procedural art)
+
+### Added
+- **src/game/gifDecode.ts** (new) — extracted the GIF decoding core (disposal-aware frame
+  compositing, grid-based sprite-sheet packing) out of gifSprite.ts into a shared module, so
+  both the player mage and enemy sprites can decode GIFs the same way.
+- **src/game/enemySpriteAssets.ts** (new) — builds real animated sprites for slime and
+  skeleton from the assets dropped in `public/assets/`:
+  - **Skeleton** (`public/assets/Skeleton/GIFS/*.gif`) — decoded via gifDecode.ts. Idle (11
+    frames), Walk (13 frames), and Hit (8 frames) are wired up; Attack/Dead/React are present
+    in the asset pack but not loaded (no matching gameplay trigger exists yet — see below).
+  - **Slime** (`public/assets/Slimes/*.png`) — these ship as a fixed grid: 7 palette-swapped
+    color rows x N animation-frame columns, 80x72 per cell. Row 4 (green) is picked out to
+    match the original procedural slime's color. Idle (2 frames), Move (7 frames), and Hit (2
+    frames) are wired up; Jump/Die/Swallow exist in the pack but aren't loaded (same reason).
+  - Both are graceful no-ops if their asset files are missing/incomplete or fail to decode —
+    `generateEnemyTextures()` (enemySprites.ts) already no-ops per-key when a texture exists,
+    so anything not built falls back to the original procedural pixel art automatically.
+  - Exports `enemyVisualScale(type, r)`, replacing two copies of a hardcoded scale formula
+    that lived in GameScene.ts (host `renderEnemies()` and guest `renderSnapshotEnemies()`) —
+    now both call the same function, which uses a real-asset target size when built, or the
+    original procedural-art formula otherwise.
+- **src/scenes/BootScene.ts** — preloads + builds the enemy assets alongside the character GIF.
+- **src/scenes/GameScene.ts** — idle/walk/hit animation switching, host-side only:
+  `enemySpriteByRef` now stores `{ spr, prevX, prevY, prevHp, hitUntil }` per enemy and infers
+  movement (position delta) and damage (HP drop → 0.3s hit-flash) purely at the render layer —
+  no simulation or network-protocol changes. Guests can't do this (pooled by snapshot array
+  index, not stable per-enemy identity — see the comment on `enemySpriteByRef`), so guests
+  always show the idle animation for these two types; still real animated art, just without
+  the walk/hit reactivity.
+
+### Verified
+- `npm run build` — zero TypeScript errors.
+- Browser (Playwright), solo play, ~20s of active combat: slime and skeleton render as the
+  real animated art (screenshots confirm walk-cycle frame differences between captures), sized
+  correctly relative to trees/player, no console warnings/errors (in particular no "missing
+  animation" warnings, confirming the anim keys resolve).
+- Browser (Playwright), real 2-peer multiplayer session (host + guest, actual WebRTC via the
+  local PeerServer): both the host's identity-tracked rendering and the guest's snapshot-pooled
+  rendering show the same real slime/skeleton art with no console errors on either side.
+
+### What to test manually
+- Get hit by / hit a skeleton and a slime in solo play and confirm the brief hit-flash
+  animation plays before reverting to walk/idle.
+- If you want Attack/Dead/React (skeleton) or Jump/Die/Swallow (slime) wired up too, that needs
+  a gameplay trigger to hang them on (e.g., a real death-animation grace period before an enemy
+  is removed) — flag it and it can be scoped as a follow-up.
+
+## Slime sizing/splitting + skeleton facing
+
+### Investigated
+- "Some slimes are really small" — instrumented the actual runtime scale/frame values
+  Phaser reports for rendered slime sprites; they were already uniform (~29x26px on screen,
+  consistent across every sample, matching the intended target). No reproducible size-variance
+  bug found. What *was* missing: `enemyVisualScale()` (enemySpriteAssets.ts) ignored `r`
+  entirely for real-asset types, always returning one fixed scale — harmless for plain slimes
+  (constant r=9) but would've made the new split-child slimes (see below) render at full size
+  instead of smaller. Fixed: it now scales proportionally around each type's normal spawn `r`
+  (`REAL_ASSET_BASE_R`), so a smaller/larger r now visibly changes rendered size.
+
+### Added
+- **Slime split-on-death** (src/game/enemies.ts `spawnSlimeSplit`, wired into `killEnemy` in
+  combat.ts): killing a non-split slime spawns 2 weaker copies at its death spot — 40% of its
+  max HP, 55% of its damage, 60% of its radius (so they render visibly smaller via the
+  proportional scale fix above), 15% faster. Children are flagged `splitChild: true`
+  (types.ts) so killing *them* doesn't chain into another split ("once", as asked). No
+  network-protocol changes needed — children are just regular `EnemyState` entries, already
+  covered by the existing enemy snapshot fields (including `r`, so guests render the smaller
+  size correctly too).
+- **Skeletons face the player** (`GameScene.applyEnemyFacing`, called from both the host's
+  `renderEnemies()` and the guest's `renderSnapshotEnemies()`): flips the sprite horizontally
+  based on the local player's position relative to the skeleton (skeleton art faces right by
+  default). Slimes are left untouched (symmetric blob, no facing concept).
+
+### Verified
+- `npm run build` — zero TypeScript errors.
+- Browser (Playwright + temporary debug logging, removed after): confirmed `spawnSlimeSplit`
+  fires exactly once per non-split slime kill (never for a split child killing itself), and the
+  resulting children render visibly smaller than a normal slime.
+- Browser (Playwright): skeletons approaching from both left and right of the player render
+  with the correct weapon-arm orientation (facing toward the player) on both sides.
+- Real 2-peer multiplayer session (host + guest): no console errors; split slimes and skeleton
+  facing both render correctly in the guest's snapshot-based view too.
+
+### What to test manually
+- Kill a slime and confirm 2 smaller slimes appear and scatter from the death spot; kill one of
+  those and confirm it does *not* split again.
+- Watch a skeleton approach from either side and confirm it visibly turns to face you.
+
+## Real forest background (trees/bushes/grass/flowers)
+
+### Added
+- **src/game/forestAssets.ts** (new) — loads the "Lost Pixel Art - Forest" pack dropped in
+  `public/assets/Lost Pixel Art - Forest/` (2 tree species x4 variants, 2 bushes, 4 grass
+  tufts, 4 flower species x4 variants — 30 images total) and scatters them as the stage-1
+  background, replacing the small procedural tree/bush silhouettes.
+  - Each source image is a single object on a large, inconsistently-trimmed transparent
+    canvas (e.g. a 430x430 canvas where the tree itself is only ~350px tall) — scaling
+    against the raw canvas size would've made most of them render tiny. Each image's actual
+    visible content height is measured once at boot via a canvas alpha-channel bounding-box
+    scan, and that's what scatter scale is calculated against.
+  - Per-category target on-screen sizes (`DECOR_TARGET_HEIGHT`): trees 72-104px, bushes
+    30-46px, grass tufts 14-22px, flowers 18-28px — grass/flowers are weighted most common,
+    trees least, for a layered "lush" look rather than a wall of same-size objects.
+  - Optional and per-image graceful: any file that isn't present is just skipped (not
+    all-or-nothing) since this is decorative variety, not a required set. If the whole pack
+    is missing, `GameScene.scatterForestDecor()` falls back to the original procedural
+    tree/bush scatter unchanged.
+- **src/scenes/BootScene.ts** — preloads + builds the forest asset pool alongside the other
+  optional art.
+- **src/scenes/GameScene.ts** (`scatterForestDecor`) — branches on whether the real-asset pool
+  is populated; only affects the stage-1 background (stages 2+ use their own biome-specific
+  procedural textures in stageBackground.ts, untouched).
+
+### Verified
+- `npm run build` — zero TypeScript errors.
+- Browser (Playwright): both the start-screen backdrop and the in-run background show a mixed
+  scatter of real trees, a bush, flowers, and grass tufts with correct scale and no visible
+  transparent-canvas artifacts at the edges (checked via cropped/upscaled screenshots of each
+  category). No console errors over an extended solo session.
+
+### What to test manually
+- Resize the browser window and confirm the background re-scatters cleanly (no stretching/
+  leftover sprites).
+- Progress to stage 2+ (after a boss kill) and confirm the background switches to that stage's
+  own biome art, not the forest pack (by design — the forest pack is stage-1 only).
+
+## Forest background: bushes removed, flowers darkened
+
+### Changed
+- **Bushes removed entirely** — both the real "Lost Pixel Art - Forest" bush images and the
+  procedural bush fallback. Removed `generateBush()`/`FOREST_BUSH_KEY` from
+  forestBackground.ts and the `'bush'` category from forestAssets.ts (`ForestDecorCategory` is
+  now just `'grass' | 'flower'`). The pack's bush PNGs are still on disk
+  (public/assets/Lost Pixel Art - Forest/Bushes/) but nothing loads them.
+- **Flowers gamma-darkened** — same technique as the earlier tree darkening but milder
+  (gamma 1.3, brightness ×0.72 vs trees' 1.7/0.62), keeping them a readable colorful accent
+  rather than blending fully into the backdrop. Grass tufts are left at full color.
+  `forestAssets.ts`'s darken step is now table-driven (`DARKEN: Partial<Record<category,
+  {gamma, brightness}>>`) instead of a boolean, so different categories can have different
+  darken strength.
+
+### Verified
+- `npm run build` — zero TypeScript errors.
+- Browser (Playwright): confirmed no bushes render; pixel-sampled a rendered flower against
+  its source PNG to confirm the darken formula is actually being applied (not just eyeballed).
+  No console errors over an extended solo session.
+
+## Forest background: grass removed, flowers cleaned up
+
+### Changed
+- **Grass tufts removed** — `'grass'` dropped from `ForestDecorCategory` (now just `'flower'`)
+  and its asset entries/loading removed from forestAssets.ts. Only trees (procedural) and
+  flowers (real asset pack) remain in the stage-1 background.
+- **Flowers now pre-shrunk with high-quality smoothing, not just cropped** — the flower source
+  images are ~400-500px native, displayed at only 18-28px. Just cropping to content and letting
+  Phaser's pixelArt/nearest-neighbor filtering handle a ~20x runtime downscale produced a noisy/
+  aliased look (nearest-neighbor picks one pixel per sample rather than averaging, so fine
+  linework gets lost/speckled at extreme ratios). `buildForestAssets()` now crops each flower to
+  its content bounding box and does a *one-time* smooth downscale (canvas
+  `imageSmoothingQuality: 'high'`) to ~2x the max display size (`PRESHRINK_TARGET_H`) before
+  gamma-darkening, baking in clean anti-aliased edges once at boot so the small remaining
+  runtime scale-down stays mild.
+
+### Verified
+- `npm run build` — zero TypeScript errors.
+- Browser (Playwright): confirmed no grass tufts render; cropped/upscaled screenshots of two
+  different flower instances show clean crisp edges (no speckling/noise). No console errors
+  over an extended solo session.
+
+## Forest background: flowers removed, real-asset integration fully retired
+
+### Changed
+- **Flowers removed** — the last remaining category from the "Lost Pixel Art - Forest" pack
+  (after bushes and grass were dropped in prior passes). With nothing left using it, deleted
+  `src/game/forestAssets.ts` entirely rather than leave dead infrastructure behind, and removed
+  its load/build calls from BootScene.ts and its imports from GameScene.ts.
+- Stage-1 background is back to just the procedural pine trees (dense scatter, wide size
+  variation) — no real-asset decoration at all. The pack's PNG files are still on disk
+  (public/assets/Lost Pixel Art - Forest/) in case they get used for something else later;
+  nothing loads them now.
+
+### Verified
+- `npm run build` — zero TypeScript errors.
+- Browser (Playwright): confirmed no flowers/bushes/grass render, only procedural trees. No
+  console errors over an extended solo session.
+
+## Bright blue projectiles with a light/glow effect
+
+### Changed
+- **src/game/spells.ts** — bolt spell's main projectile color changed from lavender `#9d8ce0` to
+  bright blue `#2f8fff` (line ~119); the Arcane Overflow (V_J) empowered-cast mini-bolt splash
+  changed from `#c7bdf5` to a lighter bright blue `#8ecbff` (line ~129). Other spells (fire
+  nova, ice lance, shadow bolt, wisp attacks, Arcane Burst) keep their own colors — untouched.
+- **src/scenes/GameScene.ts** — the host-simulated net-player bolt cast (`simulateNetPlayers`)
+  updated to match the same `#2f8fff` so multiplayer guests' bolts look identical to the local
+  player's.
+- **Glow effect**: added `drawProjectileGlow()` — a shared private helper (layered `fillCircle`
+  calls: oversized low-alpha halo → mid-alpha ring → solid core → bright near-white highlight),
+  matching the existing boss-projectile glow technique already used elsewhere in the codebase
+  (no blend-mode/shader work, consistent with how every other glow in this game is done). Both
+  `renderScene()` (host) and `renderSnapshotScene()` (guest) now call it instead of a flat
+  `fillCircle`, so every projectile type gets the glow (not just bolts) — only the bolt-specific
+  colors changed above.
+- No multiplayer protocol changes needed — `packColor`/`unpackColor` (net/snapshot.ts) already
+  round-trip any hex color generically, and the glow is derived client-side from the existing
+  `color`/`r` fields already sent per-projectile.
+
+### Verified
+- `npm run build` — zero TypeScript errors.
+- Browser (Playwright): zoomed screenshot confirms a clean bright-blue orb with a soft layered
+  glow halo and bright core in solo play.
+- Real 2-peer multiplayer session (host + guest): glow renders identically on both sides, no
+  console errors.

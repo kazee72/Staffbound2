@@ -2,19 +2,18 @@
  * Procedural pixel-art forest background.
  *
  * Generates a small set of tileable forest textures (grass with subtle blade
- * detail, and a couple of tree/bush "decoration" tiles) at native low-res
- * pixel scale, then tiles them across the play field via a Phaser
- * TileSprite for the grass (scrolls/tiles seamlessly at any viewport size)
- * plus scattered decoration sprites for trees/bushes so the world doesn't
- * look like a flat empty void. Kept deliberately low-saturation/dark so it
- * doesn't fight with the HUD or the ember/frost/arcane spell colors.
+ * detail, and a tree "decoration" tile) at native low-res pixel scale, then
+ * tiles them across the play field via a Phaser TileSprite for the grass
+ * (scrolls/tiles seamlessly at any viewport size) plus scattered decoration
+ * sprites for trees so the world doesn't look like a flat empty void. Kept
+ * deliberately low-saturation/dark so it doesn't fight with the HUD or the
+ * ember/frost/arcane spell colors.
  */
 
 const TILE = 32; // native pixel size of one grass tile, displayed at 1x (chunky pixel-art look)
 
 export const FOREST_GRASS_KEY = 'forestGrass';
 export const FOREST_TREE_KEY = 'forestTree';
-export const FOREST_BUSH_KEY = 'forestBush';
 
 const PALETTE = {
   grassBase: 0x1a2418,
@@ -27,8 +26,6 @@ const PALETTE = {
   leafDark: 0x1e2f1e,
   leaf: 0x28401f,
   leafLight: 0x335229,
-  bushDark: 0x1e2f1e,
-  bush: 0x2a4321,
 };
 
 function px(g: Phaser.GameObjects.Graphics, x: number, y: number, color: number, alpha = 1): void {
@@ -40,7 +37,6 @@ function px(g: Phaser.GameObjects.Graphics, x: number, y: number, color: number,
 export function generateForestTextures(scene: Phaser.Scene): void {
   generateGrassTile(scene);
   generateTree(scene);
-  generateBush(scene);
 }
 
 function generateGrassTile(scene: Phaser.Scene): void {
@@ -121,30 +117,5 @@ function generateTree(scene: Phaser.Scene): void {
   });
 
   g.generateTexture(FOREST_TREE_KEY, W, H);
-  g.destroy();
-}
-
-// A small rounded pixel-art bush, ~14x10.
-function generateBush(scene: Phaser.Scene): void {
-  if (scene.textures.exists(FOREST_BUSH_KEY)) return;
-  const W = 14;
-  const H = 10;
-  const g = scene.make.graphics({ x: 0, y: 0 }, false);
-
-  g.fillStyle(0x000000, 0.25);
-  g.fillEllipse(7, 9, 10, 3);
-
-  for (let y = 0; y < H - 1; y++) {
-    const t = y / (H - 1);
-    const halfW = 3 + Math.sin(t * Math.PI) * 4;
-    const cx = 7;
-    for (let x = Math.round(cx - halfW); x <= Math.round(cx + halfW); x++) {
-      if (x < 0 || x >= W) continue;
-      const edge = x === Math.round(cx - halfW) || x === Math.round(cx + halfW);
-      px(g, x, y, edge ? PALETTE.bushDark : PALETTE.bush);
-    }
-  }
-
-  g.generateTexture(FOREST_BUSH_KEY, W, H);
   g.destroy();
 }
