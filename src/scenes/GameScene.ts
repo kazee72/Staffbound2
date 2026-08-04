@@ -349,6 +349,17 @@ export class GameScene extends Phaser.Scene {
         }
         break;
       }
+      case 'grimoireToggle': {
+        // Guest opened/closed their grimoire — pause/unpause the host's sim
+        this.world.grimoireOpen = msg.open;
+        // Broadcast pause/unpause to ALL guests (including the one who asked)
+        const pauseMsg: HostMsg = {
+          t: 'players',
+          players: [{ id: -1, name: msg.open ? 'PAUSE' : 'UNPAUSE', isHost: true, peerId: '' }],
+        };
+        netManager.broadcastToGuests(pauseMsg);
+        break;
+      }
       case 'ping':
         break;
       default:
@@ -455,22 +466,44 @@ export class GameScene extends Phaser.Scene {
     netManager.broadcastToGuests(msg);
   }
 
-  /** GUEST: update local enemy render data from host's broadcast. */
+  /** GUEST: update local enemy render data from host's broadcast (in-place to avoid sprite pool churn). */
   private updateGuestEnemies(view: { enemies: { type: number; x: number; y: number; hp: number; maxHp: number; r: number; frozen: boolean; slowed: boolean; marked: boolean; burning: boolean }[] }): void {
-    // Rebuild world.enemies from the view for rendering
-    this.world.enemies = view.enemies.map((e): import('../game/types').EnemyState => {
+    // Update existing enemy objects in-place where possible, only adding/removing as needed.
+    // This preserves object identity so the sprite pool (enemySpriteByRef Map) doesn't recycle everything every frame.
+    const incoming = view.enemies;
+    // Update or add enemies
+    for (let i = 0; i < incoming.length; i++) {
+      const e = incoming[i];
       const typeName = ENEMY_TYPE_NAMES[e.type] as EnemyType;
-      return {
-        type: typeName, x: e.x, y: e.y, hp: e.hp, maxHp: e.maxHp, r: e.r,
-        dmg: 0, spd: 0, color: '#888', xpValue: 0, wobble: false, seed: 0,
-        burning: e.burning ? 1 : 0, burnT: 0,
-        frozenUntil: e.frozen ? this.world.elapsed + 1 : 0,
-        slowUntil: e.slowed ? this.world.elapsed + 1 : 0,
-        slowAmt: e.slowed ? 0.2 : 0,
-        marked: e.marked ? this.world.elapsed + 1 : 0,
-        splitChild: false,
-      };
-    });
+      if (i < this.world.enemies.length) {
+        // Update existing enemy in-place
+        const existing = this.world.enemies[i];
+        existing.type = typeName;
+        existing.x = e.x; existing.y = e.y;
+        existing.hp = e.hp; existing.maxHp = e.maxHp; existing.r = e.r;
+        existing.frozenUntil = e.frozen ? this.world.elapsed + 2 : 0;
+        existing.slowUntil = e.slowed ? this.world.elapsed + 2 : 0;
+        existing.slowAmt = e.slowed ? 0.2 : 0;
+        existing.marked = e.marked ? this.world.elapsed + 2 : 0;
+        existing.burning = e.burning ? 1 : 0;
+      } else {
+        // Add new enemy
+        this.world.enemies.push({
+          type: typeName, x: e.x, y: e.y, hp: e.hp, maxHp: e.maxHp, r: e.r,
+          dmg: 0, spd: 0, color: '#888', xpValue: 0, wobble: false, seed: 0,
+          burning: e.burning ? 1 : 0, burnT: 0,
+          frozenUntil: e.frozen ? this.world.elapsed + 2 : 0,
+          slowUntil: e.slowed ? this.world.elapsed + 2 : 0,
+          slowAmt: e.slowed ? 0.2 : 0,
+          marked: e.marked ? this.world.elapsed + 2 : 0,
+          splitChild: false,
+        });
+      }
+    }
+    // Remove excess enemies (host has fewer than we do)
+    if (this.world.enemies.length > incoming.length) {
+      this.world.enemies.length = incoming.length;
+    }
   }
 
   private handleGuestMsg(msg: ClientMsg | HostMsg, _fromPeerId: string): void {
@@ -648,26 +681,15 @@ export class GameScene extends Phaser.Scene {
     // In multiplayer, pause the game for ALL players when anyone opens the grimoire.
     if (this.netMode === 'host') {
       // Host's grimoireOpen already pauses the host's sim loop.
-      // Broadcast pause state to all guests via a players message with a special flag.
-      // We don't have a dedicated pause message type, so we use the snapshot:
-      // the host's sim loop is paused (grimoireOpen=true), so no snapshots are
-      // sent while paused. Guests detect this by noticing no new snapshots
-      // arriving and checking a flag. Simplest approach: send a one-off
-      // 'players' message that guests interpret as a pause toggle.
+      // Broadcast pause/unpause to all guests.
       const pauseMsg: HostMsg = {
         t: 'players',
         players: [{ id: -1, name: this.world.grimoireOpen ? 'PAUSE' : 'UNPAUSE', isHost: true, peerId: '' }],
       };
       netManager.broadcastToGuests(pauseMsg);
     } else if (this.netMode === 'guest') {
-      // Guest: tell host to pause for everyone.
-      netManager.sendToHost({ t: 'ping' });
-      // Guests can't directly pause the host — they send a signal via buySkill
-      // with a special node ID. Actually, simplest: just pause locally and
-      // let the host keep running. The user asked for global pause, but that
-      // requires a proper message type. For now, guest grimoire pauses only
-      // the guest's rendering (the host keeps simulating, but the guest
-      // stops sending input and renders a static frame).
+      // Guest: tell host to pause/unpause for everyone
+      netManager.sendToHost({ t: 'grimoireToggle', open: this.world.grimoireOpen });
     }
   }
 
@@ -830,11 +852,19 @@ export class GameScene extends Phaser.Scene {
     if (!this.world.netPlayers) return;
     this.ensureGuestMageSprites(this.world.netPlayers.length);
     const g = this.fxGraphics;
+    const dt = 0.016; // approx frame dt for interpolation
     this.world.netPlayers.forEach((np, i) => {
       const spr = this.guestMageSprites[i];
       const s = np.state;
       if (s.downed) { spr.setVisible(false); return; }
-      spr.setPosition(Math.round(s.x), Math.round(s.y));
+      // Interpolate sprite position toward target for smooth movement
+      const curX = spr.x;
+      const curY = spr.y;
+      const lerp = Math.min(1, dt * 12); // smooth interpolation factor
+      spr.setPosition(
+        Math.round(curX + (s.x - curX) * lerp),
+        Math.round(curY + (s.y - curY) * lerp),
+      );
       spr.setVisible(true);
       spr.setDepth(6 + s.y * 0.0001);
       const tints = [0x6b9eff, 0x8bc48a, 0xe2a040, 0xb58ce0];

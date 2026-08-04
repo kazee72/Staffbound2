@@ -17,7 +17,8 @@ export type ClientMsg =
   | { t: 'playerState'; id: number; x: number; y: number; vx: number; vy: number; hp: number; maxHp: number; level: number; aim: number; dashing: boolean; invuln: boolean; dashCd: number; downed: boolean; sp: number; spSpent: number; projectiles: number[] }
   | { t: 'enemyHit'; enemyIdx: number; dmg: number; burn: boolean; slow: number; freeze: number; crit: boolean; markedBonus: number }
   | { t: 'bossHit'; dmg: number; burn: boolean; slow: number; crit: boolean; markedBonus: number }
-  | { t: 'ping' };
+  | { t: 'ping' }
+  | { t: 'grimoireToggle'; open: boolean };
 
 // ---------------- Host → Clients ----------------
 
