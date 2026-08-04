@@ -294,6 +294,8 @@ export interface World {
   W: number;
   H: number;
   running: boolean;
+  /** When true, this world is a guest in multiplayer — damage is visual only, host is authoritative. */
+  isGuest?: boolean;
   grimoireOpen: boolean;
   /** Toggles auto-aim vs mouse-aim. When true, bolt/ice lance/shadow bolt auto-target nearest enemy (classic behavior). When false, they fire toward player.aimAngle (mouse cursor). */
   autoAim: boolean;

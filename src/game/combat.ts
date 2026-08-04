@@ -54,7 +54,7 @@ export function damageEnemy(world: World, e: EnemyState, amount: number, opts: D
   if (opts.freeze) {
     e.frozenUntil = world.elapsed + opts.freeze;
   }
-  if (e.hp <= 0) killEnemy(world, e);
+  if (e.hp <= 0 && !world.isGuest) killEnemy(world, e);
 }
 
 export function killEnemy(world: World, e: EnemyState): void {

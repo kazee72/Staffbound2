@@ -224,6 +224,7 @@ export class GameScene extends Phaser.Scene {
       this.startRun(); // host starts the run immediately
     } else if (this.netMode === 'guest') {
       this.setupGuestNetworking();
+      this.world.isGuest = true;
       this.startRun(); // shared authority: guests run full local sim
     } else {
       // Single-player: show start overlay as before.
@@ -690,25 +691,41 @@ export class GameScene extends Phaser.Scene {
       const dy = pointer.worldY - p.y;
       if (Math.hypot(dx, dy) > 2) p.aimAngle = Math.atan2(dy, dx);
       updateSpellTimers(this.world, dt);
+      // Track enemy HP before projectiles hit, so guests can send enemyHit to host
+      const hpBefore: number[] = this.netMode === 'guest' ? this.world.enemies.map((e) => e.hp) : [];
       updateProjectiles(this.world, dt);
+      // GUEST: send enemyHit messages to host for each enemy damaged this frame
+      if (this.netMode === 'guest') {
+        for (let i = 0; i < this.world.enemies.length && i < hpBefore.length; i++) {
+          if (this.world.enemies[i].hp < hpBefore[i]) {
+            const dmg = hpBefore[i] - this.world.enemies[i].hp;
+            netManager.sendToHost({ t: 'enemyHit', enemyIdx: i, dmg, burn: false, slow: 0, freeze: 0, crit: false, markedBonus: 0 });
+          }
+        }
+      }
       updateDecoys(this.world, dt);
-      updateEnemies(this.world, dt);
       updateEffects(this.world, dt);
       updateParticles(this.world, dt);
-      updateSpawns(this.world, dt);
-      updateBossFight(this.world, dt);
 
-      // Detect stage change (after a boss kill) and regenerate the background.
-      if (this.world.stage !== this.lastStage) {
-        this.lastStage = this.world.stage;
-        this.updateStageBackground(this.world.stage);
-      }
+      // HOST and SINGLE-PLAYER: run enemy simulation
+      // GUESTS: do NOT run enemies/spawns/boss — they receive enemy state from host
+      if (this.netMode === 'host' || this.netMode === 'single') {
+        updateEnemies(this.world, dt);
+        updateSpawns(this.world, dt);
+        updateBossFight(this.world, dt);
 
-      // Show persistent ability-unlock overlay (pauses the game until dismissed).
-      if (this.world.pendingAbilityDisplay) {
-        this.world.grimoireOpen = true; // pause flag
-        this.ui.showAbilityUnlock(this.world);
-        this.world.pendingAbilityDisplay = null;
+        // Detect stage change (after a boss kill) and regenerate the background.
+        if (this.world.stage !== this.lastStage) {
+          this.lastStage = this.world.stage;
+          this.updateStageBackground(this.world.stage);
+        }
+
+        // Show persistent ability-unlock overlay (pauses the game until dismissed).
+        if (this.world.pendingAbilityDisplay) {
+          this.world.grimoireOpen = true; // pause flag
+          this.ui.showAbilityUnlock(this.world);
+          this.world.pendingAbilityDisplay = null;
+        }
       }
 
       // MULTIPLAYER: broadcast player state + (host) enemy state at 20Hz
@@ -738,13 +755,12 @@ export class GameScene extends Phaser.Scene {
 
     if (this.world.running) this.renderScene();
 
-    // HOST: render net player mages on top of the scene
-    if (this.netMode === 'host' && this.world.running) {
+    // MULTIPLAYER: render other players' mages + player list HUD
+    if (this.netMode !== 'single' && this.world.running) {
       this.renderNetPlayerMages();
-      // Update player list HUD from world state
       if (this.playerListEl) {
         const allPlayers = [
-          { id: 0, name: 'Host', x: this.world.player.x, y: this.world.player.y, hp: this.world.player.hp, maxHp: 100, level: this.world.level, downed: this.world.player.hp <= 0 },
+          { id: this.netMode === 'host' ? 0 : this.myPlayerSlot, name: this.netMode === 'host' ? 'Host' : 'You', x: this.world.player.x, y: this.world.player.y, hp: this.world.player.hp, maxHp: 100, level: this.world.level, downed: this.world.player.hp <= 0 },
           ...(this.world.netPlayers ?? []).map((np) => ({
             id: np.id, name: np.name, x: np.state.x, y: np.state.y, hp: np.state.hp, maxHp: np.state.maxHp, level: np.state.level, downed: np.state.downed,
           })),
@@ -756,17 +772,7 @@ export class GameScene extends Phaser.Scene {
           const tintHex = ['#6b9eff', '#8bc48a', '#e2a040', '#b58ce0'][idx];
           const hpPct = Math.max(0, (p.hp / p.maxHp) * 100);
           const downed = p.downed ? ' <span style="color:#c15b5b;">(DOWN)</span>' : '';
-          html += `
-            <div style="display:flex;align-items:center;gap:6px;margin:3px 0;">
-              <div style="width:8px;height:8px;border-radius:50%;background:${tintHex};"></div>
-              <div style="flex:1;">
-                <div style="font-size:10px;color:${tintHex};">P${p.id + 1} ${tintName}${downed}</div>
-                <div style="width:80px;height:4px;background:#20233a;border-radius:2px;overflow:hidden;">
-                  <div style="height:100%;width:${hpPct}%;background:${tintHex};"></div>
-                </div>
-              </div>
-            </div>
-          `;
+          html += `<div style="display:flex;align-items:center;gap:6px;margin:3px 0;"><div style="width:8px;height:8px;border-radius:50%;background:${tintHex};"></div><div style="flex:1;"><div style="font-size:10px;color:${tintHex};">P${p.id + 1} ${tintName}${downed}</div><div style="width:80px;height:4px;background:#20233a;border-radius:2px;overflow:hidden;"><div style="height:100%;width:${hpPct}%;background:${tintHex};"></div></div></div></div>`;
         });
         this.playerListEl!.innerHTML = html;
       }
