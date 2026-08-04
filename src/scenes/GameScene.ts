@@ -462,7 +462,15 @@ export class GameScene extends Phaser.Scene {
   private broadcastEnemyState(): void {
     this.snapshotTick++;
     const data = serializeEnemyState(this.world, this.snapshotTick);
-    const msg: HostMsg = { t: 'enemyState', enemies: data, bossActive: 0, boss: [] };
+    // Include player HPs so guests can update their own HP from host's authoritative damage
+    const playerHps: number[] = [];
+    playerHps.push(this.world.player.hp); // host is index 0
+    if (this.world.netPlayers) {
+      for (const np of this.world.netPlayers) {
+        playerHps.push(np.state.hp);
+      }
+    }
+    const msg: HostMsg = { t: 'enemyState', enemies: data, bossActive: 0, boss: [], playerHps };
     netManager.broadcastToGuests(msg);
   }
 
@@ -571,8 +579,23 @@ export class GameScene extends Phaser.Scene {
           }
           const b = this.world.bossFight.boss;
           b.x = view.boss.x; b.y = view.boss.y; b.hp = view.boss.hp; b.maxHp = view.boss.maxHp; b.phase = view.boss.phase;
+          // Update boss projectiles for rendering
+          b.projectiles = view.boss.projectiles.map((bp) => ({
+            x: bp.x, y: bp.y, vx: 0, vy: 0, r: bp.r, dmg: 0, color: '#' + bp.color.toString(16).padStart(6, '0'), life: 1,
+          }));
         } else {
           this.world.bossFight = null;
+        }
+        // Update our own HP from the host's authoritative player HPs array
+        if (this.myPlayerSlot >= 0 && msg.playerHps.length > this.myPlayerSlot) {
+          const hostHp = msg.playerHps[this.myPlayerSlot];
+          // Only update if host says we took damage (host HP <= local HP)
+          if (hostHp < this.world.player.hp) {
+            this.world.player.hp = hostHp;
+          }
+          if (hostHp <= 0) {
+            this.world.player.hp = 0;
+          }
         }
         break;
       }
@@ -745,6 +768,35 @@ export class GameScene extends Phaser.Scene {
         updateSpawns(this.world, dt);
         updateBossFight(this.world, dt);
 
+        // HOST: check enemy contact damage against net players (guests)
+        if (this.netMode === 'host' && this.world.netPlayers) {
+          for (const np of this.world.netPlayers) {
+            if (np.state.downed || np.state.invuln > 0) continue;
+            const s = np.state;
+            for (const e of this.world.enemies) {
+              if (e.dead) continue;
+              const pr2 = (s.r + e.r) ** 2;
+              if ((s.x - e.x) ** 2 + (s.y - e.y) ** 2 < pr2) {
+                s.hp -= e.dmg * dt * 0.8; // slightly reduced for fairness over network
+                if (s.hp <= 0) { s.hp = 0; s.downed = true; }
+                break;
+              }
+            }
+            // Boss projectile damage to guests
+            if (this.world.bossFight) {
+              const boss = this.world.bossFight.boss;
+              for (const bp of boss.projectiles) {
+                const pr2 = (s.r + bp.r) ** 2;
+                if ((s.x - bp.x) ** 2 + (s.y - bp.y) ** 2 < pr2) {
+                  s.hp -= bp.dmg * dt;
+                  if (s.hp <= 0) { s.hp = 0; s.downed = true; }
+                  break;
+                }
+              }
+            }
+          }
+        }
+
         // Detect stage change (after a boss kill) and regenerate the background.
         if (this.world.stage !== this.lastStage) {
           this.lastStage = this.world.stage;
@@ -853,8 +905,14 @@ export class GameScene extends Phaser.Scene {
     this.ensureGuestMageSprites(this.world.netPlayers.length);
     const g = this.fxGraphics;
     const dt = 0.016; // approx frame dt for interpolation
-    this.world.netPlayers.forEach((np, i) => {
-      const spr = this.guestMageSprites[i];
+    let spriteIdx = 0;
+    this.world.netPlayers.forEach((np) => {
+      // Skip self — the local player is drawn by drawPlayer(), not here.
+      if (np.id === this.myPlayerSlot && this.netMode !== 'host') return;
+      // On host, skip id 0 (that's the host itself).
+      if (this.netMode === 'host' && np.id === 0) return;
+      const spr = this.guestMageSprites[spriteIdx];
+      spriteIdx++;
       const s = np.state;
       if (s.downed) { spr.setVisible(false); return; }
       // Interpolate sprite position toward target for smooth movement
@@ -895,7 +953,7 @@ export class GameScene extends Phaser.Scene {
         }
       }
     });
-    for (let i = this.world.netPlayers.length; i < this.guestMageSprites.length; i++) {
+    for (let i = spriteIdx; i < this.guestMageSprites.length; i++) {
       this.guestMageSprites[i].setVisible(false);
     }
   }

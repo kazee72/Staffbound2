@@ -5,6 +5,7 @@
  */
 import type { World } from '../game/types';
 import { currentDay } from '../game/enemies';
+import Phaser from 'phaser';
 
 export function serializeEnemyState(world: World, tick: number): number[] {
   const out: number[] = [];
@@ -37,6 +38,12 @@ export function serializeEnemyState(world: World, tick: number): number[] {
     for (const t of b.telegraphs) {
       out.push(t.kind === 'ring' ? 0 : 1, t.x, t.y, t.radius ?? 0, t.length ?? 0, t.width ?? 0, t.t, t.dur);
     }
+    // Boss projectiles: [count, then per projectile: x, y, r, color]
+    out.push(b.projectiles.length);
+    for (const bp of b.projectiles) {
+      const c = Phaser.Display.Color.HexStringToColor(bp.color).color;
+      out.push(bp.x, bp.y, bp.r, c);
+    }
   }
 
   return out;
@@ -49,7 +56,7 @@ export interface EnemyView {
   stage: number;
   enemies: { type: number; x: number; y: number; hp: number; maxHp: number; r: number; frozen: boolean; slowed: boolean; marked: boolean; burning: boolean }[];
   bossActive: boolean;
-  boss: { defId: number; x: number; y: number; hp: number; maxHp: number; r: number; phase: number; telegraphs: { kind: number; x: number; y: number; r: number; length: number; width: number; t: number; dur: number }[] } | null;
+  boss: { defId: number; x: number; y: number; hp: number; maxHp: number; r: number; phase: number; telegraphs: { kind: number; x: number; y: number; r: number; length: number; width: number; t: number; dur: number }[]; projectiles: { x: number; y: number; r: number; color: number }[] } | null;
 }
 
 export function deserializeEnemyState(data: number[]): EnemyView {
@@ -81,7 +88,13 @@ export function deserializeEnemyState(data: number[]): EnemyView {
     for (let i = 0; i < teleCount; i++) {
       telegraphs.push({ kind: read(), x: read(), y: read(), r: read(), length: read(), width: read(), t: read(), dur: read() });
     }
-    boss = { defId, x: bx, y: by, hp: bhp, maxHp: bmaxHp, r: br, phase: bphase, telegraphs };
+    // Boss projectiles
+    const bpCount = read();
+    const projectiles: NonNullable<EnemyView['boss']>['projectiles'] = [];
+    for (let i = 0; i < bpCount; i++) {
+      projectiles.push({ x: read(), y: read(), r: read(), color: read() });
+    }
+    boss = { defId, x: bx, y: by, hp: bhp, maxHp: bmaxHp, r: br, phase: bphase, telegraphs, projectiles };
   }
 
   return { tick, elapsed, day, stage, enemies, bossActive, boss };

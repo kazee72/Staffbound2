@@ -26,7 +26,7 @@ export type HostMsg =
   | { t: 'welcome'; you: number; players: PlayerInfo[] }
   | { t: 'players'; players: PlayerInfo[] }
   | { t: 'start'; seed: number }
-  | { t: 'enemyState'; enemies: number[]; bossActive: number; boss: number[] }
+  | { t: 'enemyState'; enemies: number[]; bossActive: number; boss: number[]; playerHps: number[] }
   | { t: 'enemyKilled'; enemyIdx: number; killerPlayerId: number }
   | { t: 'bossKilled'; killerPlayerId: number }
   | { t: 'hostLeft' };
