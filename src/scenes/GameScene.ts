@@ -319,6 +319,7 @@ export class GameScene extends Phaser.Scene {
           s.dashCd = msg.dashCd;
           s.downed = msg.downed;
           s.sp = msg.sp; s.spSpent = msg.spSpent;
+          s.remoteProjectiles = msg.projectiles;
         }
         netManager.broadcastToGuests(msg); // relay to other guests
         break;
@@ -424,6 +425,12 @@ export class GameScene extends Phaser.Scene {
   private broadcastPlayerState(): void {
     const p = this.world.player;
     const myId = this.netMode === 'host' ? 0 : this.myPlayerSlot;
+    // Pack projectiles compactly: [x, y, r, colorAsInt, ...] (5 values per proj)
+    const projData: number[] = [];
+    for (const pr of this.world.projectiles) {
+      const c = Phaser.Display.Color.HexStringToColor(pr.color).color;
+      projData.push(Math.round(pr.x), Math.round(pr.y), pr.r, c, pr.mini ? 1 : 0);
+    }
     const msg: ClientMsg = {
       t: 'playerState', id: myId,
       x: p.x, y: p.y, vx: p.vx, vy: p.vy,
@@ -431,6 +438,7 @@ export class GameScene extends Phaser.Scene {
       aim: p.aimAngle, dashing: p.dashing > 0, invuln: p.invuln > 0,
       dashCd: p.dashCd, downed: p.hp <= 0,
       sp: this.world.sp, spSpent: this.world.spSpent,
+      projectiles: projData,
     };
     if (this.netMode === 'host') {
       netManager.broadcastToGuests(msg);
@@ -516,6 +524,7 @@ export class GameScene extends Phaser.Scene {
         s.aimAngle = msg.aim; s.dashing = msg.dashing ? 1 : 0;
         s.invuln = msg.invuln ? 1 : 0; s.dashCd = msg.dashCd;
         s.downed = msg.downed; s.sp = msg.sp; s.spSpent = msg.spSpent;
+        s.remoteProjectiles = msg.projectiles;
         break;
       }
       case 'enemyState': {
@@ -810,7 +819,8 @@ export class GameScene extends Phaser.Scene {
   private ensureGuestMageSprites(count: number): void {
     while (this.guestMageSprites.length < count) {
       const spr = this.add.sprite(0, 0, MAGE_TEXTURE_KEY).setDepth(6);
-      spr.setScale(1.5);
+      spr.setScale(getMageScale());
+      if (this.anims.exists(MAGE_ANIM_KEY)) spr.play(MAGE_ANIM_KEY);
       spr.setVisible(false);
       this.guestMageSprites.push(spr);
     }
@@ -841,6 +851,18 @@ export class GameScene extends Phaser.Scene {
         g.fillRect(s.x - w / 2, s.y - 22, w, 5);
         g.fillStyle(Phaser.Display.Color.HexStringToColor(tintHex).color, 1);
         g.fillRect(s.x - w / 2, s.y - 22, w * Math.max(0, s.hp / s.maxHp), 5);
+      }
+      // Draw remote player's projectiles
+      if (s.remoteProjectiles && s.remoteProjectiles.length > 0) {
+        for (let j = 0; j < s.remoteProjectiles.length; j += 5) {
+          const px = s.remoteProjectiles[j];
+          const py = s.remoteProjectiles[j + 1];
+          const pr = s.remoteProjectiles[j + 2];
+          const pc = s.remoteProjectiles[j + 3];
+          const mini = s.remoteProjectiles[j + 4] === 1;
+          const colorHex = '#' + pc.toString(16).padStart(6, '0');
+          this.drawProjectileGlow(g, px, py, mini ? 3 : pr, colorHex);
+        }
       }
     });
     for (let i = this.world.netPlayers.length; i < this.guestMageSprites.length; i++) {

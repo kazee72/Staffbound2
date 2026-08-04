@@ -14,7 +14,7 @@
 
 export type ClientMsg =
   | { t: 'hello'; name: string; roomCode: string; meta: MetaPayload; purchased: string[] }
-  | { t: 'playerState'; id: number; x: number; y: number; vx: number; vy: number; hp: number; maxHp: number; level: number; aim: number; dashing: boolean; invuln: boolean; dashCd: number; downed: boolean; sp: number; spSpent: number }
+  | { t: 'playerState'; id: number; x: number; y: number; vx: number; vy: number; hp: number; maxHp: number; level: number; aim: number; dashing: boolean; invuln: boolean; dashCd: number; downed: boolean; sp: number; spSpent: number; projectiles: number[] }
   | { t: 'enemyHit'; enemyIdx: number; dmg: number; burn: boolean; slow: number; freeze: number; crit: boolean; markedBonus: number }
   | { t: 'bossHit'; dmg: number; burn: boolean; slow: number; crit: boolean; markedBonus: number }
   | { t: 'ping' };

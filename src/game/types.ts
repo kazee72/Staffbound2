@@ -379,6 +379,8 @@ export interface NetPlayerState {
   purchased: Set<string>;
   sp: number;
   spSpent: number;
+  /** Remote player's projectiles (packed: x, y, r, colorInt, mini per projectile) for rendering. */
+  remoteProjectiles?: number[];
   /** Per-player XP/level. */
   xp: number;
   xpNext: number;

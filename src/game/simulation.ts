@@ -311,7 +311,7 @@ export function updateEnemies(world: World, dt: number): void {
     if (e.rootBleed && e.rootBleed > world.elapsed) damageEnemy(world, e, 4 * dt, { allowCrit: false });
     if (e.burning > world.elapsed) damageEnemy(world, e, 3 * dt, { allowCrit: false });
 
-    // Shadow Wraith teleport: periodically blink toward the player.
+    // Shadow Wraith teleport: periodically blink toward the nearest player.
     if (e.teleport) {
       if (e.teleportCd === undefined) e.teleportCd = 2 + Math.random() * 2;
       e.teleportCd -= dt;
@@ -319,16 +319,42 @@ export function updateEnemies(world: World, dt: number): void {
         e.teleportCd = 3 + Math.random() * 2;
         const ang = Math.random() * Math.PI * 2;
         const dist = 60 + Math.random() * 40;
-        e.x = p.x + Math.cos(ang) * dist;
-        e.y = p.y + Math.sin(ang) * dist;
+        // Find nearest player for teleport target
+        let tx = p.x, ty = p.y;
+        let td = (p.x - e.x) ** 2 + (p.y - e.y) ** 2;
+        if (world.netPlayers) {
+          for (const np of world.netPlayers) {
+            if (np.state.downed) continue;
+            const d = (np.state.x - e.x) ** 2 + (np.state.y - e.y) ** 2;
+            if (d < td) { td = d; tx = np.state.x; ty = np.state.y; }
+          }
+        }
+        e.x = tx + Math.cos(ang) * dist;
+        e.y = ty + Math.sin(ang) * dist;
         e.x = clamp(e.x, 10, world.W - 10);
         e.y = clamp(e.y, 10, world.H - 10);
         burst(world, e.x, e.y, '#9a7ec4', 8, 80, 0.3);
       }
     }
 
-    const dx = p.x - e.x;
-    const dy = p.y - e.y;
+    // Target the nearest player (host's local player + all net players).
+    let targetX = p.x;
+    let targetY = p.y;
+    let nearestD = (p.x - e.x) ** 2 + (p.y - e.y) ** 2;
+    if (world.netPlayers) {
+      for (const np of world.netPlayers) {
+        if (np.state.downed) continue;
+        const d = (np.state.x - e.x) ** 2 + (np.state.y - e.y) ** 2;
+        if (d < nearestD) {
+          nearestD = d;
+          targetX = np.state.x;
+          targetY = np.state.y;
+        }
+      }
+    }
+
+    const dx = targetX - e.x;
+    const dy = targetY - e.y;
     const dl = Math.hypot(dx, dy) || 1;
     let mx = dx / dl;
     let my = dy / dl;
