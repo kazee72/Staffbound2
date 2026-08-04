@@ -192,7 +192,26 @@ export interface GroundEffect {
   dmg: number;
 }
 
-export type Effect = RingEffect | GroundEffect;
+/**
+ * Lightning arc effect — a visible jagged line drawn between two points
+ * (player→enemy or enemy→enemy) to visualize chain lightning. Fades out
+ * quickly (short life). `segments` holds pre-computed jagged waypoints
+ * so the zigzag shape stays stable across frames as the effect decays.
+ */
+export interface LightningEffect {
+  type: 'lightning';
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  color: string;
+  life: number;
+  t: number;
+  /** Pre-computed jagged segments: array of [x, y] offsets from the start point. */
+  segments: number[];
+}
+
+export type Effect = RingEffect | GroundEffect | LightningEffect;
 
 export interface Particle {
   x: number;
@@ -267,6 +286,18 @@ export interface Cooldowns {
   shadowNova: number;
   /** Whirlwind Strike (P_L) — periodic melee cyclone. */
   whirlwindStrike: number;
+  /** Static Charge (T_A) — 20% chance for bolts to chain to 1 enemy. Handled in castBolt. */
+  // (no cooldown — passive)
+  /** Storm Call (T_C2) — periodically strike a random enemy with lightning. */
+  stormCall: number;
+  /** Thunderclap (T_G) — small AoE burst around player every 3s. */
+  thunderclap: number;
+  /** Lightning Storm (T_E2) — every 8s, strike 3 random enemies. */
+  lightningStorm: number;
+  /** Storm Lord (T_I) — chain lightning hits all enemies every 10s. */
+  stormLord: number;
+  /** Thunder Strike (T_L) — massive bolt on nearest enemy every 5s. */
+  thunderStrike: number;
 }
 
 export interface SkillNode {
@@ -470,6 +501,11 @@ export function createWorld(W: number, H: number, flash: (text: string, color: s
       sporeBurst: 0,
       shadowNova: 0,
       whirlwindStrike: 0,
+      stormCall: 0,
+      thunderclap: 0,
+      lightningStorm: 0,
+      stormLord: 0,
+      thunderStrike: 0,
     },
     spawnTimer: 0,
     bossTimer: 20,

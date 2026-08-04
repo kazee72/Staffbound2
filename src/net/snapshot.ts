@@ -125,8 +125,11 @@ export function serializeSnapshot(world: World, tick: number): number[] {
   for (const fx of world.effects) {
     if (fx.type === 'ring') {
       out.push(0, fx.x, fx.y, fx.maxR, 0, packColor(fx.color), fx.life, fx.t);
-    } else {
+    } else if (fx.type === 'ground') {
       out.push(1, fx.x, fx.y, fx.r, (fx as any).dmg || 0, packColor(fx.color), fx.life, fx.t);
+    } else {
+      // Lightning effect — serialize as type 2 with start/end points
+      out.push(2, fx.x1, fx.y1, fx.x2, fx.y2, packColor(fx.color), fx.life, fx.t);
     }
   }
 
@@ -166,7 +169,7 @@ function toNetPlayer(
     phoenixCd: 0, undyingCd: 0, stillTime: 0,
     purchased: new Set<string>(), sp, spSpent,
     xp: 0, xpNext: 24,
-    cd: { bolt: 0, boltCastCount: 0, fireNova: 0, iceLance: 0, frostArmor: 0, frostArmorActive: 0, arcaneBurst: 0, vines: 0, shadowBolt: 0, timeWarp: 0, overgrowth: 0, shadowBlink: 0, eternalFrost: 0, apexSurge: 0, cull: 0, magmaCore: 0, arcaneExplosion: 0, lightningChain: 0, blizzard: 0, earthquake: 0, sporeBurst: 0, shadowNova: 0, whirlwindStrike: 0 },
+    cd: { bolt: 0, boltCastCount: 0, fireNova: 0, iceLance: 0, frostArmor: 0, frostArmorActive: 0, arcaneBurst: 0, vines: 0, shadowBolt: 0, timeWarp: 0, overgrowth: 0, shadowBlink: 0, eternalFrost: 0, apexSurge: 0, cull: 0, magmaCore: 0, arcaneExplosion: 0, lightningChain: 0, blizzard: 0, earthquake: 0, sporeBurst: 0, shadowNova: 0, whirlwindStrike: 0, stormCall: 0, thunderclap: 0, lightningStorm: 0, stormLord: 0, thunderStrike: 0 },
     wisps: [], decoys: [],
   };
 }

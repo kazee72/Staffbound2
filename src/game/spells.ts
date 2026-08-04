@@ -4,7 +4,7 @@ import { cooldownMult, spellDamageMult, projectileSpeedMult, healPlayer, maxHP }
 import { hasNode } from './skillTree';
 import { damageEnemy, damageBoss } from './combat';
 import { burst } from './visuals';
-import { hasBossAbility, bossAbilityRank } from './metaProgression';
+import { hasBossAbility, bossAbilityRank, metaSpellRadiusMult } from './metaProgression';
 
 function dist2(x1: number, y1: number, x2: number, y2: number): number {
   const dx = x1 - x2;
@@ -24,6 +24,153 @@ export function nearestEnemy(world: World, x: number, y: number): EnemyState | n
     }
   }
   return best;
+}
+
+/**
+ * Lightning damage multiplier from the Lightning (T) branch.
+ * Galvanize (T_C2): +15%, Conductor (T_E2): +25%, Tempest (T_F): x2.
+ */
+export function lightningDamageMult(world: World): number {
+  const p = world.purchased;
+  let mult = 1;
+  if (hasNode(p, 'T_C2')) mult += 0.15;
+  if (hasNode(p, 'T_E2')) mult += 0.25;
+  if (hasNode(p, 'T_F')) mult *= 2; // Tempest doubles lightning damage
+  return mult;
+}
+
+/**
+ * Generate jagged lightning segments between two points.
+ * Returns a flat array of [x, y, x, y, ...] waypoints.
+ */
+function generateLightningSegments(x1: number, y1: number, x2: number, y2: number): number[] {
+  const segments: number[] = [];
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const dist = Math.hypot(dx, dy);
+  const numPoints = Math.max(4, Math.floor(dist / 20));
+  const perpX = -dy / dist;
+  const perpY = dx / dist;
+  segments.push(x1, y1);
+  for (let i = 1; i < numPoints; i++) {
+    const t = i / numPoints;
+    const jitter = (Math.random() - 0.5) * 16;
+    segments.push(x1 + dx * t + perpX * jitter, y1 + dy * t + perpY * jitter);
+  }
+  segments.push(x2, y2);
+  return segments;
+}
+
+/**
+ * Spawn a visible lightning arc effect between two points.
+ */
+function spawnLightningArc(world: World, x1: number, y1: number, x2: number, y2: number, color: string): void {
+  world.effects.push({
+    type: 'lightning',
+    x1, y1, x2, y2,
+    color,
+    life: 0.25,
+    t: 0,
+    segments: generateLightningSegments(x1, y1, x2, y2),
+  });
+}
+
+/**
+ * Chain lightning from a source point through nearby enemies.
+ * @param world
+ * @param fromX/fromY  origin of the chain
+ * @param initialTarget  the first enemy hit (or null to find nearest)
+ * @param baseDmg  base damage for the first hit
+ * @param chainCount  number of additional enemies to chain to
+ * @param falloff  damage multiplier per chain (0.5 = 50% per jump)
+ * @param color  color of the lightning arcs
+ */
+function chainLightning(
+  world: World,
+  fromX: number,
+  fromY: number,
+  initialTarget: EnemyState | null,
+  baseDmg: number,
+  chainCount: number,
+  falloff: number,
+  color: string,
+): void {
+  // Find the first target if not provided
+  let target = initialTarget;
+  if (!target) {
+    target = nearestEnemy(world, fromX, fromY);
+  }
+  if (!target && world.bossFight) {
+    // Fall back to boss
+    const boss = world.bossFight.boss;
+    spawnLightningArc(world, fromX, fromY, boss.x, boss.y, color);
+    damageBoss(world, boss, baseDmg, { color });
+    return;
+  }
+  if (!target) return;
+
+  const hit = new Set<EnemyState>();
+  let prevX = fromX, prevY = fromY;
+  let curTarget: EnemyState | null = target;
+  let dmg = baseDmg;
+
+  for (let i = 0; i <= chainCount; i++) {
+    if (!curTarget || curTarget.dead) break;
+    hit.add(curTarget);
+    spawnLightningArc(world, prevX, prevY, curTarget.x, curTarget.y, color);
+    damageEnemy(world, curTarget, dmg, { color });
+    world.effects.push({ type: 'ring', x: curTarget.x, y: curTarget.y, r: 0, maxR: 25, color, life: 0.2, t: 0 });
+    prevX = curTarget.x;
+    prevY = curTarget.y;
+    dmg *= falloff;
+
+    // Find next nearest enemy not already hit, within chain range
+    let nextTarget: EnemyState | null = null;
+    let nextDist = Infinity;
+    const chainRange = 200;
+    for (const e of world.enemies) {
+      if (e.dead || hit.has(e)) continue;
+      const d = dist2(prevX, prevY, e.x, e.y);
+      if (d < chainRange * chainRange && d < nextDist) {
+        nextDist = d;
+        nextTarget = e;
+      }
+    }
+    if (!nextTarget && world.bossFight && !hit.has(world.bossFight.boss as unknown as EnemyState)) {
+      // Chain to boss if in range
+      const boss = world.bossFight.boss;
+      const d = dist2(prevX, prevY, boss.x, boss.y);
+      if (d < chainRange * chainRange) {
+        // Hit the boss and stop (can't chain from boss further in this simple impl)
+        spawnLightningArc(world, prevX, prevY, boss.x, boss.y, color);
+        damageBoss(world, boss, dmg, { color });
+        break;
+      }
+    }
+    curTarget = nextTarget;
+  }
+}
+
+/**
+ * Get the effective chain count for the Lightning branch.
+ * T_A (Static Charge): 1 chain on 20% of bolts
+ * T_B (Chain Lightning): +2 chains
+ * T_D (Overload): +2 chains
+ * T_F (Tempest): all attacks chain (minimum 1)
+ * T_J (Arc Surge): +2 chains, falloff improved to 0.75
+ */
+function getLightningChainCount(world: World): number {
+  let count = 0;
+  if (hasNode(world.purchased, 'T_B')) count += 2;
+  if (hasNode(world.purchased, 'T_D')) count += 2;
+  if (hasNode(world.purchased, 'T_J')) count += 2;
+  if (hasNode(world.purchased, 'T_F')) count = Math.max(count, 2); // Tempest: all attacks chain
+  return count;
+}
+
+/** Falloff per chain jump — Arc Surge (T_J) improves it to 0.75. */
+function getLightningFalloff(world: World): number {
+  return hasNode(world.purchased, 'T_J') ? 0.75 : 0.5;
 }
 
 /**
@@ -131,11 +278,33 @@ export function castBolt(world: World): void {
     }
   }
   if (hasNode(world.purchased, 'V_G') && Math.random() < 0.1) world.cd.bolt = 0;
+
+  // Lightning branch: chain from the player to nearby enemies on each bolt cast.
+  // T_A (Static Charge): 20% chance to chain to 1 enemy for 60% damage.
+  // T_B (Chain Lightning): +2 chains at 50% damage each.
+  // T_D (Overload): +2 chains.
+  // T_J (Arc Surge): +2 chains, falloff 0.75.
+  // T_F (Tempest): all attacks chain (minimum 2 chains), lightning damage doubled.
+  const chainCount = getLightningChainCount(world);
+  if (chainCount > 0 || hasNode(world.purchased, 'T_A')) {
+    const target = nearestEnemy(world, p.x, p.y);
+    if (target || world.bossFight) {
+      let effectiveChain = chainCount;
+      // T_A alone: 20% chance for 1 chain
+      if (chainCount === 0 && hasNode(world.purchased, 'T_A')) {
+        if (Math.random() < 0.2) effectiveChain = 1;
+        else return;
+      }
+      const boltDmg = (8 + world.level * 0.6) * 0.6 * lightningDamageMult(world);
+      const falloff = getLightningFalloff(world);
+      chainLightning(world, p.x, p.y, target, boltDmg, effectiveChain, falloff, '#c4e842');
+    }
+  }
 }
 
 export function castFireNova(world: World): void {
   const p = world.player;
-  const radius = 110 + (hasNode(world.purchased, 'F_C1') ? 45 : 0);
+  const radius = Math.round((110 + (hasNode(world.purchased, 'F_C1') ? 45 : 0)) * metaSpellRadiusMult(world));
   const burnMult = hasNode(world.purchased, 'F_J') ? 1.5 : 1; // Eternal Flame: +50% burn dmg
   const dmg = (22 + world.level * 0.5) * (hasNode(world.purchased, 'F_E1') ? 1.8 : 1) * spellDamageMult(world);
   world.effects.push({ type: 'ring', x: p.x, y: p.y, r: 0, maxR: radius, color: '#e2793d', life: 0.4, t: 0 });
@@ -210,7 +379,7 @@ export function castArcaneBurst(world: World): void {
 
 export function castVines(world: World): void {
   const p = world.player;
-  const radius = 130 + (hasNode(world.purchased, 'N_D') ? 60 : 0);
+  const radius = Math.round((130 + (hasNode(world.purchased, 'N_D') ? 60 : 0)) * metaSpellRadiusMult(world));
   world.effects.push({ type: 'ring', x: p.x, y: p.y, r: 0, maxR: radius, color: '#8bc48a', life: 0.5, t: 0 });
   forEachTargetInRange(
     world,
@@ -244,6 +413,144 @@ export function castShadowBolt(world: World): void {
     ang = p.aimAngle;
   }
   fireProjectile(world, p.x, p.y, Math.cos(ang), Math.sin(ang), projSpeed, dmg, '#c4728f', 0, { markedBonus: true });
+}
+
+// ==================== Lightning branch spells ====================
+
+/** Thunderclap (T_B/T_G): small AoE burst around player, slows enemies. */
+export function castThunderclap(world: World): void {
+  const p = world.player;
+  const baseRadius = 90;
+  const radius = Math.round((baseRadius + (hasNode(world.purchased, 'T_G') ? 36 : 0)) * metaSpellRadiusMult(world));
+  const dmg = (14 + world.level * 0.4) * lightningDamageMult(world);
+  const slowAmt = hasNode(world.purchased, 'T_G') ? 0.3 : 0;
+  const slowDur = 1;
+  world.effects.push({ type: 'ring', x: p.x, y: p.y, r: 0, maxR: radius, color: '#c4e842', life: 0.35, t: 0 });
+  forEachTargetInRange(
+    world,
+    p.x,
+    p.y,
+    radius,
+    (e) => {
+      damageEnemy(world, e, dmg, { color: '#c4e842', slow: slowAmt, slowDur });
+      spawnLightningArc(world, p.x, p.y, e.x, e.y, '#c4e842');
+    },
+    () => {
+      damageBoss(world, world.bossFight!.boss, dmg, { color: '#c4e842' });
+      spawnLightningArc(world, p.x, p.y, world.bossFight!.boss.x, world.bossFight!.boss.y, '#c4e842');
+    },
+  );
+  burst(world, p.x, p.y, '#c4e842', 12, 100);
+  // Ground Current (T_K): leave a charged field
+  if (hasNode(world.purchased, 'T_K')) {
+    world.effects.push({ type: 'ground', x: p.x, y: p.y, r: radius * 0.8, color: '#c4e842', life: 3, t: 0, dmg: 4 * lightningDamageMult(world) });
+  }
+}
+
+/** Storm Call (T_C1): strike a random enemy with lightning, AoE around them. */
+export function castStormCall(world: World): void {
+  const alive = world.enemies.filter((e) => !e.dead);
+  if (alive.length === 0 && !world.bossFight) return;
+  let target: EnemyState;
+  if (alive.length > 0) {
+    target = alive[Math.floor(Math.random() * alive.length)];
+  } else {
+    target = world.bossFight!.boss as unknown as EnemyState;
+  }
+  const dmg = (16 + world.level * 0.5) * lightningDamageMult(world);
+  const aoeRadius = 50;
+  // Lightning from sky to target
+  spawnLightningArc(world, target.x, target.y - 300, target.x, target.y, '#c4e842');
+  world.effects.push({ type: 'ring', x: target.x, y: target.y, r: 0, maxR: aoeRadius, color: '#c4e842', life: 0.3, t: 0 });
+  forEachTargetInRange(
+    world,
+    target.x,
+    target.y,
+    aoeRadius,
+    (e) => damageEnemy(world, e, dmg, { color: '#c4e842' }),
+    () => damageBoss(world, world.bossFight!.boss, dmg, { color: '#c4e842' }),
+  );
+  burst(world, target.x, target.y, '#c4e842', 10, 80);
+}
+
+/** Lightning Storm (T_E1): strike 3 random enemies with lightning. */
+export function castLightningStorm(world: World): void {
+  const alive = world.enemies.filter((e) => !e.dead);
+  const count = Math.min(3, alive.length || 1);
+  const dmg = (20 + world.level * 0.6) * lightningDamageMult(world);
+  for (let i = 0; i < count; i++) {
+    let target: EnemyState | null = null;
+    if (alive.length > 0) {
+      target = alive[Math.floor(Math.random() * alive.length)];
+      // Remove from list to avoid hitting same enemy multiple times
+      alive.splice(alive.indexOf(target), 1);
+    } else if (world.bossFight) {
+      target = world.bossFight.boss as unknown as EnemyState;
+    }
+    if (!target) break;
+    const tx = (target as EnemyState).x;
+    const ty = (target as EnemyState).y;
+    spawnLightningArc(world, tx, ty - 300, tx, ty, '#c4e842');
+    world.effects.push({ type: 'ring', x: tx, y: ty, r: 0, maxR: 60, color: '#c4e842', life: 0.3, t: 0 });
+    forEachTargetInRange(
+      world,
+      tx,
+      ty,
+      60,
+      (e) => damageEnemy(world, e, dmg, { color: '#c4e842' }),
+      () => damageBoss(world, world.bossFight!.boss, dmg, { color: '#c4e842' }),
+    );
+    burst(world, tx, ty, '#c4e842', 12, 100);
+  }
+  world.flash('LIGHTNING STORM', '#c4e842');
+}
+
+/** Storm Lord (T_I): chain lightning through all enemies on screen. */
+export function castStormLord(world: World): void {
+  const p = world.player;
+  const alive = world.enemies.filter((e) => !e.dead);
+  if (alive.length === 0 && !world.bossFight) return;
+  const dmg = (25 + world.level * 0.7) * lightningDamageMult(world);
+  // Chain through ALL enemies on screen
+  let prevX = p.x, prevY = p.y;
+  const hit = new Set<EnemyState>();
+  const allTargets = [...alive];
+  for (const e of allTargets) {
+    if (e.dead) continue;
+    hit.add(e);
+    spawnLightningArc(world, prevX, prevY, e.x, e.y, '#c4e842');
+    damageEnemy(world, e, dmg, { color: '#c4e842' });
+    world.effects.push({ type: 'ring', x: e.x, y: e.y, r: 0, maxR: 30, color: '#c4e842', life: 0.2, t: 0 });
+    prevX = e.x;
+    prevY = e.y;
+  }
+  // Also hit the boss
+  if (world.bossFight) {
+    const boss = world.bossFight.boss;
+    spawnLightningArc(world, prevX, prevY, boss.x, boss.y, '#c4e842');
+    damageBoss(world, boss, dmg, { color: '#c4e842' });
+  }
+  world.flash('STORM LORD', '#c4e842');
+}
+
+/** Thunder Strike (T_L): call down a massive lightning bolt on the nearest enemy. */
+export function castThunderStrike(world: World): void {
+  const p = world.player;
+  const target = nearestEnemy(world, p.x, p.y) || (world.bossFight ? world.bossFight.boss as unknown as EnemyState : null);
+  if (!target) return;
+  const dmg = (30 + world.level * 0.8) * lightningDamageMult(world);
+  const aoeRadius = 80;
+  spawnLightningArc(world, target.x, target.y - 400, target.x, target.y, '#c4e842');
+  world.effects.push({ type: 'ring', x: target.x, y: target.y, r: 0, maxR: aoeRadius, color: '#c4e842', life: 0.4, t: 0 });
+  forEachTargetInRange(
+    world,
+    target.x,
+    target.y,
+    aoeRadius,
+    (e) => damageEnemy(world, e, dmg, { color: '#c4e842' }),
+    () => damageBoss(world, world.bossFight!.boss, dmg, { color: '#c4e842' }),
+  );
+  burst(world, target.x, target.y, '#c4e842', 20, 140);
 }
 
 export function updateWisps(world: World, dt: number): void {
@@ -649,6 +956,58 @@ export function updateSpellTimers(world: World, dt: number): void {
       );
       burst(world, world.player.x, world.player.y, '#4fd6c0', 20, 160);
       world.flash('WHIRLWIND', '#4fd6c0');
+    }
+  }
+
+  // ==================== Lightning branch timers ====================
+
+  // Thunderclap (T_B): small AoE burst around player every 3s.
+  if (hasNode(world.purchased, 'T_B')) {
+    if (world.cd.thunderclap > 0) {
+      world.cd.thunderclap -= dt;
+    } else {
+      world.cd.thunderclap = 3 * cm;
+      castThunderclap(world);
+    }
+  }
+
+  // Storm Call (T_C1): every 4s (or 2s with Conductor T_E2), strike a random enemy.
+  if (hasNode(world.purchased, 'T_C1')) {
+    if (world.cd.stormCall > 0) {
+      world.cd.stormCall -= dt;
+    } else {
+      world.cd.stormCall = (hasNode(world.purchased, 'T_E2') ? 2 : 4) * cm;
+      castStormCall(world);
+    }
+  }
+
+  // Lightning Storm (T_E1): every 8s, strike 3 random enemies.
+  if (hasNode(world.purchased, 'T_E1')) {
+    if (world.cd.lightningStorm > 0) {
+      world.cd.lightningStorm -= dt;
+    } else {
+      world.cd.lightningStorm = 8 * cm;
+      castLightningStorm(world);
+    }
+  }
+
+  // Thunder Strike (T_L): every 5s, call down a massive bolt on the nearest enemy.
+  if (hasNode(world.purchased, 'T_L')) {
+    if (world.cd.thunderStrike > 0) {
+      world.cd.thunderStrike -= dt;
+    } else {
+      world.cd.thunderStrike = 5 * cm;
+      castThunderStrike(world);
+    }
+  }
+
+  // Storm Lord (T_I): every 10s, chain lightning through all enemies on screen.
+  if (hasNode(world.purchased, 'T_I')) {
+    if (world.cd.stormLord > 0) {
+      world.cd.stormLord -= dt;
+    } else {
+      world.cd.stormLord = 10;
+      castStormLord(world);
     }
   }
 

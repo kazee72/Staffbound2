@@ -294,6 +294,22 @@ export function updateEnemies(world: World, dt: number): void {
       }
     });
   }
+  // Static Field (T_H): enemies near the player take periodic lightning damage.
+  if (hasNode(world.purchased, 'T_H')) {
+    const sfRadius = 120;
+    const sfDmg = (5 + world.level * 0.2) * dt * 2; // per-frame damage tick
+    world.enemies.forEach((e) => {
+      if (!e.dead && dist2(e.x, e.y, p.x, p.y) < sfRadius * sfRadius) {
+        damageEnemy(world, e, sfDmg, { allowCrit: false, color: '#c4e842' });
+      }
+    });
+    if (world.bossFight) {
+      const boss = world.bossFight.boss;
+      if (dist2(boss.x, boss.y, p.x, p.y) < sfRadius * sfRadius) {
+        damageBoss(world, boss, sfDmg, { allowCrit: false, color: '#c4e842' });
+      }
+    }
+  }
   for (let i = world.enemies.length - 1; i >= 0; i--) {
     const e = world.enemies[i];
     if (e.dead) {

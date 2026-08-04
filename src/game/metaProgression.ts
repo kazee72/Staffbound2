@@ -30,28 +30,33 @@ export interface MetaUpgradeDef {
 }
 
 export const META_UPGRADES: MetaUpgradeDef[] = [
-  // Meta progression was nerfed: per-rank bonuses reduced ~30%, max ranks
-  // capped at 5-6 (down from 8-10), and essence costs inflated ~40% for later
-  // ranks. The goal is a shallower, more grind-sensitive progression so
-  // in-run Grimoire builds matter more than passive meta power.
-  { id: 'dmg',       name: 'Arcane Resonance',  desc: '+3.5% damage per rank.',                   maxRank: 6,  costAt: (r) => 12 + r * 11,    perRank: 0.035 },
-  { id: 'cd',        name: 'Swift Spirit',      desc: '+3% cooldown reduction per rank.',         maxRank: 6,  costAt: (r) => 14 + r * 14,   perRank: 0.03 },
-  { id: 'move',      name: 'Wanderlust',        desc: '+3% movement speed per rank.',             maxRank: 6,  costAt: (r) => 12 + r * 10,   perRank: 0.03 },
-  { id: 'hp',        name: 'Vital Essence',     desc: '+3.5% max HP per rank.',                   maxRank: 6,  costAt: (r) => 14 + r * 13,   perRank: 0.035 },
-  { id: 'xp',        name: 'Soul Harvest',      desc: '+4% XP gain per rank.',                    maxRank: 5,  costAt: (r) => 18 + r * 14,   perRank: 0.04 },
-  { id: 'essence',   name: 'Echoing Glory',     desc: '+5.5% essence gain per rank.',             maxRank: 5,  costAt: (r) => 22 + r * 17,   perRank: 0.055 },
-  { id: 'crit',      name: 'Keening Edge',      desc: '+2% critical chance per rank.',            maxRank: 5,  costAt: (r) => 28 + r * 20,   perRank: 0.02 },
-  { id: 'critdmg',   name: 'Devastation',       desc: '+10% critical damage per rank.',           maxRank: 5,  costAt: (r) => 26 + r * 17,   perRank: 0.10 },
-  { id: 'regen',     name: 'Lingering Vigor',   desc: '+0.3 HP/sec regeneration per rank.',       maxRank: 6,  costAt: (r) => 20 + r * 14,   perRank: 0.3 },
-  { id: 'lifesteal', name: 'Sanguine Pact',     desc: '+1.5% lifesteal per rank.',                maxRank: 5,  costAt: (r) => 30 + r * 22,   perRank: 0.015 },
-  { id: 'dr',        name: 'Iron Resolve',      desc: '+2% damage reduction per rank.',          maxRank: 5,  costAt: (r) => 32 + r * 22,   perRank: 0.02 },
-  { id: 'dash',      name: 'Flowing Step',      desc: '+4% dash cooldown reduction per rank.',   maxRank: 5,  costAt: (r) => 22 + r * 14,   perRank: 0.04 },
-  // New meta upgrades — flat numeric boosts for broader build variety.
-  { id: 'startlevel',name: 'Veteran Soul',      desc: 'Start each run 1 level higher per rank (more starting SP).', maxRank: 3, costAt: (r) => 40 + r * 35, perRank: 1 },
-  { id: 'starthp',   name: 'Inner Fortitude',    desc: '+20 starting HP per rank.',               maxRank: 4,  costAt: (r) => 30 + r * 25,   perRank: 20 },
-  { id: 'bossearn',  name: 'Trophy Hunter',      desc: '+18% essence from boss kills per rank.',  maxRank: 4,  costAt: (r) => 35 + r * 28,   perRank: 0.18 },
-  { id: 'projspeed', name: 'Aether Velocity',   desc: '+6% projectile speed per rank.',          maxRank: 5,  costAt: (r) => 24 + r * 17,   perRank: 0.06 },
-  { id: 'dashdist',  name: 'Long Stride',       desc: '+7% dash distance per rank.',             maxRank: 4,  costAt: (r) => 28 + r * 20,   perRank: 0.07 },
+  // Meta progression expanded: max ranks raised to 10-15 per upgrade with
+  // exponential cost scaling (base * rate^(rank-1)) so later ranks are far
+  // more expensive than early ones. Per-rank bonuses are unchanged — the
+  // longer grind and steeper cost curve provide the pacing. Two new upgrades
+  // (Restorative Spirit, Arcane Reach) add healing-power and spell-radius
+  // scaling for broader build variety.
+  { id: 'dmg',       name: 'Arcane Resonance',  desc: '+3.5% damage per rank.',                   maxRank: 12, costAt: (r) => Math.round(10 * Math.pow(1.30, r - 1)),  perRank: 0.035 },
+  { id: 'cd',        name: 'Swift Spirit',      desc: '+3% cooldown reduction per rank.',         maxRank: 12, costAt: (r) => Math.round(12 * Math.pow(1.30, r - 1)),  perRank: 0.03 },
+  { id: 'move',      name: 'Wanderlust',        desc: '+3% movement speed per rank.',             maxRank: 12, costAt: (r) => Math.round(10 * Math.pow(1.28, r - 1)),  perRank: 0.03 },
+  { id: 'hp',        name: 'Vital Essence',     desc: '+3.5% max HP per rank.',                   maxRank: 12, costAt: (r) => Math.round(12 * Math.pow(1.30, r - 1)),  perRank: 0.035 },
+  { id: 'xp',        name: 'Soul Harvest',      desc: '+4% XP gain per rank.',                    maxRank: 10, costAt: (r) => Math.round(15 * Math.pow(1.32, r - 1)),  perRank: 0.04 },
+  { id: 'essence',   name: 'Echoing Glory',     desc: '+5.5% essence gain per rank.',             maxRank: 10, costAt: (r) => Math.round(18 * Math.pow(1.33, r - 1)),  perRank: 0.055 },
+  { id: 'crit',      name: 'Keening Edge',      desc: '+2% critical chance per rank.',            maxRank: 10, costAt: (r) => Math.round(24 * Math.pow(1.33, r - 1)),  perRank: 0.02 },
+  { id: 'critdmg',   name: 'Devastation',       desc: '+10% critical damage per rank.',           maxRank: 10, costAt: (r) => Math.round(22 * Math.pow(1.30, r - 1)),  perRank: 0.10 },
+  { id: 'regen',     name: 'Lingering Vigor',   desc: '+0.3 HP/sec regeneration per rank.',       maxRank: 12, costAt: (r) => Math.round(18 * Math.pow(1.28, r - 1)),  perRank: 0.3 },
+  { id: 'lifesteal', name: 'Sanguine Pact',     desc: '+1.5% lifesteal per rank.',                maxRank: 10, costAt: (r) => Math.round(28 * Math.pow(1.33, r - 1)),  perRank: 0.015 },
+  { id: 'dr',        name: 'Iron Resolve',      desc: '+2% damage reduction per rank.',          maxRank: 10, costAt: (r) => Math.round(30 * Math.pow(1.33, r - 1)),  perRank: 0.02 },
+  { id: 'dash',      name: 'Flowing Step',      desc: '+4% dash cooldown reduction per rank.',   maxRank: 10, costAt: (r) => Math.round(20 * Math.pow(1.30, r - 1)),  perRank: 0.04 },
+  // Flat numeric boosts for broader build variety.
+  { id: 'startlevel',name: 'Veteran Soul',      desc: 'Start each run 1 level higher per rank (more starting SP).', maxRank: 6,  costAt: (r) => Math.round(40 * Math.pow(1.40, r - 1)), perRank: 1 },
+  { id: 'starthp',   name: 'Inner Fortitude',    desc: '+20 starting HP per rank.',               maxRank: 8,  costAt: (r) => Math.round(30 * Math.pow(1.35, r - 1)),  perRank: 20 },
+  { id: 'bossearn',  name: 'Trophy Hunter',      desc: '+18% essence from boss kills per rank.',  maxRank: 8,  costAt: (r) => Math.round(35 * Math.pow(1.35, r - 1)),  perRank: 0.18 },
+  { id: 'projspeed', name: 'Aether Velocity',   desc: '+6% projectile speed per rank.',          maxRank: 10, costAt: (r) => Math.round(22 * Math.pow(1.30, r - 1)),  perRank: 0.06 },
+  { id: 'dashdist',  name: 'Long Stride',       desc: '+7% dash distance per rank.',             maxRank: 8,  costAt: (r) => Math.round(28 * Math.pow(1.32, r - 1)),  perRank: 0.07 },
+  // New meta upgrades — healing power and spell radius scaling.
+  { id: 'healmult',  name: 'Restorative Spirit', desc: '+5% healing from all sources per rank.',  maxRank: 10, costAt: (r) => Math.round(18 * Math.pow(1.30, r - 1)),  perRank: 0.05 },
+  { id: 'aoe',       name: 'Arcane Reach',      desc: '+5% spell radius per rank.',              maxRank: 10, costAt: (r) => Math.round(20 * Math.pow(1.32, r - 1)),  perRank: 0.05 },
 ];
 
 export interface MetaState {
@@ -252,6 +257,16 @@ export function metaProjSpeedMult(world: World): number {
 /** Dash-distance multiplier from Long Stride meta (1.0 if unpurchased). */
 export function metaDashDistMult(world: World): number {
   return 1 + metaRank(world, 'dashdist') * META_BY_ID['dashdist'].perRank;
+}
+
+/** Healing-power multiplier from Restorative Spirit meta (1.0 if unpurchased). */
+export function metaHealingMult(world: World): number {
+  return 1 + metaRank(world, 'healmult') * META_BY_ID['healmult'].perRank;
+}
+
+/** Spell-radius multiplier from Arcane Reach meta (1.0 if unpurchased). */
+export function metaSpellRadiusMult(world: World): number {
+  return 1 + metaRank(world, 'aoe') * META_BY_ID['aoe'].perRank;
 }
 
 // ---------------- Boss ability accessors ----------------

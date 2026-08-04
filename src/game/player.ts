@@ -8,6 +8,7 @@ import {
   metaDamageMult,
   metaDamageReduction,
   metaDashCdMult,
+  metaHealingMult,
   metaHpMult,
   metaLifestealPct,
   metaMoveMult,
@@ -60,6 +61,7 @@ export function maxHP(world: World): number {
     (hasNode(p, 'N_H') ? 0.15 : 0) +
     (hasNode(p, 'S_H') ? 0.15 : 0) +
     (hasNode(p, 'P_H') ? 0.15 : 0) +
+    (hasNode(p, 'T_H') ? 0.15 : 0) +   // Static Field (T_H): +15% max HP
     (hasNode(p, 'B_J') ? 0.4 : 0);   // Titan Heart (B_J): +40% max HP
   return 100 * grim * metaHpMult(world);
 }
@@ -83,7 +85,7 @@ export function regenPerSec(world: World): number {
 }
 
 export function healingMult(world: World): number {
-  return 1 + (hasNode(world.purchased, 'N_E1') ? 0.5 : 0);
+  return (1 + (hasNode(world.purchased, 'N_E1') ? 0.5 : 0)) * metaHealingMult(world);
 }
 
 export function lifestealPct(world: World): number {

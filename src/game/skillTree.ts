@@ -1,7 +1,7 @@
 /**
  * The expanded skill tree ("the Grimoire") — radial constellation layout.
- * 7 branches radiate from a central hub at 360/7 ≈ 51.43° angular spacing.
- * Each branch has 12-13 nodes (tier 0–6), totaling ~88 nodes.
+ * 8 branches radiate from a central hub at 360/8 = 45° angular spacing.
+ * Each branch has 12-13 nodes (tier 0–6), totaling ~101 nodes.
  *
  * Layout is airy/breathable: tier radii are very generous so the outermost
  * capstone+ nodes sit far from center. Node positions are computed radially:
@@ -22,13 +22,14 @@ export interface Branch {
 }
 
 export const BRANCHES: Branch[] = [
-  { code: 'F', name: 'Ember',   color: '#e2793d', angle: -90,                         icon: '🔥' },
-  { code: 'R', name: 'Rime',    color: '#8ec9e8', angle: -90 + 51.42857142857143,     icon: '❄' },
-  { code: 'V', name: 'Void',    color: '#9d8ce0', angle: -90 + 2 * 51.42857142857143, icon: '✦' },
-  { code: 'S', name: 'Umbral',  color: '#c4728f', angle: -90 + 3 * 51.42857142857143, icon: '☾' },
-  { code: 'N', name: 'Verdant', color: '#8bc48a', angle: -90 + 4 * 51.42857142857143, icon: '☘' },
-  { code: 'B', name: 'Warden',  color: '#c9a869', angle: -90 + 5 * 51.42857142857143, icon: '🛡' },
-  { code: 'P', name: 'Potency', color: '#4fd6c0', angle: -90 + 6 * 51.42857142857143, icon: '⚔' },
+  { code: 'F', name: 'Ember',     color: '#e2793d', angle: -90,                         icon: '🔥' },
+  { code: 'R', name: 'Rime',      color: '#8ec9e8', angle: -90 + 45,                    icon: '❄' },
+  { code: 'V', name: 'Void',      color: '#9d8ce0', angle: -90 + 2 * 45,                icon: '✦' },
+  { code: 'S', name: 'Umbral',    color: '#c4728f', angle: -90 + 3 * 45,                icon: '☾' },
+  { code: 'N', name: 'Verdant',   color: '#8bc48a', angle: -90 + 4 * 45,                icon: '☘' },
+  { code: 'B', name: 'Warden',    color: '#c9a869', angle: -90 + 5 * 45,                icon: '🛡' },
+  { code: 'P', name: 'Potency',   color: '#4fd6c0', angle: -90 + 6 * 45,                icon: '⚔' },
+  { code: 'T', name: 'Lightning', color: '#c4e842', angle: -90 + 7 * 45,                icon: '⚡' },
 ];
 
 interface LocalNode {
@@ -42,10 +43,10 @@ interface LocalNode {
 // Per-branch node template. 13 nodes per branch (tier 0–6), with side
 // branches at tiers 2, 3, and 4. Tier 5 = capstone, tier 6 = post-capstone.
 // Void gets an extra side node X (14 total for Void).
-// Angular offsets are kept SMALL relative to the 51.43° branch spacing so
+// Angular offsets are kept SMALL relative to the 45° branch spacing so
 // side nodes never collide with neighbouring branches' nodes — even at the
 // outermost tiers where radii are largest. Max offset is 18° (well within
-// the ~25° half-gap between branches), and side-node radii for tier 6 are
+// the ~22.5° half-gap between branches), and side-node radii for tier 6 are
 // pulled in slightly to avoid edge proximity.
 export const LOCAL: LocalNode[] = [
   { id: 'A',  tier: 0, off: 0,   pre: [] },
@@ -97,9 +98,9 @@ export const CONTENT: Record<string, Record<string, ContentEntry>> = {
   R: {
     A: { name: 'Chill Touch', desc: 'Your bolts chill enemies, slowing them by 20% for 2s.' },
     B: { name: 'Frostbite', desc: 'Chill is far stronger. Unlocks Ice Lance, a piercing shard that freezes enemies solid.' },
-    C1: { name: 'Deep Freeze', desc: 'Freeze duration is doubled.' },
+    C1: { name: 'Deep Freeze', desc: 'Frozen enemies shatter in a small burst, damaging nearby foes. Freeze duration is doubled.' },
     G: { name: 'Frostbitten Focus', desc: 'Deal 15% more damage to enemies you\u2019ve chilled or frozen.' },
-    C2: { name: 'Glacial Path', desc: 'Ice Lance pierces two additional enemies.' },
+    C2: { name: 'Glacial Path', desc: 'Ice Lance pierces two additional enemies and leaves a trail of frost that damages foes it passes through.' },
     D: { name: 'Brittle', desc: 'Frozen enemies take 50% more damage from everything.' },
     H: { name: 'Glacial Resolve', desc: 'The cold sharpens you. +15% max health.' },
     E1: { name: 'Permafrost', desc: 'All slowing effects are 50% stronger.' },
@@ -114,7 +115,7 @@ export const CONTENT: Record<string, Record<string, ContentEntry>> = {
     A: { name: 'Focused Mind', desc: 'Cast your bolt 20% more often.' },
     B: { name: 'Twin Casting', desc: 'Fire an additional bolt with every cast.' },
     X: { name: 'Quick Study', desc: 'You learn from every battle. +30% experience gained from slain foes.' },
-    C1: { name: 'Piercing Sigil', desc: 'Bolts pierce through one additional enemy.' },
+    C1: { name: 'Piercing Sigil', desc: 'Bolts pierce through one additional enemy, hitting all foes in a line.' },
     G: { name: 'Arcane Reservoir', desc: 'Each bolt has a 10% chance to cost no cooldown at all.' },
     C2: { name: 'Homing Rune', desc: 'Bolts gently curve toward the nearest foe.' },
     D: { name: 'Overcharge', desc: 'Every fifth cast is empowered, dealing triple damage.' },
@@ -146,9 +147,9 @@ export const CONTENT: Record<string, Record<string, ContentEntry>> = {
   S: {
     A: { name: 'Cold Reading', desc: 'Gain an 8% chance for any hit to land as a critical strike.' },
     B: { name: 'Marked for Death', desc: 'Critical strikes mark their target. Unlocks Shadow Bolt, dealing heavy bonus damage to marked foes.' },
-    C1: { name: 'Executioner', desc: 'Critical strikes deal 50% more damage.' },
+    C1: { name: 'Executioner', desc: 'Critical strikes deal 50% more damage and splash shadow to nearby enemies.' },
     G: { name: 'Opportunist', desc: 'An eye for weakness. +5% additional critical strike chance.' },
-    C2: { name: 'Umbral Step', desc: 'Your dash leaves a shadow behind that detonates a moment later.' },
+    C2: { name: 'Umbral Step', desc: 'Your dash leaves a shadow behind that detonates a moment later, damaging all nearby foes.' },
     D: { name: 'Death\u2019s Embrace', desc: 'Slaying a marked foe refunds part of your dash cooldown.' },
     H: { name: 'Grim Vigor', desc: 'The dark sustains you. +15% max health.' },
     E1: { name: 'Vampiric Sigil', desc: 'A portion of all damage you deal returns to you as health.' },
@@ -190,6 +191,22 @@ export const CONTENT: Record<string, Record<string, ContentEntry>> = {
     J: { name: 'Perfection', desc: 'All your stats are increased by an additional 10%.' },
     K: { name: 'Velocity', desc: 'All your projectiles travel 40% faster, increasing effective range and DPS.' },
     L: { name: 'Whirlwind Strike', desc: 'Every 7 seconds, you spin in a cyclone, striking all nearby enemies for heavy weapon damage.' },
+  },
+  T: {
+    A: { name: 'Static Charge', desc: 'Your bolts have a 20% chance to chain to 1 nearby enemy for 60% damage.' },
+    B: { name: 'Chain Lightning', desc: 'Bolts chain to 2 more enemies, each for 50% damage. Unlocks Thunderclap, a small AoE burst around you every 3 seconds.' },
+    C1: { name: 'Storm Call', desc: 'Every 4 seconds, a lightning bolt strikes a random enemy, dealing AoE damage to those nearby.' },
+    G: { name: 'Thunderclap', desc: 'Thunderclap radius increased by 40% and it slows enemies by 30% for 1s.' },
+    C2: { name: 'Galvanize', desc: 'All lightning damage increased by 15%.' },
+    D: { name: 'Overload', desc: 'Chain lightning hits 2 more enemies, and chain damage falloff is reduced.' },
+    H: { name: 'Static Field', desc: 'Enemies near you take periodic lightning damage. +15% max health.' },
+    E1: { name: 'Lightning Storm', desc: 'Every 8 seconds, 3 lightning bolts strike random enemies across the screen for heavy AoE damage.' },
+    E2: { name: 'Conductor', desc: 'All lightning damage increased by 25%. Storm Call triggers twice as often.' },
+    F: { name: 'Tempest', desc: 'Capstone. ALL your attacks chain to nearby enemies. Lightning damage doubled.' },
+    I: { name: 'Storm Lord', desc: 'Every 10 seconds, chain lightning arcs through every enemy on screen for massive damage.' },
+    J: { name: 'Arc Surge', desc: 'Chain lightning deals 75% damage per jump instead of 50%, and chains to 2 additional enemies.' },
+    K: { name: 'Ground Current', desc: 'Thunderclap leaves a charged field that damages enemies who linger.' },
+    L: { name: 'Thunder Strike', desc: 'Every 5 seconds, call down a massive lightning bolt on the nearest enemy, dealing heavy AoE damage in a wide radius.' },
   },
 };
 

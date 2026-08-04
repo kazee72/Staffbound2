@@ -398,6 +398,7 @@ export class GameScene extends Phaser.Scene {
         frostArmorActive: 0, arcaneBurst: 0, vines: 0, shadowBolt: 0,
         timeWarp: 0, overgrowth: 0, shadowBlink: 0, eternalFrost: 0, apexSurge: 0, cull: 0, magmaCore: 0,
         arcaneExplosion: 0, lightningChain: 0, blizzard: 0, earthquake: 0, sporeBurst: 0, shadowNova: 0, whirlwindStrike: 0,
+        stormCall: 0, thunderclap: 0, lightningStorm: 0, stormLord: 0, thunderStrike: 0,
       },
       wisps: [],
       decoys: [],
@@ -680,7 +681,7 @@ export class GameScene extends Phaser.Scene {
       popups: [],
       wisps: [],
       decoys: [],
-      cd: { bolt: 0.3, boltCastCount: 0, fireNova: 0, iceLance: 0, frostArmor: 0, frostArmorActive: 0, arcaneBurst: 0, vines: 0, shadowBolt: 0, timeWarp: 0, overgrowth: 0, shadowBlink: 0, eternalFrost: 0, apexSurge: 0, cull: 0, magmaCore: 0, arcaneExplosion: 0, lightningChain: 0, blizzard: 0, earthquake: 0, sporeBurst: 0, shadowNova: 0, whirlwindStrike: 0 },
+      cd: { bolt: 0.3, boltCastCount: 0, fireNova: 0, iceLance: 0, frostArmor: 0, frostArmorActive: 0, arcaneBurst: 0, vines: 0, shadowBolt: 0, timeWarp: 0, overgrowth: 0, shadowBlink: 0, eternalFrost: 0, apexSurge: 0, cull: 0, magmaCore: 0, arcaneExplosion: 0, lightningChain: 0, blizzard: 0, earthquake: 0, sporeBurst: 0, shadowNova: 0, whirlwindStrike: 0, stormCall: 0, thunderclap: 0, lightningStorm: 0, stormLord: 0, thunderStrike: 0 },
       spawnTimer: 1,
       bossTimer: 130,
       bossFight: null,
@@ -1097,6 +1098,27 @@ export class GameScene extends Phaser.Scene {
       } else if (fx.type === 'ground') {
         g.fillStyle(Phaser.Display.Color.HexStringToColor(fx.color).color, 0.18);
         g.fillCircle(fx.x, fx.y, fx.r);
+      } else if (fx.type === 'lightning') {
+        // Lightning arc: draw jagged line through pre-computed segments.
+        const alpha = Math.max(0, 1 - fx.t / fx.life);
+        const color = Phaser.Display.Color.HexStringToColor(fx.color).color;
+        g.lineStyle(2, color, alpha);
+        // segments is a flat array [x, y, x, y, ...]
+        const pts: number[] = fx.segments;
+        for (let s = 0; s < pts.length - 2; s += 2) {
+          g.beginPath();
+          g.moveTo(pts[s], pts[s + 1]);
+          g.lineTo(pts[s + 2], pts[s + 3]);
+          g.strokePath();
+        }
+        // Outer glow pass
+        g.lineStyle(4, color, alpha * 0.3);
+        for (let s = 0; s < pts.length - 2; s += 2) {
+          g.beginPath();
+          g.moveTo(pts[s], pts[s + 1]);
+          g.lineTo(pts[s + 2], pts[s + 3]);
+          g.strokePath();
+        }
       }
     });
 
