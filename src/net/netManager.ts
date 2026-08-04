@@ -235,7 +235,7 @@ export class NetManager {
   }
 
   /** HOST: broadcast a message to all connected guests. */
-  broadcastToGuests(msg: HostMsg): void {
+  broadcastToGuests(msg: HostMsg | ClientMsg): void {
     this.guestConns.forEach((conn) => {
       if (conn.open) conn.send(msg);
     });

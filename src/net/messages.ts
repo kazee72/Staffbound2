@@ -1,43 +1,39 @@
 /**
  * P2P message types for the HOLLOWMERE multiplayer protocol.
  *
- * Messages flow in two directions:
- * - Client → Host: input state (20Hz), skill-tree purchases, meta-state at connection, dashing
- * - Host → Clients: world-state snapshots (20Hz), lobby info, game-start, acks, disconnect
- *
- * All messages carry a `t` discriminator so the receiver can switch on it.
- * Messages are JSON-serializable (typed arrays in snapshots are plain arrays).
- *
- * Host-authoritative model:
- *   Clients send their input; the Host runs the full World simulation and
- *   broadcasts compact snapshots. Clients render snapshots with interpolation.
- *   Each player's skill tree (Grimoire) is per-player — clients send skill
- *   purchases to the host, host acknowledges. Meta progression stays client-side
- *   (localStorage); the client tells the host its meta multipliers at
- *   connection time so the host can factor them into derived stats.
+ * Shared-authority model:
+ *   Each client owns and simulates their OWN player locally (movement, spells,
+ *   leveling, skill tree). Clients broadcast their player state at 20Hz.
+ *   The HOST additionally owns enemies (spawning, AI, boss fights, damage
+ *   resolution). Clients send enemyHit/bossHit messages to the host when their
+ *   projectiles connect; the host applies damage and broadcasts enemy state.
+ *   When an enemy dies, the host notifies the killer so they can grant XP.
  */
 
-// ---------------- discriminant union ----------------
+// ---------------- Client → Host (or broadcast to all) ----------------
 
 export type ClientMsg =
   | { t: 'hello'; name: string; roomCode: string; meta: MetaPayload; purchased: string[] }
-  | { t: 'input'; mvx: number; mvy: number; dash: boolean; aim: number }
-  | { t: 'buySkill'; nodeId: string }
+  | { t: 'playerState'; id: number; x: number; y: number; vx: number; vy: number; hp: number; maxHp: number; level: number; aim: number; dashing: boolean; invuln: boolean; dashCd: number; downed: boolean; sp: number; spSpent: number }
+  | { t: 'enemyHit'; enemyIdx: number; dmg: number; burn: boolean; slow: number; freeze: number; crit: boolean; markedBonus: number }
+  | { t: 'bossHit'; dmg: number; burn: boolean; slow: number; crit: boolean; markedBonus: number }
   | { t: 'ping' };
+
+// ---------------- Host → Clients ----------------
 
 export type HostMsg =
   | { t: 'welcome'; you: number; players: PlayerInfo[] }
   | { t: 'players'; players: PlayerInfo[] }
   | { t: 'start'; seed: number }
-  | { t: 'snapshot'; snap: number[] }
-  | { t: 'skillAck'; nodeId: string; ok: boolean; sp: number; spSpent: number }
+  | { t: 'enemyState'; enemies: number[]; bossActive: number; boss: number[] }
+  | { t: 'enemyKilled'; enemyIdx: number; killerPlayerId: number }
+  | { t: 'bossKilled'; killerPlayerId: number }
   | { t: 'hostLeft' };
 
 export type AnyMsg = ClientMsg | HostMsg;
 
 // ---------------- shared payload types ----------------
 
-/** Compact meta multiplier payload — sent once at connection so the host can compute derived stats. */
 export interface MetaPayload {
   dmgMult: number;
   cdMult: number;
@@ -54,18 +50,9 @@ export interface MetaPayload {
   dashDistMult: number;
 }
 
-/** Player info shown in the lobby and player list. */
 export interface PlayerInfo {
   id: number;
   name: string;
   isHost: boolean;
   peerId: string;
-}
-
-/** Input snapshot sent from client to host at 20Hz. */
-export interface InputPayload {
-  mvx: number;
-  mvy: number;
-  dash: boolean;
-  aim: number;
 }
