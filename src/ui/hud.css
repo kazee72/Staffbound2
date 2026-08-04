@@ -232,17 +232,17 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 4px;
+  gap: 12px;
   pointer-events: none;
-  max-width: 90vw;
+  max-width: 92vw;
   padding: 0 10px;
 }
 .cdSlot {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  width: 42px;
+  gap: 3px;
+  width: 46px;
 }
 .cdIcon {
   font-family: 'Cinzel', serif;
