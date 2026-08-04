@@ -1,7 +1,7 @@
 /**
  * The expanded skill tree ("the Grimoire") — radial constellation layout.
- * 8 branches radiate from a central hub at 360/8 = 45° angular spacing.
- * Each branch has 12-13 nodes (tier 0–6), totaling ~101 nodes.
+ * 9 branches radiate from a central hub at 360/9 = 40° angular spacing.
+ * Each branch has 12-13 nodes (tier 0–6), totaling ~115 nodes.
  *
  * Layout is airy/breathable: tier radii are very generous so the outermost
  * capstone+ nodes sit far from center. Node positions are computed radially:
@@ -22,14 +22,15 @@ export interface Branch {
 }
 
 export const BRANCHES: Branch[] = [
-  { code: 'F', name: 'Ember',     color: '#e2793d', angle: -90,                         icon: '🔥' },
-  { code: 'R', name: 'Rime',      color: '#8ec9e8', angle: -90 + 45,                    icon: '❄' },
-  { code: 'V', name: 'Void',      color: '#9d8ce0', angle: -90 + 2 * 45,                icon: '✦' },
-  { code: 'S', name: 'Umbral',    color: '#c4728f', angle: -90 + 3 * 45,                icon: '☾' },
-  { code: 'N', name: 'Verdant',   color: '#8bc48a', angle: -90 + 4 * 45,                icon: '☘' },
-  { code: 'B', name: 'Warden',    color: '#c9a869', angle: -90 + 5 * 45,                icon: '🛡' },
-  { code: 'P', name: 'Potency',   color: '#4fd6c0', angle: -90 + 6 * 45,                icon: '⚔' },
-  { code: 'T', name: 'Lightning', color: '#c4e842', angle: -90 + 7 * 45,                icon: '⚡' },
+  { code: 'F', name: 'Ember',     color: '#e2793d', angle: -90,                          icon: '🔥' },
+  { code: 'R', name: 'Rime',      color: '#8ec9e8', angle: -90 + 40,                     icon: '❄' },
+  { code: 'V', name: 'Void',      color: '#9d8ce0', angle: -90 + 2 * 40,                 icon: '✦' },
+  { code: 'S', name: 'Umbral',    color: '#c4728f', angle: -90 + 3 * 40,                icon: '☾' },
+  { code: 'N', name: 'Verdant',   color: '#8bc48a', angle: -90 + 4 * 40,                icon: '☘' },
+  { code: 'B', name: 'Warden',    color: '#c9a869', angle: -90 + 5 * 40,                icon: '🛡' },
+  { code: 'P', name: 'Potency',   color: '#4fd6c0', angle: -90 + 6 * 40,                icon: '⚔' },
+  { code: 'T', name: 'Lightning', color: '#c4e842', angle: -90 + 7 * 40,                icon: '⚡' },
+  { code: 'W', name: 'Wind',      color: '#a8d4e8', angle: -90 + 8 * 40,               icon: '🌪' },
 ];
 
 interface LocalNode {
@@ -207,6 +208,22 @@ export const CONTENT: Record<string, Record<string, ContentEntry>> = {
     J: { name: 'Arc Surge', desc: 'Chain lightning deals 75% damage per jump instead of 50%, and chains to 2 additional enemies.' },
     K: { name: 'Ground Current', desc: 'Thunderclap leaves a charged field that damages enemies who linger.' },
     L: { name: 'Thunder Strike', desc: 'Every 5 seconds, call down a massive lightning bolt on the nearest enemy, dealing heavy AoE damage in a wide radius.' },
+  },
+  W: {
+    A: { name: 'Tailwind', desc: '+15% movement speed. Wind trails behind you, lightly damaging enemies you pass.' },
+    B: { name: 'Gust', desc: 'Unlocks Wind Gust — a periodic push that knocks back nearby enemies and deals light damage every 4s.' },
+    C1: { name: 'Cyclone', desc: 'Wind Gust radius +40%. Enemies knocked back are slowed for 1.5s.' },
+    G: { name: 'Updraft', desc: 'Dash distance +30%. Dash leaves a wind trail that damages enemies for 2s.' },
+    C2: { name: 'Gale Force', desc: 'Wind Gust damage +80% and knockback distance doubled.' },
+    D: { name: 'Vortex', desc: 'Unlocks Vortex — every 6s, pull nearby enemies toward you and damage them.' },
+    H: { name: 'Windwalker', desc: '+15% max health. Move speed +10%.' },
+    E1: { name: 'Zephyr', desc: 'Vortex radius +50% and pulls enemies 40% faster.' },
+    E2: { name: 'Tempest Winds', desc: 'Wind Gust and Vortex cooldowns reduced by 30%.' },
+    F: { name: 'Cataclysm', desc: 'Capstone. Every 12s, summon a massive tornado that sweeps across the screen, damaging and pulling all enemies in its path.' },
+    I: { name: 'Hurricane', desc: 'Tornado lasts 50% longer and grows larger over time, hitting a wider area.' },
+    J: { name: 'Eye of the Storm', desc: 'While a tornado is active, you gain +50% move speed and invulnerability.' },
+    K: { name: 'Deflecting Winds', desc: '20% chance to deflect enemy projectiles back at them.' },
+    L: { name: 'Infinity Gust', desc: 'Wind Gust becomes a continuous aura — enemies near you are constantly pushed back and damaged.' },
   },
 };
 
