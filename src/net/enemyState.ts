@@ -14,6 +14,7 @@ export function serializeEnemyState(world: World, tick: number): number[] {
   out.push(currentDay(world));
   out.push(world.stage);
   out.push(world.bossFight ? 1 : 0);
+  out.push(Math.max(0, world.bossTimer)); // boss spawn timer for guest HUD
 
   // Enemies
   out.push(world.enemies.length);
@@ -56,6 +57,7 @@ export interface EnemyView {
   stage: number;
   enemies: { type: number; x: number; y: number; hp: number; maxHp: number; r: number; frozen: boolean; slowed: boolean; marked: boolean; burning: boolean }[];
   bossActive: boolean;
+  bossTimer: number;
   boss: { defId: number; x: number; y: number; hp: number; maxHp: number; r: number; phase: number; telegraphs: { kind: number; x: number; y: number; r: number; length: number; width: number; t: number; dur: number }[]; projectiles: { x: number; y: number; r: number; color: number }[] } | null;
 }
 
@@ -68,6 +70,7 @@ export function deserializeEnemyState(data: number[]): EnemyView {
   const day = read();
   const stage = read();
   const bossActive = read() === 1;
+  const bossTimer = read();
 
   const eCount = read();
   const enemies: EnemyView['enemies'] = [];
@@ -97,7 +100,7 @@ export function deserializeEnemyState(data: number[]): EnemyView {
     boss = { defId, x: bx, y: by, hp: bhp, maxHp: bmaxHp, r: br, phase: bphase, telegraphs, projectiles };
   }
 
-  return { tick, elapsed, day, stage, enemies, bossActive, boss };
+  return { tick, elapsed, day, stage, enemies, bossActive, bossTimer, boss };
 }
 
 export const ENEMY_TYPE_NAMES = ['slime', 'skel', 'wisp', 'wraith', 'ghoul', 'iceWolf', 'shadowWraith'];

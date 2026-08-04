@@ -58,6 +58,8 @@ export class GameScene extends Phaser.Scene {
   private keyG!: Phaser.Input.Keyboard.Key;
   private keyEsc!: Phaser.Input.Keyboard.Key;
   private keyQ!: Phaser.Input.Keyboard.Key;
+  private keyShift!: Phaser.Input.Keyboard.Key;
+  private showHitbox = false;
   // UHJK alternative movement keys (vi-style)
   private keyU!: Phaser.Input.Keyboard.Key;
   private keyH!: Phaser.Input.Keyboard.Key;
@@ -171,6 +173,8 @@ export class GameScene extends Phaser.Scene {
     this.keyG = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.G);
     this.keyEsc = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
     this.keyQ = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.Q);
+    this.keyShift = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
+    this.keyShift.on('down', () => { this.showHitbox = !this.showHitbox; });
     this.keyU = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.U);
     this.keyH = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.H);
     this.keyJ = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.J);
@@ -573,6 +577,7 @@ export class GameScene extends Phaser.Scene {
         const view = deserializeEnemyState(msg.enemies);
         this.world.elapsed = view.elapsed;
         this.world.stage = view.stage;
+        this.world.bossTimer = view.bossTimer;
         // Guest: detect stage change and update background
         if (this.world.stage !== this.lastStage) {
           this.lastStage = this.world.stage;
@@ -1371,6 +1376,13 @@ export class GameScene extends Phaser.Scene {
     if (this.world.cd.frostArmorActive > 0) {
       g.lineStyle(1.5, 0x8ec9e8, 1);
       g.strokeCircle(p.x, p.y, 13);
+    }
+    // Visual hitbox toggle (Shift key)
+    if (this.showHitbox) {
+      g.lineStyle(2, 0x00ff00, 0.6);
+      g.strokeCircle(p.x, p.y, p.r || 9);
+      g.lineStyle(1, 0x00ff00, 0.3);
+      g.strokeCircle(p.x, p.y, (p.r || 9) + 4);
     }
   }
 
