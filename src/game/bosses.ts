@@ -15,6 +15,7 @@ import type { BossAttackId, BossState, BossTelegraph, World } from './types';
 import { damagePlayer } from './simulation';
 import { damageReduction } from './player';
 import { burst } from './visuals';
+import { tryDeflectProjectile } from './spells';
 
 export interface BossDef {
   id: string;
@@ -441,6 +442,11 @@ export function updateBoss(world: World, dt: number): void {
     const p = world.player;
     const hitR = (p.r || 13) + pr.r;
     if (dist(p.x, p.y, pr.x, pr.y) < hitR && p.invuln <= 0 && p.dashing <= 0) {
+      // Deflecting Winds (W_K): 20% chance to deflect the projectile.
+      if (tryDeflectProjectile(world, pr.x, pr.y, pr.vx, pr.vy)) {
+        boss.projectiles.splice(i, 1);
+        continue;
+      }
       damagePlayer(world, pr.dmg * (1 - damageReduction(world)));
       hit = true;
     }

@@ -23,7 +23,8 @@ export function cooldownMult(world: World): number {
     (hasNode(world.purchased, 'V_E2') ? 0.2 : 0) -
     (hasNode(world.purchased, 'P_B') ? 0.1 : 0) -
     (hasNode(world.purchased, 'P_D') ? 0.12 : 0) -
-    (hasNode(world.purchased, 'P_F') ? 0.1 : 0);
+    (hasNode(world.purchased, 'P_F') ? 0.1 : 0) -
+    (hasNode(world.purchased, 'P_J') ? 0.1 : 0);  // Perfection: +10% all stats (CDR portion)
   return grim * metaCooldownMult(world);
 }
 
@@ -37,6 +38,8 @@ export function critChance(world: World): number {
     (hasNode(world.purchased, 'V_H') ? 0.05 : 0) +
     // Apex Surge (P_I): +20% crit while surge is active
     (hasNode(world.purchased, 'P_I') && world.cd.apexSurge > 0.5 ? 0.2 : 0) +
+    // Perfection (P_J): +10% crit chance (part of "all stats +10%")
+    (hasNode(world.purchased, 'P_J') ? 0.1 : 0) +
     metaCritChance(world)
   );
 }
@@ -62,7 +65,9 @@ export function maxHP(world: World): number {
     (hasNode(p, 'S_H') ? 0.15 : 0) +
     (hasNode(p, 'P_H') ? 0.15 : 0) +
     (hasNode(p, 'T_H') ? 0.15 : 0) +   // Static Field (T_H): +15% max HP
-    (hasNode(p, 'B_J') ? 0.4 : 0);   // Titan Heart (B_J): +40% max HP
+    (hasNode(p, 'B_J') ? 0.4 : 0) +   // Titan Heart (B_J): +40% max HP
+    (hasNode(p, 'W_H') ? 0.15 : 0) +   // Windwalker (W_H): +15% max HP
+    (hasNode(p, 'P_J') ? 0.1 : 0);     // Perfection (P_J): +10% all stats (HP portion)
   return 100 * grim * metaHpMult(world);
 }
 
@@ -74,7 +79,10 @@ export function moveSpeed(world: World): number {
     (hasNode(p, 'B_G') ? 0.1 : 0) +
     (hasNode(p, 'P_G') ? 0.1 : 0) +
     (hasNode(p, 'P_E2') ? 0.15 : 0) +
-    (hasNode(p, 'P_F') ? 0.1 : 0);
+    (hasNode(p, 'P_F') ? 0.1 : 0) +
+    (hasNode(p, 'W_A') ? 0.15 : 0) +
+    (hasNode(p, 'W_H') ? 0.1 : 0) +
+    (hasNode(p, 'P_J') ? 0.1 : 0);     // Perfection: +10% all stats
   return 230 * grim * metaMoveMult(world) * (world.player.adrenaline > 0 ? 1.25 : 1);
 }
 
@@ -125,6 +133,11 @@ export function spellDamageMult(world: World): number {
 /** Projectile speed multiplier — includes Velocity (P_K) skill and Aether Velocity meta. */
 export function projectileSpeedMult(world: World): number {
   return (hasNode(world.purchased, 'P_K') ? 1.4 : 1) * metaProjSpeedMult(world);
+}
+
+/** Player-count-based enemy HP multiplier: 1 + (playerCount-1) * 0.5. */
+export function playerHpScaleMult(world: World): number {
+  return 1 + (world.playerCount - 1) * 0.5;
 }
 
 export function healPlayer(world: World, amount: number): void {

@@ -40,6 +40,14 @@ export function damageEnemy(world: World, e: EnemyState, amount: number, opts: D
   if (world.stage >= 3) dmg *= 0.8;
   e.hp -= dmg;
   if (crit) e.marked = world.elapsed + 4;
+  // Executioner (S_C1): critical strikes splash shadow to nearby enemies.
+  if (crit && hasNode(world.purchased, 'S_C1')) {
+    world.enemies.forEach((o) => {
+      if (o !== e && !o.dead && dist2(o.x, o.y, e.x, e.y) < 80 * 80) {
+        damageEnemy(world, o, dmg * 0.4, { allowCrit: false, color: '#c4728f' });
+      }
+    });
+  }
   if (lifestealPct(world) > 0) healPlayer(world, dmg * lifestealPct(world));
   spawnPopup(world, e.x, e.y - 10, (crit ? 'CRIT ' : '') + Math.round(dmg), crit ? '#eeda9e' : opts.color || '#e9e4d8', crit);
   if (opts.burn) {
@@ -72,6 +80,10 @@ export function killEnemy(world: World, e: EnemyState): void {
     });
   }
   if (e.marked > world.elapsed && hasNode(world.purchased, 'S_F')) resetAllCooldowns(world);
+  // Death's Embrace (S_D): slaying a marked foe refunds part of dash cooldown.
+  if (e.marked > world.elapsed && hasNode(world.purchased, 'S_D')) {
+    world.player.dashCd = Math.max(0, world.player.dashCd - 1.5);
+  }
   if (e.burning > world.elapsed && (hasNode(world.purchased, 'F_D') || hasNode(world.purchased, 'F_F'))) {
     world.enemies.forEach((o) => {
       if (!o.dead && o !== e && dist2(o.x, o.y, e.x, e.y) < 140 * 140) {
@@ -86,6 +98,15 @@ export function killEnemy(world: World, e: EnemyState): void {
         o.frozenUntil = world.elapsed + 1.5;
       }
     });
+  }
+  // Deep Freeze (R_C1): frozen enemies shatter in a small burst, damaging nearby foes.
+  if (e.frozenUntil > world.elapsed && hasNode(world.purchased, 'R_C1')) {
+    world.enemies.forEach((o) => {
+      if (!o.dead && o !== e && dist2(o.x, o.y, e.x, e.y) < 60 * 60) {
+        damageEnemy(world, o, 12 + world.level * 0.3, { allowCrit: false, color: '#8ec9e8' });
+      }
+    });
+    burst(world, e.x, e.y, '#8ec9e8', 10, 80);
   }
 }
 

@@ -248,6 +248,17 @@ export interface Wisp {
   y?: number;
 }
 
+export interface TornadoState {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  r: number;
+  life: number;
+  t: number;
+  maxLife: number;
+}
+
 export interface Cooldowns {
   bolt: number;
   boltCastCount: number;
@@ -298,6 +309,12 @@ export interface Cooldowns {
   stormLord: number;
   /** Thunder Strike (T_L) — massive bolt on nearest enemy every 5s. */
   thunderStrike: number;
+  /** Wind Gust (W_B) — periodic knockback AoE. */
+  windGust: number;
+  /** Vortex (W_D) — periodic pull toward player. */
+  vortex: number;
+  /** Cataclysm (W_F) — tornado summon timer. */
+  cataclysm: number;
 }
 
 export interface SkillNode {
@@ -347,6 +364,8 @@ export interface World {
   popups: Popup[];
   wisps: Wisp[];
   decoys: Decoy[];
+  /** Wind branch tornadoes (Cataclysm W_F). */
+  tornadoes: TornadoState[];
 
   cd: Cooldowns;
   spawnTimer: number;
@@ -356,6 +375,10 @@ export interface World {
 
   /** Current stage (starts at 1, increments on each boss kill). */
   stage: number;
+  /** How many bosses to fight this stage (default 2). */
+  bossesThisStage: number;
+  /** Which boss we're on this stage (0-indexed; second boss is stronger). */
+  currentBossIndex: number;
   /** Boss ability unlocks pending banking to localStorage on death. Keyed by boss defId. */
   pendingBossAbilityUnlocks: string[];
 
@@ -366,6 +389,8 @@ export interface World {
 
   /** Network players tracked by the host (host is index 0, not in this array). */
   netPlayers?: NetPlayer[];
+  /** Total player count (1 + netPlayers.length). Used for enemy HP scaling. */
+  playerCount: number;
 
   /** UI hook: shows the big center-screen flash banner text. */
   flash: (text: string, color: string) => void;
@@ -477,6 +502,7 @@ export function createWorld(W: number, H: number, flash: (text: string, color: s
     popups: [],
     wisps: [],
     decoys: [],
+    tornadoes: [],
     cd: {
       bolt: 0,
       boltCastCount: 0,
@@ -506,11 +532,17 @@ export function createWorld(W: number, H: number, flash: (text: string, color: s
       lightningStorm: 0,
       stormLord: 0,
       thunderStrike: 0,
+      windGust: 0,
+      vortex: 0,
+      cataclysm: 0,
     },
     spawnTimer: 0,
-    bossTimer: 20,
+    bossTimer: 180,
     bossFight: null,
     stage: 1,
+    bossesThisStage: 2,
+    currentBossIndex: 0,
+    playerCount: 1,
     pendingBossAbilityUnlocks: [],
     pendingAbilityDisplay: null,
     purchased: new Set<string>(),

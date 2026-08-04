@@ -1,5 +1,5 @@
 /** All spell cast functions & their cooldown update loop, ported from reference/full-reference.html */
-import type { EnemyState, Projectile, World } from './types';
+import type { EnemyState, Projectile, World, TornadoState } from './types';
 import { cooldownMult, spellDamageMult, projectileSpeedMult, healPlayer, maxHP } from './player';
 import { hasNode } from './skillTree';
 import { damageEnemy, damageBoss } from './combat';
@@ -1011,5 +1011,255 @@ export function updateSpellTimers(world: World, dt: number): void {
     }
   }
 
+  // ==================== Wind branch timers ====================
+
+  // Wind Gust (W_B): periodic knockback AoE every 4s (or continuous aura with W_L).
+  if (hasNode(world.purchased, 'W_B')) {
+    if (hasNode(world.purchased, 'W_L')) {
+      // Infinity Gust (W_L): continuous aura — apply every frame.
+      castWindGustAura(world, dt);
+    } else {
+      const gustCd = 4 * (hasNode(world.purchased, 'W_E2') ? 0.7 : 1) * cm;
+      if (world.cd.windGust > 0) {
+        world.cd.windGust -= dt;
+      } else {
+        world.cd.windGust = gustCd;
+        castWindGust(world);
+      }
+    }
+  }
+
+  // Vortex (W_D): every 6s, pull enemies toward player and damage them.
+  if (hasNode(world.purchased, 'W_D')) {
+    const vortexCd = 6 * (hasNode(world.purchased, 'W_E2') ? 0.7 : 1) * cm;
+    if (world.cd.vortex > 0) {
+      world.cd.vortex -= dt;
+    } else {
+      world.cd.vortex = vortexCd;
+      castVortex(world);
+    }
+  }
+
+  // Cataclysm (W_F): every 12s, summon a massive tornado.
+  if (hasNode(world.purchased, 'W_F')) {
+    if (world.cd.cataclysm > 0) {
+      world.cd.cataclysm -= dt;
+    } else {
+      world.cd.cataclysm = 12;
+      castCataclysm(world);
+    }
+  }
+
+  // Update active tornadoes.
+  updateTornadoes(world, dt);
+
+  // Tailwind (W_A): wind trail damage behind the player.
+  if (hasNode(world.purchased, 'W_A')) {
+    updateWindTrail(world, dt);
+  }
+
   updateWisps(world, dt);
+}
+
+// ==================== Wind branch spells ====================
+
+/** Wind trail accumulator (W_A). */
+let windTrailAccum = 0;
+
+/** Tailwind (W_A): spawn damaging wind trail particles behind the player. */
+function updateWindTrail(world: World, dt: number): void {
+  const p = world.player;
+  const speed = Math.hypot(p.vx, p.vy);
+  if (speed < 20) return;
+  windTrailAccum += dt;
+  if (windTrailAccum < 0.1) return;
+  windTrailAccum = 0;
+  // Spawn a brief ground effect behind the player.
+  const ang = Math.atan2(p.vy, p.vx);
+  const tx = p.x - Math.cos(ang) * 20;
+  const ty = p.y - Math.sin(ang) * 20;
+  world.effects.push({ type: 'ground', x: tx, y: ty, r: 18, color: '#a8d4e8', life: 0.5, t: 0, dmg: 5 + world.level * 0.2 });
+}
+
+/** Wind Gust (W_B): knockback AoE around the player with light damage. */
+export function castWindGust(world: World): void {
+  const p = world.player;
+  let radius = 100;
+  if (hasNode(world.purchased, 'W_C1')) radius *= 1.4; // Cyclone: +40% radius
+  let dmg = 10 + world.level * 0.3;
+  if (hasNode(world.purchased, 'W_C2')) dmg *= 1.8; // Gale Force: +80% damage
+  const knockbackDist = hasNode(world.purchased, 'W_C2') ? 80 : 40; // Gale Force: doubled knockback
+  const slowOnHit = hasNode(world.purchased, 'W_C1'); // Cyclone: slow on knockback
+  world.effects.push({ type: 'ring', x: p.x, y: p.y, r: 0, maxR: radius, color: '#a8d4e8', life: 0.35, t: 0 });
+  forEachTargetInRange(
+    world,
+    p.x,
+    p.y,
+    radius,
+    (e) => {
+      damageEnemy(world, e, dmg * spellDamageMult(world), { color: '#a8d4e8' });
+      // Knockback
+      const ang = Math.atan2(e.y - p.y, e.x - p.x);
+      e.x = Math.max(5, Math.min(world.W - 5, e.x + Math.cos(ang) * knockbackDist));
+      e.y = Math.max(5, Math.min(world.H - 5, e.y + Math.sin(ang) * knockbackDist));
+      if (slowOnHit) {
+        e.slowUntil = world.elapsed + 1.5;
+        e.slowAmt = Math.max(e.slowAmt, 0.3);
+      }
+    },
+    () => {
+      damageBoss(world, world.bossFight!.boss, dmg * spellDamageMult(world), { color: '#a8d4e8' });
+    },
+  );
+  burst(world, p.x, p.y, '#a8d4e8', 14, 120);
+}
+
+/** Infinity Gust (W_L): continuous pushback aura — enemies near the player are constantly pushed back and damaged. */
+function castWindGustAura(world: World, _dt: number): void {
+  const p = world.player;
+  let radius = 100;
+  if (hasNode(world.purchased, 'W_C1')) radius *= 1.4;
+  let dmg = (10 + world.level * 0.3) * _dt * 2; // continuous damage per frame
+  if (hasNode(world.purchased, 'W_C2')) dmg *= 1.8;
+  const pushForce = hasNode(world.purchased, 'W_C2') ? 120 * _dt : 60 * _dt;
+  const slowOnHit = hasNode(world.purchased, 'W_C1');
+  world.enemies.forEach((e) => {
+    if (e.dead) return;
+    const d2 = dist2(p.x, p.y, e.x, e.y);
+    if (d2 < radius * radius) {
+      damageEnemy(world, e, dmg * spellDamageMult(world), { color: '#a8d4e8', allowCrit: false });
+      const ang = Math.atan2(e.y - p.y, e.x - p.x);
+      e.x = Math.max(5, Math.min(world.W - 5, e.x + Math.cos(ang) * pushForce));
+      e.y = Math.max(5, Math.min(world.H - 5, e.y + Math.sin(ang) * pushForce));
+      if (slowOnHit) {
+        e.slowUntil = world.elapsed + 0.5;
+        e.slowAmt = Math.max(e.slowAmt, 0.3);
+      }
+    }
+  });
+  if (world.bossFight) {
+    const boss = world.bossFight.boss;
+    if (dist2(p.x, p.y, boss.x, boss.y) < radius * radius) {
+      damageBoss(world, boss, dmg * spellDamageMult(world), { color: '#a8d4e8', allowCrit: false });
+    }
+  }
+}
+
+/** Vortex (W_D): pull enemies toward the player and damage them. */
+export function castVortex(world: World): void {
+  const p = world.player;
+  let radius = 160;
+  if (hasNode(world.purchased, 'W_E1')) radius *= 1.5; // Zephyr: +50% radius
+  const pullSpeed = hasNode(world.purchased, 'W_E1') ? 1.4 : 1; // Zephyr: 40% faster pull
+  const dmg = (14 + world.level * 0.4) * spellDamageMult(world);
+  world.effects.push({ type: 'ring', x: p.x, y: p.y, r: 0, maxR: radius, color: '#a8d4e8', life: 0.5, t: 0 });
+  forEachTargetInRange(
+    world,
+    p.x,
+    p.y,
+    radius,
+    (e) => {
+      damageEnemy(world, e, dmg, { color: '#a8d4e8' });
+      // Pull toward player
+      const ang = Math.atan2(p.y - e.y, p.x - e.x);
+      const pullDist = Math.sqrt(dist2(p.x, p.y, e.x, e.y)) * 0.4 * pullSpeed;
+      e.x = Math.max(5, Math.min(world.W - 5, e.x + Math.cos(ang) * pullDist));
+      e.y = Math.max(5, Math.min(world.H - 5, e.y + Math.sin(ang) * pullDist));
+    },
+    () => {
+      damageBoss(world, world.bossFight!.boss, dmg, { color: '#a8d4e8' });
+    },
+  );
+  burst(world, p.x, p.y, '#a8d4e8', 18, 160);
+}
+
+/** Cataclysm (W_F): summon a massive tornado that sweeps across the screen. */
+export function castCataclysm(world: World): void {
+  // Tornado sweeps horizontally across the screen at a random height.
+  const startY = 80 + Math.random() * (world.H - 160);
+  const fromLeft = Math.random() < 0.5;
+  const startX = fromLeft ? -80 : world.W + 80;
+  const vx = fromLeft ? 120 : -120;
+  let life = 6; // base duration: sweeps ~6 seconds
+  if (hasNode(world.purchased, 'W_I')) life *= 1.5; // Hurricane: +50% duration
+  const baseR = 50;
+  const tornado: TornadoState = {
+    x: startX,
+    y: startY,
+    vx,
+    vy: 0,
+    r: baseR,
+    life,
+    t: 0,
+    maxLife: life,
+  };
+  world.tornadoes.push(tornado);
+  world.flash('CATACLYSM', '#a8d4e8');
+  burst(world, startX, startY, '#a8d4e8', 30, 200);
+}
+
+/** Update all active tornadoes — move them, damage/pull enemies, grow over time. */
+export function updateTornadoes(world: World, dt: number): void {
+  const hasEyeOfStorm = hasNode(world.purchased, 'W_J');
+  const hasHurricane = hasNode(world.purchased, 'W_I');
+  for (let i = world.tornadoes.length - 1; i >= 0; i--) {
+    const tor = world.tornadoes[i];
+    tor.t += dt;
+    tor.x += tor.vx * dt;
+    // Slight vertical drift for visual interest
+    tor.y += Math.sin(tor.t * 2) * 20 * dt;
+    // Hurricane (W_I): grow larger over time
+    if (hasHurricane) {
+      tor.r = 50 + (tor.t / tor.maxLife) * 40;
+    }
+    // Eye of the Storm (W_J): while tornado active, player gets +50% speed and invuln
+    if (hasEyeOfStorm) {
+      world.player.invuln = Math.max(world.player.invuln, 0.2);
+    }
+    // Damage and pull enemies in the tornado's radius
+    const dmg = (20 + world.level * 0.5) * dt * 3; // continuous damage
+    world.enemies.forEach((e) => {
+      if (e.dead) return;
+      const d2 = dist2(tor.x, tor.y, e.x, e.y);
+      if (d2 < tor.r * tor.r) {
+        damageEnemy(world, e, dmg * spellDamageMult(world), { color: '#a8d4e8', allowCrit: false });
+        // Pull enemies toward the tornado center
+        const ang = Math.atan2(tor.y - e.y, tor.x - e.x);
+        const pullDist = 60 * dt;
+        e.x += Math.cos(ang) * pullDist;
+        e.y += Math.sin(ang) * pullDist;
+      }
+    });
+    // Damage boss if in range
+    if (world.bossFight) {
+      const boss = world.bossFight.boss;
+      if (dist2(tor.x, tor.y, boss.x, boss.y) < tor.r * tor.r) {
+        damageBoss(world, boss, dmg * spellDamageMult(world), { color: '#a8d4e8', allowCrit: false });
+      }
+    }
+    // Visual effect
+    if (Math.floor(tor.t * 6) !== Math.floor((tor.t - dt) * 6)) {
+      world.effects.push({ type: 'ring', x: tor.x, y: tor.y, r: 0, maxR: tor.r, color: '#a8d4e8', life: 0.3, t: 0 });
+    }
+    // Remove when expired or off-screen
+    if (tor.t >= tor.life || tor.x < -120 || tor.x > world.W + 120) {
+      world.tornadoes.splice(i, 1);
+    }
+  }
+}
+
+/** Check if any tornado is currently active (used by Eye of the Storm). */
+export function hasActiveTornado(world: World): boolean {
+  return world.tornadoes.length > 0;
+}
+
+/** Deflecting Winds (W_K): 20% chance to deflect enemy projectiles. Called from boss projectile collision. */
+export function tryDeflectProjectile(world: World, px: number, py: number, _prvx: number, _prvy: number): boolean {
+  if (!hasNode(world.purchased, 'W_K')) return false;
+  if (Math.random() < 0.2) {
+    // Spawn a visual deflection effect
+    world.effects.push({ type: 'ring', x: px, y: py, r: 0, maxR: 20, color: '#a8d4e8', life: 0.2, t: 0 });
+    return true;
+  }
+  return false;
 }

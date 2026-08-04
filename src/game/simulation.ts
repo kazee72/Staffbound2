@@ -6,6 +6,7 @@ import { damageEnemy, damageBoss } from './combat';
 import { nearestEnemy } from './spells';
 import { burst } from './visuals';
 import { updateBoss } from './bosses';
+import { BOSS_DEFS } from './bosses';
 import { addRunEssence, essenceForBossKill, metaDashDistMult, hasBossAbility, bossAbilityRank } from './metaProgression';
 import { getStageDef, BOSS_ABILITY_BY_BOSS } from './stages';
 
@@ -85,7 +86,7 @@ export function tryDash(world: World): void {
   const len = Math.hypot(dx, dy) || 1;
   dx /= len;
   dy /= len;
-  const dist = 150 * metaDashDistMult(world);
+  const dist = 150 * metaDashDistMult(world) * (hasNode(world.purchased, 'W_G') ? 1.3 : 1); // Updraft: +30% dash distance
   const startX = p.x;
   const startY = p.y;
   p.x = clamp(p.x + dx * dist, 16, world.W - 16);
@@ -97,6 +98,21 @@ export function tryDash(world: World): void {
   burst(world, startX, startY, '#c9a869', 10, 80);
   if (hasNode(world.purchased, 'S_C2')) {
     world.decoys.push({ x: startX, y: startY, t: 0.6, boosted: hasNode(world.purchased, 'S_E2') });
+  }
+  // Updraft (W_G): dash leaves a wind trail that damages enemies for 2s.
+  if (hasNode(world.purchased, 'W_G')) {
+    const steps = 5;
+    for (let s = 0; s <= steps; s++) {
+      const t = s / steps;
+      const tx = startX + (p.x - startX) * t;
+      const ty = startY + (p.y - startY) * t;
+      world.effects.push({ type: 'ground', x: tx, y: ty, r: 20, color: '#a8d4e8', life: 2, t: 0, dmg: 8 + world.level * 0.3 });
+      world.enemies.forEach((e) => {
+        if (!e.dead && dist2(tx, ty, e.x, e.y) < 20 * 20) {
+          damageEnemy(world, e, 8 + world.level * 0.3, { allowCrit: false, color: '#a8d4e8' });
+        }
+      });
+    }
   }
   // Spectral Step (Elder Wraith boss ability): dash leaves a fire trail
   // along the dash path that damages and burns enemies it passes through.
@@ -474,20 +490,37 @@ export function updateBossFight(world: World, dt: number): void {
       }
     }
 
-    // Stage progression: advance to the next stage.
-    world.stage++;
-    const stageDef = getStageDef(world.stage);
-    // Brief breather before the next boss + stage transition banner.
-    world.bossTimer = 30; // ~30s breather to let the player explore the new stage
-    world.spawnTimer = 4; // 4s pause before enemies start spawning in the new stage
+    // Stage progression: check if there are more bosses this stage.
+    world.currentBossIndex++;
+    if (world.currentBossIndex < world.bossesThisStage) {
+      // Spawn the second (stronger) boss after a short breather.
+      world.bossFight = null;
+      world.bossTimer = 8; // 8s breather before the enraged boss returns
+      world.spawnTimer = 8;
+      // The bossTimer in updateSpawns will trigger spawnBoss() which uses currentBossIndex.
+      setTimeout(() => {
+        if (world.running) {
+          const def = BOSS_DEFS[(world.stage - 1) % BOSS_DEFS.length];
+          world.flash(def.name.toUpperCase() + ' RETURNS!', def.flashColor);
+        }
+      }, 600);
+    } else {
+      // All bosses defeated — advance to the next stage.
+      world.stage++;
+      world.currentBossIndex = 0;
+      const stageDef = getStageDef(world.stage);
+      // Brief breather before the next boss + stage transition banner.
+      world.bossTimer = 45; // ~45s breather to let the player explore the new stage
+      world.spawnTimer = 4; // 4s pause before enemies start spawning in the new stage
 
-    // Flash the stage transition banner (slightly delayed so it follows the boss death flash).
-    setTimeout(() => {
-      if (world.running) {
-        world.flash('STAGE ' + world.stage + ' — ' + stageDef.banner, 'var(--gold-bright)');
-      }
-    }, 600);
+      // Flash the stage transition banner (slightly delayed so it follows the boss death flash).
+      setTimeout(() => {
+        if (world.running) {
+          world.flash('STAGE ' + world.stage + ' — ' + stageDef.banner, 'var(--gold-bright)');
+        }
+      }, 600);
 
-    world.bossFight = null;
+      world.bossFight = null;
+    }
   }
 }

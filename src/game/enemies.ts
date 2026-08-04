@@ -2,6 +2,7 @@
 import type { BossState, EnemyState, EnemyType, World } from './types';
 import { BOSS_DEFS } from './bosses';
 import { availableEnemyTypes } from './stages';
+import { playerHpScaleMult } from './player';
 
 interface ETypeDef {
   hp: number;
@@ -51,6 +52,7 @@ export function spawnEnemy(world: World, forceType?: EnemyType): void {
   // gentle. Damage scales 0.5/stage (up from 0.35) so tankier foes also hit
   // harder — later stages require real build investment to survive.
   const scale = 1 + (stage - 1) * 0.8 + (day - 1) * 0.15;
+  const hpScale = scale * playerHpScaleMult(world);
   const edge = (Math.random() * 4) | 0;
   let x: number, y: number;
   const { W, H } = world;
@@ -71,8 +73,8 @@ export function spawnEnemy(world: World, forceType?: EnemyType): void {
     type,
     x,
     y,
-    hp: base.hp * scale,
-    maxHp: base.hp * scale,
+    hp: base.hp * hpScale,
+    maxHp: base.hp * hpScale,
     dmg: base.dmg * (1 + (stage - 1) * 0.5 + (day - 1) * 0.18),
     spd: base.spd,
     r: base.r,
@@ -132,6 +134,9 @@ export function spawnSlimeSplit(world: World, parent: EnemyState): void {
  * Spawns the boss appropriate for the current stage.
  * Stage 1 → Elder Wraith, Stage 2 → Ember Colossus, Stage 3 → Rime Sovereign,
  * Stage 4 → Bramble Horror, Stage 5+ → cycles with tougher stats.
+ *
+ * Two bosses per stage: the second boss (currentBossIndex=1) is stronger,
+ * bigger, and tougher. Enemy HP also scales with player count.
  */
 export function spawnBoss(world: World): void {
   const day = currentDay(world);
@@ -142,19 +147,24 @@ export function spawnBoss(world: World): void {
   const def = BOSS_DEFS[bossIndex];
   const stageBonus = 1 + (world.stage - 1) * 0.35;
   const dayBonus = 1 + (day - 1) * 0.12;
+  // Second boss this stage is significantly stronger.
+  const bossNumMult = world.currentBossIndex === 0 ? 1 : 1.5;   // HP
+  const bossDmgMult = world.currentBossIndex === 0 ? 1 : 1.2;   // damage
+  const bossSizeMult = world.currentBossIndex === 0 ? 1 : 1.15; // visual size
+  const hpScale = playerHpScaleMult(world);
   const boss: BossState = {
     defId: def.id,
-    name: def.name,
+    name: def.name + (world.currentBossIndex > 0 ? ' II' : ''),
     x: world.W / 2,
-    y: -60,
-    hp: (def.baseHp + day * def.hpPerDay) * stageBonus,
-    maxHp: (def.baseHp + day * def.hpPerDay) * stageBonus,
-    dmg: def.baseDmg * (1 + (day - 1) * 0.16) * stageBonus,
+    y: -60 * bossSizeMult,
+    hp: (def.baseHp + day * def.hpPerDay) * stageBonus * dayBonus * bossNumMult * hpScale,
+    maxHp: (def.baseHp + day * def.hpPerDay) * stageBonus * dayBonus * bossNumMult * hpScale,
+    dmg: def.baseDmg * (1 + (day - 1) * 0.16) * stageBonus * bossDmgMult,
     spd: def.spd * (1 + (world.stage - 1) * 0.08),
-    r: def.r,
+    r: def.r * bossSizeMult,
     color: def.color,
     seed: Math.random() * 1000,
-    xpValue: def.xpValue * Math.floor(stageBonus),
+    xpValue: def.xpValue * Math.floor(stageBonus) * (world.currentBossIndex > 0 ? 2 : 1),
     burning: 0,
     burnT: 0,
     slowUntil: 0,
@@ -168,7 +178,7 @@ export function spawnBoss(world: World): void {
     projectiles: [],
     telegraphs: [],
   };
-  void dayBonus;
   world.bossFight = { boss };
-  world.flash(def.flavor, def.flashColor);
+  const suffix = world.currentBossIndex > 0 ? ' RETURNS ENRAGED' : '';
+  world.flash(def.flavor + suffix, def.flashColor);
 }

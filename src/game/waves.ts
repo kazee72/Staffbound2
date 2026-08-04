@@ -27,23 +27,23 @@ export function updateSpawns(world: World, dt: number): void {
   const day = currentDay(world);
   const stage = world.stage;
   world.spawnTimer -= dt;
-  const interval = Math.max(0.15, 0.9 - day * 0.06 - (stage - 1) * 0.05);
+  // Slower spawn interval shrinkage for longer stages.
+  const interval = Math.max(0.18, 1.1 - day * 0.05 - (stage - 1) * 0.04);
   if (world.spawnTimer <= 0) {
     world.spawnTimer = interval;
     spawnEnemy(world);
-    // Higher stages have a chance of double/triple-spawning.
-    if ((day >= 2 || stage >= 2) && Math.random() < 0.4 + (stage - 1) * 0.08) spawnEnemy(world);
-    if (stage >= 2 && Math.random() < 0.3) spawnEnemy(world);
-    if (stage >= 3 && Math.random() < 0.25) spawnEnemy(world);
-    if (stage >= 4 && Math.random() < 0.2) spawnEnemy(world);
+    // Higher stages have a chance of double/triple-spawning (slightly boosted
+    // for longer stages with more enemies on screen).
+    if ((day >= 2 || stage >= 2) && Math.random() < 0.45 + (stage - 1) * 0.08) spawnEnemy(world);
+    if (stage >= 2 && Math.random() < 0.35) spawnEnemy(world);
+    if (stage >= 3 && Math.random() < 0.3) spawnEnemy(world);
+    if (stage >= 4 && Math.random() < 0.25) spawnEnemy(world);
   }
   world.bossTimer -= dt;
   if (world.bossTimer <= 0) {
-    // Boss fights are now full bullet-hell set-pieces (multiple attack
-    // patterns instead of one telegraphed stomp), so the cadence was
-    // stretched from the original 90s to 130s to give each fight room to
-    // breathe without back-to-back bosses feeling relentless.
-    world.bossTimer = 130;
+    // Stages are longer with 2 bosses. The first boss spawns after 180s,
+    // the second after the first is defeated (8s breather set in updateBossFight).
+    world.bossTimer = 180;
     spawnBoss(world);
   }
 }
