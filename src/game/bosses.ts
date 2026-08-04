@@ -116,6 +116,21 @@ export const BOSS_DEFS: BossDef[] = [
 export const BOSS_DEF_BY_ID: Record<string, BossDef> = {};
 BOSS_DEFS.forEach((d) => (BOSS_DEF_BY_ID[d.id] = d));
 
+/** Find the nearest player position (host + all net players) to a point. */
+function nearestPlayer(world: World, x: number, y: number): { x: number; y: number } {
+  let tx = world.player.x;
+  let ty = world.player.y;
+  let td = (tx - x) ** 2 + (ty - y) ** 2;
+  if (world.netPlayers) {
+    for (const np of world.netPlayers) {
+      if (np.state.downed) continue;
+      const d = (np.state.x - x) ** 2 + (np.state.y - y) ** 2;
+      if (d < td) { td = d; tx = np.state.x; ty = np.state.y; }
+    }
+  }
+  return { x: tx, y: ty };
+}
+
 const REST_DURATION = 0.4;
 
 /** Phase thresholds (fraction of maxHp). Phase 1: 100-66%, Phase 2: 66-33%, Phase 3: 33-0%. */
@@ -173,7 +188,7 @@ function tickStomp(world: World, boss: BossState, _dt: number): boolean {
   }
   if (!d.resolved && boss.patternT >= 0.9) {
     d.resolved = 1;
-    const p = world.player;
+    const target = nearestPlayer(world, boss.x, boss.y); const p = { x: target.x, y: target.y, invuln: 0, dashing: 0, r: 13 };
     if (dist(p.x, p.y, boss.x, boss.y) < RADIUS && p.invuln <= 0 && p.dashing <= 0) {
       damagePlayer(world, boss.dmg * 1.3 * (1 - damageReduction(world)));
     }
@@ -228,7 +243,7 @@ function tickSpiral(world: World, boss: BossState, dt: number): boolean {
 function tickAimedVolley(world: World, boss: BossState, _dt: number): boolean {
   const d = boss.patternData;
   const volleyTimes = [0.1, 0.95, 1.8];
-  const p = world.player;
+  const target = nearestPlayer(world, boss.x, boss.y); const p = { x: target.x, y: target.y, invuln: 0, dashing: 0, r: 13 };
   for (let i = 0; i < volleyTimes.length; i++) {
     const key = `t${i}`;
     if (!d[key] && boss.patternT >= volleyTimes[i]) {
@@ -279,7 +294,7 @@ function tickExpandRing(world: World, boss: BossState, _dt: number): boolean {
 
 function tickLineBeam(world: World, boss: BossState, _dt: number): boolean {
   const d = boss.patternData;
-  const p = world.player;
+  const target = nearestPlayer(world, boss.x, boss.y); const p = { x: target.x, y: target.y, invuln: 0, dashing: 0, r: 13 };
   if (!d.started) {
     d.started = 1;
     d.angle = Math.atan2(p.y - boss.y, p.x - boss.x);
@@ -332,24 +347,47 @@ export function updateBoss(world: World, dt: number): void {
   if (!fight) return;
   const boss = fight.boss;
   const def = BOSS_DEF_BY_ID[boss.defId];
-  const p = world.player;
+
+  // Find nearest player (host + all net players) for targeting.
+  let tx = world.player.x;
+  let ty = world.player.y;
+  let td = (tx - boss.x) ** 2 + (ty - boss.y) ** 2;
+  if (world.netPlayers) {
+    for (const np of world.netPlayers) {
+      if (np.state.downed) continue;
+      const d = (np.state.x - boss.x) ** 2 + (np.state.y - boss.y) ** 2;
+      if (d < td) { td = d; tx = np.state.x; ty = np.state.y; }
+    }
+  }
 
   // Gentle keep-away movement: close distance slowly, but hold near-ish
   // range once close so bullet-hell patterns stay readable.
-  const d = dist(p.x, p.y, boss.x, boss.y);
+  const d = Math.sqrt(td);
   const minRange = 210;
   if (d > minRange) {
-    const ang = Math.atan2(p.y - boss.y, p.x - boss.x);
+    const ang = Math.atan2(ty - boss.y, tx - boss.x);
     boss.x += Math.cos(ang) * boss.spd * dt;
     boss.y += Math.sin(ang) * boss.spd * dt;
   }
   boss.x = Math.max(boss.r, Math.min(world.W - boss.r, boss.x));
   boss.y = Math.max(boss.r, Math.min(world.H - boss.r, boss.y));
 
-  // Body contact damage, same treatment as regular enemies.
-  const pr2 = (p.r || 13) + boss.r;
-  if (d < pr2 && p.invuln <= 0 && p.dashing <= 0) {
+  // Body contact damage — check ALL players (host + net players).
+  const pr = world.player;
+  const pr2 = (pr.r || 13) + boss.r;
+  if (d < pr2 && pr.invuln <= 0 && pr.dashing <= 0) {
     damagePlayer(world, boss.dmg * 0.6 * dt * (1 - damageReduction(world)));
+  }
+  if (world.netPlayers) {
+    for (const np of world.netPlayers) {
+      if (np.state.downed || np.state.invuln > 0) continue;
+      const nd = Math.sqrt((np.state.x - boss.x) ** 2 + (np.state.y - boss.y) ** 2);
+      const nr = (np.state.r || 13) + boss.r;
+      if (nd < nr) {
+        np.state.hp -= boss.dmg * 0.6 * dt * (1 - damageReduction(world));
+        if (np.state.hp <= 0) { np.state.hp = 0; np.state.downed = true; }
+      }
+    }
   }
 
   // Phase transitions: detect HP threshold crossings and flash a banner.
@@ -392,15 +430,34 @@ export function updateBoss(world: World, dt: number): void {
     boss.dead = true;
   }
 
-  // Advance + cull boss projectiles, checking player collision.
+  // Advance + cull boss projectiles, checking collision against ALL players.
   for (let i = boss.projectiles.length - 1; i >= 0; i--) {
     const pr = boss.projectiles[i];
     pr.x += pr.vx * dt;
     pr.y += pr.vy * dt;
     pr.life -= dt;
+    let hit = false;
+    // Host player
+    const p = world.player;
     const hitR = (p.r || 13) + pr.r;
     if (dist(p.x, p.y, pr.x, pr.y) < hitR && p.invuln <= 0 && p.dashing <= 0) {
       damagePlayer(world, pr.dmg * (1 - damageReduction(world)));
+      hit = true;
+    }
+    // Net players (guests)
+    if (!hit && world.netPlayers) {
+      for (const np of world.netPlayers) {
+        if (np.state.downed || np.state.invuln > 0) continue;
+        const nhR = (np.state.r || 13) + pr.r;
+        if (dist(np.state.x, np.state.y, pr.x, pr.y) < nhR) {
+          np.state.hp -= pr.dmg * (1 - damageReduction(world));
+          if (np.state.hp <= 0) { np.state.hp = 0; np.state.downed = true; }
+          hit = true;
+          break;
+        }
+      }
+    }
+    if (hit) {
       boss.projectiles.splice(i, 1);
       continue;
     }

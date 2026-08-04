@@ -111,8 +111,17 @@ export function getStageDef(stage: number): StageDef {
  * special enemies are NOT carried forward (each stage feels distinct).
  */
 export function availableEnemyTypes(stage: number): EnemyType[] {
-  const types: EnemyType[] = ['slime', 'skel', 'wisp', 'wraith'];
+  // Each stage has its own set of enemies. Stage 1 = slimes only, stage 2 = skeletons,
+  // stage 3 = wisps, stage 4 = wraiths, plus the stage's special enemies.
+  const stageTypes: Record<number, EnemyType[]> = {
+    1: ['slime'],
+    2: ['skel'],
+    3: ['wisp'],
+    4: ['wraith'],
+  };
+  const base = stageTypes[stage] || ['slime', 'skel', 'wisp', 'wraith'];
   const def = getStageDef(stage);
+  const types = [...base];
   for (const t of def.unlocksEnemies) {
     if (!types.includes(t)) types.push(t);
   }

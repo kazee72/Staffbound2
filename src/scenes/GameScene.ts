@@ -8,7 +8,7 @@ import { ENEMY_TEXTURE_KEYS, BOSS_TEXTURE_KEYS } from '../game/enemySprites';
 import { enemyVisualScale, SKEL_ANIM, SLIME_ANIM } from '../game/enemySpriteAssets';
 import { createWorld } from '../game/types';
 import type { World, NetPlayer, NetPlayerState, EnemyType } from '../game/types';
-import { xpForLevel, gainXP, maxHP } from '../game/player';
+import { xpForLevel, gainXP, maxHP, damageReduction } from '../game/player';
 import { updateSpellTimers } from '../game/spells';
 import { updateSpawns } from '../game/waves';
 import { damageEnemy, damageBoss, killEnemy } from '../game/combat';
@@ -572,6 +572,11 @@ export class GameScene extends Phaser.Scene {
         const view = deserializeEnemyState(msg.enemies);
         this.world.elapsed = view.elapsed;
         this.world.stage = view.stage;
+        // Guest: detect stage change and update background
+        if (this.world.stage !== this.lastStage) {
+          this.lastStage = this.world.stage;
+          this.updateStageBackground(this.world.stage);
+        }
         this.updateGuestEnemies(view);
         if (view.bossActive && view.boss) {
           if (!this.world.bossFight) {
@@ -589,12 +594,15 @@ export class GameScene extends Phaser.Scene {
         // Update our own HP from the host's authoritative player HPs array
         if (this.myPlayerSlot >= 0 && msg.playerHps.length > this.myPlayerSlot) {
           const hostHp = msg.playerHps[this.myPlayerSlot];
-          // Only update if host says we took damage (host HP <= local HP)
           if (hostHp < this.world.player.hp) {
             this.world.player.hp = hostHp;
           }
           if (hostHp <= 0) {
             this.world.player.hp = 0;
+            // Guest death — the host has confirmed we're down
+            if (this.world.running) {
+              this.world.running = false;
+            }
           }
         }
         break;
@@ -777,7 +785,7 @@ export class GameScene extends Phaser.Scene {
               if (e.dead) continue;
               const pr2 = (s.r + e.r) ** 2;
               if ((s.x - e.x) ** 2 + (s.y - e.y) ** 2 < pr2) {
-                s.hp -= e.dmg * dt * 0.8; // slightly reduced for fairness over network
+                s.hp -= e.dmg * dt * (1 - damageReduction(this.world));
                 if (s.hp <= 0) { s.hp = 0; s.downed = true; }
                 break;
               }

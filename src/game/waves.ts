@@ -27,13 +27,15 @@ export function updateSpawns(world: World, dt: number): void {
   const day = currentDay(world);
   const stage = world.stage;
   world.spawnTimer -= dt;
-  const interval = Math.max(0.28, 1.5 - day * 0.09 - (stage - 1) * 0.06);
+  const interval = Math.max(0.15, 0.9 - day * 0.06 - (stage - 1) * 0.05);
   if (world.spawnTimer <= 0) {
     world.spawnTimer = interval;
     spawnEnemy(world);
-    // Higher stages have a chance of double-spawning.
-    if ((day >= 3 || stage >= 2) && Math.random() < 0.25 + (stage - 1) * 0.05) spawnEnemy(world);
-    if (stage >= 3 && Math.random() < 0.15) spawnEnemy(world);
+    // Higher stages have a chance of double/triple-spawning.
+    if ((day >= 2 || stage >= 2) && Math.random() < 0.4 + (stage - 1) * 0.08) spawnEnemy(world);
+    if (stage >= 2 && Math.random() < 0.3) spawnEnemy(world);
+    if (stage >= 3 && Math.random() < 0.25) spawnEnemy(world);
+    if (stage >= 4 && Math.random() < 0.2) spawnEnemy(world);
   }
   world.bossTimer -= dt;
   if (world.bossTimer <= 0) {
