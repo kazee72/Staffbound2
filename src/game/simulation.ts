@@ -178,7 +178,6 @@ export function damagePlayer(world: World, amount: number, attacker?: EnemyState
       p.phoenixCd = 1; // consumed for the rest of the run
       p.hp = Math.round(maxHP(world) * 0.5);
       p.invuln = 2;
-      world.flash('PHOENIX', '#e2793d');
       // Massive fire blast
       const blastRadius = 250;
       const blastDmg = 60 + world.level * 1.5;
@@ -196,7 +195,6 @@ export function damagePlayer(world: World, amount: number, attacker?: EnemyState
       p.hp = 1;
       p.undyingCd = 60;
       p.invuln = 1.5;
-      world.flash('UNDYING', 'var(--gold-bright)');
     } else {
       p.hp = 0;
       world.running = false;

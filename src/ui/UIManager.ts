@@ -141,14 +141,34 @@ export class UIManager {
     this.root.appendChild(this.cooldownBar);
     this.cooldownSlots = {};
     const spellDefs = [
-      { id: 'bolt',       label: 'Bolt',    color: '#9d8ce0' },
-      { id: 'fireNova',   label: 'Nova',    color: '#e2793d' },
-      { id: 'iceLance',   label: 'Lance',   color: '#8ec9e8' },
-      { id: 'shadowBolt', label: 'Shadow',  color: '#c4728f' },
-      { id: 'arcaneBurst',label: 'Burst',   color: '#c7bdf5' },
-      { id: 'vines',      label: 'Vines',   color: '#8bc48a' },
-      { id: 'frostArmor', label: 'Armor',   color: '#8ec9e8' },
-      { id: 'dash',       label: 'Dash',    color: '#c9a869' },
+      { id: 'bolt',         label: 'Bolt',     color: '#2f8fff' },
+      { id: 'dash',         label: 'Dash',     color: '#c9a869' },
+      { id: 'fireNova',     label: 'Nova',     color: '#e2793d' },
+      { id: 'iceLance',     label: 'Lance',    color: '#8ec9e8' },
+      { id: 'shadowBolt',   label: 'Shadow',   color: '#c4728f' },
+      { id: 'arcaneBurst',  label: 'Burst',    color: '#c7bdf5' },
+      { id: 'vines',        label: 'Vines',    color: '#8bc48a' },
+      { id: 'frostArmor',   label: 'Armor',    color: '#8ec9e8' },
+      { id: 'windGust',     label: 'Gust',     color: '#a8d4e8' },
+      { id: 'vortex',       label: 'Vortex',   color: '#a8d4e8' },
+      { id: 'cataclysm',    label: 'Tornado',  color: '#a8d4e8' },
+      { id: 'stormCall',    label: 'Storm',    color: '#c4e842' },
+      { id: 'thunderclap',  label: 'Clap',     color: '#c4e842' },
+      { id: 'lightningStorm',label: 'L.Storm', color: '#c4e842' },
+      { id: 'stormLord',    label: 'StormLord',color: '#c4e842' },
+      { id: 'thunderStrike',label: 'T.Strike', color: '#c4e842' },
+      { id: 'timeWarp',     label: 'Warp',     color: '#9d8ce0' },
+      { id: 'overgrowth',   label: 'Growth',   color: '#8bc48a' },
+      { id: 'shadowBlink',  label: 'Blink',    color: '#c4728f' },
+      { id: 'eternalFrost', label: 'E.Frost',  color: '#8ec9e8' },
+      { id: 'apexSurge',    label: 'Surge',    color: '#4fd6c0' },
+      { id: 'arcaneExplosion',label: 'Explosion',color: '#c7bdf5' },
+      { id: 'blizzard',     label: 'Blizzard', color: '#b8d8f0' },
+      { id: 'earthquake',   label: 'Quake',    color: '#c9a869' },
+      { id: 'sporeBurst',   label: 'Spores',   color: '#8bc48a' },
+      { id: 'shadowNova',   label: 'Nova',     color: '#c4728f' },
+      { id: 'whirlwindStrike',label: 'Whirl',  color: '#4fd6c0' },
+      { id: 'magmaCore',    label: 'Magma',    color: '#e2793d' },
     ];
     spellDefs.forEach((sd) => {
       const slot = document.createElement('div');
@@ -492,6 +512,29 @@ export class UIManager {
     this.updateCooldown('arcaneBurst', world.cd.arcaneBurst, 8, hasNode(world.purchased, 'V_E1'));
     this.updateCooldown('vines', world.cd.vines, 10, hasNode(world.purchased, 'N_B'));
     this.updateCooldown('frostArmor', world.cd.frostArmor, 14, hasNode(world.purchased, 'R_E2'));
+    // Lightning branch
+    this.updateCooldown('stormCall', world.cd.stormCall, 4, hasNode(world.purchased, 'T_C1'));
+    this.updateCooldown('thunderclap', world.cd.thunderclap, 3, hasNode(world.purchased, 'T_B'));
+    this.updateCooldown('lightningStorm', world.cd.lightningStorm, 8, hasNode(world.purchased, 'T_E1'));
+    this.updateCooldown('stormLord', world.cd.stormLord, 10, hasNode(world.purchased, 'T_I'));
+    this.updateCooldown('thunderStrike', world.cd.thunderStrike, 5, hasNode(world.purchased, 'T_L'));
+    // Wind branch
+    this.updateCooldown('windGust', world.cd.windGust, 4, hasNode(world.purchased, 'W_B'));
+    this.updateCooldown('vortex', world.cd.vortex, 6, hasNode(world.purchased, 'W_D'));
+    this.updateCooldown('cataclysm', world.cd.cataclysm, 12, hasNode(world.purchased, 'W_F'));
+    // Special abilities (from other skill nodes)
+    this.updateCooldown('timeWarp', world.cd.timeWarp, 20, hasNode(world.purchased, 'V_I'));
+    this.updateCooldown('overgrowth', world.cd.overgrowth, 12, hasNode(world.purchased, 'N_F'));
+    this.updateCooldown('shadowBlink', world.cd.shadowBlink, 15, hasNode(world.purchased, 'S_I'));
+    this.updateCooldown('eternalFrost', world.cd.eternalFrost, 25, hasNode(world.purchased, 'R_I'));
+    this.updateCooldown('apexSurge', world.cd.apexSurge, 15, hasNode(world.purchased, 'P_I'));
+    this.updateCooldown('arcaneExplosion', world.cd.arcaneExplosion, 8, hasNode(world.purchased, 'V_L'));
+    this.updateCooldown('blizzard', world.cd.blizzard, 20, hasNode(world.purchased, 'R_L'));
+    this.updateCooldown('earthquake', world.cd.earthquake, 15, hasNode(world.purchased, 'B_L'));
+    this.updateCooldown('sporeBurst', world.cd.sporeBurst, 10, hasNode(world.purchased, 'N_L'));
+    this.updateCooldown('shadowNova', world.cd.shadowNova, 12, hasNode(world.purchased, 'S_L'));
+    this.updateCooldown('whirlwindStrike', world.cd.whirlwindStrike, 8, hasNode(world.purchased, 'P_L'));
+    this.updateCooldown('magmaCore', world.cd.magmaCore, 8, true); // boss ability, always active if unlocked
   }
 
   private updateCooldown(id: string, cd: number, maxCd: number, visible: boolean): void {

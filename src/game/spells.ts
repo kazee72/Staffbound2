@@ -297,7 +297,7 @@ export function castBolt(world: World): void {
       }
       const boltDmg = (8 + world.level * 0.6) * 0.6 * lightningDamageMult(world);
       const falloff = getLightningFalloff(world);
-      chainLightning(world, p.x, p.y, target, boltDmg, effectiveChain, falloff, '#c4e842');
+      chainLightning(world, p.x, p.y, target, boltDmg, effectiveChain, falloff, "#c4e842");
     }
   }
 }
@@ -361,7 +361,7 @@ export function castIceLance(world: World): void {
 export function castFrostArmor(world: World): void {
   const p = world.player;
   world.cd.frostArmorActive = 5;
-  world.flash('FROST ARMOR', 'var(--frost)');
+
   burst(world, p.x, p.y, '#8ec9e8', 18, 120);
 }
 
@@ -433,11 +433,11 @@ export function castThunderclap(world: World): void {
     radius,
     (e) => {
       damageEnemy(world, e, dmg, { color: '#c4e842', slow: slowAmt, slowDur });
-      spawnLightningArc(world, p.x, p.y, e.x, e.y, '#c4e842');
+      spawnLightningArc(world, p.x, p.y, e.x, e.y, "#c4e842");
     },
     () => {
       damageBoss(world, world.bossFight!.boss, dmg, { color: '#c4e842' });
-      spawnLightningArc(world, p.x, p.y, world.bossFight!.boss.x, world.bossFight!.boss.y, '#c4e842');
+      spawnLightningArc(world, p.x, p.y, world.bossFight!.boss.x, world.bossFight!.boss.y, "#c4e842");
     },
   );
   burst(world, p.x, p.y, '#c4e842', 12, 100);
@@ -460,7 +460,7 @@ export function castStormCall(world: World): void {
   const dmg = (16 + world.level * 0.5) * lightningDamageMult(world);
   const aoeRadius = 50;
   // Lightning from sky to target
-  spawnLightningArc(world, target.x, target.y - 300, target.x, target.y, '#c4e842');
+  spawnLightningArc(world, target.x, target.y - 300, target.x, target.y, "#c4e842");
   world.effects.push({ type: 'ring', x: target.x, y: target.y, r: 0, maxR: aoeRadius, color: '#c4e842', life: 0.3, t: 0 });
   forEachTargetInRange(
     world,
@@ -490,7 +490,7 @@ export function castLightningStorm(world: World): void {
     if (!target) break;
     const tx = (target as EnemyState).x;
     const ty = (target as EnemyState).y;
-    spawnLightningArc(world, tx, ty - 300, tx, ty, '#c4e842');
+    spawnLightningArc(world, tx, ty - 300, tx, ty, "#c4e842");
     world.effects.push({ type: 'ring', x: tx, y: ty, r: 0, maxR: 60, color: '#c4e842', life: 0.3, t: 0 });
     forEachTargetInRange(
       world,
@@ -502,7 +502,7 @@ export function castLightningStorm(world: World): void {
     );
     burst(world, tx, ty, '#c4e842', 12, 100);
   }
-  world.flash('LIGHTNING STORM', '#c4e842');
+
 }
 
 /** Storm Lord (T_I): chain lightning through all enemies on screen. */
@@ -518,7 +518,7 @@ export function castStormLord(world: World): void {
   for (const e of allTargets) {
     if (e.dead) continue;
     hit.add(e);
-    spawnLightningArc(world, prevX, prevY, e.x, e.y, '#c4e842');
+    spawnLightningArc(world, prevX, prevY, e.x, e.y, "#c4e842");
     damageEnemy(world, e, dmg, { color: '#c4e842' });
     world.effects.push({ type: 'ring', x: e.x, y: e.y, r: 0, maxR: 30, color: '#c4e842', life: 0.2, t: 0 });
     prevX = e.x;
@@ -527,10 +527,10 @@ export function castStormLord(world: World): void {
   // Also hit the boss
   if (world.bossFight) {
     const boss = world.bossFight.boss;
-    spawnLightningArc(world, prevX, prevY, boss.x, boss.y, '#c4e842');
+    spawnLightningArc(world, prevX, prevY, boss.x, boss.y, "#c4e842");
     damageBoss(world, boss, dmg, { color: '#c4e842' });
   }
-  world.flash('STORM LORD', '#c4e842');
+
 }
 
 /** Thunder Strike (T_L): call down a massive lightning bolt on the nearest enemy. */
@@ -540,7 +540,7 @@ export function castThunderStrike(world: World): void {
   if (!target) return;
   const dmg = (30 + world.level * 0.8) * lightningDamageMult(world);
   const aoeRadius = 80;
-  spawnLightningArc(world, target.x, target.y - 400, target.x, target.y, '#c4e842');
+  spawnLightningArc(world, target.x, target.y - 400, target.x, target.y, "#c4e842");
   world.effects.push({ type: 'ring', x: target.x, y: target.y, r: 0, maxR: aoeRadius, color: '#c4e842', life: 0.4, t: 0 });
   forEachTargetInRange(
     world,
@@ -644,7 +644,7 @@ export function updateSpellTimers(world: World, dt: number): void {
       world.cd.timeWarp -= dt;
     } else {
       world.cd.timeWarp = 20; // recharge
-      world.flash('TIME WARP', '#9d8ce0');
+
       world.enemies.forEach((e) => {
         if (!e.dead) {
           e.slowUntil = world.elapsed + 5;
@@ -666,7 +666,7 @@ export function updateSpellTimers(world: World, dt: number): void {
     } else {
       world.cd.overgrowth = 12;
       healPlayer(world, maxHP(world) * 0.2);
-      world.flash('OVERGROWTH', '#8bc48a');
+
       const radius = 150;
       forEachTargetInRange(
         world,
@@ -691,7 +691,7 @@ export function updateSpellTimers(world: World, dt: number): void {
         world.player.x = target.x + 30;
         world.player.y = target.y + 30;
         world.player.invuln = 0.5;
-        world.flash('SHADOW BLINK', '#c4728f');
+
         world.enemies.forEach((e) => {
           if (!e.dead && dist2(e.x, e.y, target.x, target.y) < 100 * 100) {
             e.marked = world.elapsed + 4;
@@ -708,7 +708,7 @@ export function updateSpellTimers(world: World, dt: number): void {
       world.cd.eternalFrost -= dt;
     } else {
       world.cd.eternalFrost = 25;
-      world.flash('ETERNAL FROST', '#8ec9e8');
+
       world.enemies.forEach((e) => {
         if (!e.dead) e.frozenUntil = world.elapsed + 4;
       });
@@ -730,7 +730,7 @@ export function updateSpellTimers(world: World, dt: number): void {
     } else if (world.cd.apexSurge === 0) {
       // First trigger or recharge complete — fire the surge.
       world.cd.apexSurge = 4;
-      world.flash('APEX SURGE', '#4fd6c0');
+
     } else {
       // Recharging (negative)
       world.cd.apexSurge += dt;
@@ -803,7 +803,7 @@ export function updateSpellTimers(world: World, dt: number): void {
         () => damageBoss(world, world.bossFight!.boss, dmg, { burn: true, color: '#c7bdf5' }),
       );
       burst(world, world.player.x, world.player.y, '#c7bdf5', 26, 200);
-      world.flash('ARCANE EXPLOSION', '#c7bdf5');
+
     }
   }
 
@@ -830,7 +830,7 @@ export function updateSpellTimers(world: World, dt: number): void {
         prevX = e.x;
         prevY = e.y;
       }
-      if (sorted.length > 0) world.flash('LIGHTNING CHAIN', '#9d8ce0');
+
     }
   }
 
@@ -840,7 +840,7 @@ export function updateSpellTimers(world: World, dt: number): void {
       world.cd.blizzard -= dt;
     } else {
       world.cd.blizzard = 20;
-      world.flash('BLIZZARD', '#b8d8f0');
+
       world.enemies.forEach((e) => {
         if (!e.dead) {
           e.slowUntil = world.elapsed + 5;
@@ -862,7 +862,7 @@ export function updateSpellTimers(world: World, dt: number): void {
     } else {
       world.cd.earthquake = 15;
       const radius = 200;
-      world.flash('EARTHQUAKE', '#c9a869');
+
       world.effects.push({ type: 'ring', x: world.player.x, y: world.player.y, r: 0, maxR: radius, color: '#c9a869', life: 0.6, t: 0 });
       world.enemies.forEach((e) => {
         if (!e.dead && dist2(e.x, e.y, world.player.x, world.player.y) < radius * radius) {
@@ -905,7 +905,7 @@ export function updateSpellTimers(world: World, dt: number): void {
         () => damageBoss(world, world.bossFight!.boss, dmg, { burn: true, color: '#8bc48a' }),
       );
       burst(world, world.player.x, world.player.y, '#8bc48a', 22, 180);
-      world.flash('SPORE BURST', '#8bc48a');
+
     }
   }
 
@@ -933,7 +933,7 @@ export function updateSpellTimers(world: World, dt: number): void {
         },
       );
       burst(world, world.player.x, world.player.y, '#c4728f', 24, 200);
-      world.flash('SHADOW NOVA', '#c4728f');
+
     }
   }
 
@@ -955,7 +955,7 @@ export function updateSpellTimers(world: World, dt: number): void {
         () => damageBoss(world, world.bossFight!.boss, dmg, { color: '#4fd6c0' }),
       );
       burst(world, world.player.x, world.player.y, '#4fd6c0', 20, 160);
-      world.flash('WHIRLWIND', '#4fd6c0');
+
     }
   }
 
@@ -1194,7 +1194,7 @@ export function castCataclysm(world: World): void {
     maxLife: life,
   };
   world.tornadoes.push(tornado);
-  world.flash('CATACLYSM', '#a8d4e8');
+
   burst(world, startX, startY, '#a8d4e8', 30, 200);
 }
 
