@@ -1,13 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(xargs grep -lE \"NetPlayer|hello|welcome\")",
-      "Bash(npm run *)",
-      "Bash(npm view *)",
-      "Bash(npm install *)",
-      "Bash(xargs grep -ln \"delay\")",
-      "Bash(npx --yes playwright --version)",
-      "Read(//tmp/**)"
-    ]
+      "Bash(git remote add origin git@github.com:kazee72/Staffbound2.git)",
+      "Bash(git push -u origin master)",
+      "Bash(git remote set-url origin https://github.com/kazee72/Staffbound2.git)"
+    ],
+    "deny": [],
+    "ask": []
   }
 }

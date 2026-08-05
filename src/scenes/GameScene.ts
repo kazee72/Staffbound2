@@ -71,6 +71,7 @@ export class GameScene extends Phaser.Scene {
 
   private fxGraphics!: Phaser.GameObjects.Graphics;
   private bgGraphics!: Phaser.GameObjects.Graphics;
+  private shadowGraphics!: Phaser.GameObjects.Graphics;
   private grassLayer!: Phaser.GameObjects.TileSprite;
   private decorLayer!: Phaser.GameObjects.Layer;
 
@@ -152,15 +153,16 @@ export class GameScene extends Phaser.Scene {
       .tileSprite(0, 0, width, height, FOREST_GRASS_KEY)
       .setOrigin(0, 0)
       .setDepth(0);
-    this.decorLayer = this.add.layer().setDepth(0.5);
+    this.decorLayer = this.add.layer().setDepth(0);
     this.scatterForestDecor(width, height);
 
     this.bgGraphics = this.add.graphics().setDepth(1);
     this.initFireflies();
 
-    this.fxGraphics = this.add.graphics().setDepth(5);
+    this.fxGraphics = this.add.graphics().setDepth(100);
+    this.shadowGraphics = this.add.graphics().setDepth(0.00001);
 
-    this.mage = this.add.sprite(width / 2, height / 2, MAGE_TEXTURE_KEY).setDepth(6);
+    this.mage = this.add.sprite(width / 2, height / 2, MAGE_TEXTURE_KEY);
     this.mage.setScale(getMageScale());
     if (this.anims.exists(MAGE_ANIM_KEY)) this.mage.play(MAGE_ANIM_KEY);
 
@@ -939,14 +941,12 @@ export class GameScene extends Phaser.Scene {
         Math.round(curY + (s.y - curY) * lerp),
       );
       spr.setVisible(true);
-      spr.setDepth(6 + s.y * 0.0001);
+      spr.setDepth(s.y * 0.0001);
       const tints = [0x6b9eff, 0x8bc48a, 0xe2a040, 0xb58ce0];
       spr.setTint(tints[np.id % tints.length]);
       const blink = s.invuln > 0 && Math.floor(this.world.elapsed * 16) % 2 === 0;
       spr.setAlpha(blink ? 0.4 : 1);
       spr.setFlipX(Math.cos(s.aimAngle) < 0);
-      g.fillStyle(0x000000, 0.35);
-      g.fillEllipse(s.x, s.y + 10, 18, 6);
       if (s.hp < s.maxHp) {
         const w = 28;
         const tintHex = ['#6b9eff', '#8bc48a', '#e2a040', '#b58ce0'][np.id % 4];
@@ -1004,7 +1004,7 @@ export class GameScene extends Phaser.Scene {
       spr.setTint(rand() > 0.5 ? 0xffffff : 0xd8e4d0);
       // Depth-sort by y so enemies that are below (higher y) render in front,
       // and enemies above (lower y) render behind trees — same formula as enemies.
-      spr.setDepth(4 + y * 0.0001);
+      spr.setDepth(y * 0.0001);
       this.decorLayer.add(spr);
     }
   }
@@ -1053,7 +1053,7 @@ export class GameScene extends Phaser.Scene {
       // Subtle tint variation for depth.
       spr.setTint(rand() > 0.5 ? 0xffffff : 0xd8d0c8);
       // Depth-sort by y so enemies behind/below trees render correctly.
-      spr.setDepth(4 + y * 0.0001);
+      spr.setDepth(y * 0.0001);
       this.decorLayer.add(spr);
     }
   }
@@ -1092,7 +1092,35 @@ export class GameScene extends Phaser.Scene {
   private renderScene(): void {
     const g = this.fxGraphics;
     g.clear();
+    const sg = this.shadowGraphics;
+    sg.clear();
     const world = this.world;
+
+    // Shadows for depth — drawn on shadowGraphics (below all sprites)
+    // Player shadow
+    const p = world.player;
+    sg.fillStyle(0x000000, 0.3);
+    sg.fillEllipse(p.x, p.y + 10, 18, 6);
+    // Enemy shadows
+    for (const e of world.enemies) {
+      if (e.dead) continue;
+      sg.fillStyle(0x000000, 0.25);
+      sg.fillEllipse(e.x, e.y + e.r * 0.6, e.r * 1.2, e.r * 0.4);
+    }
+    // Boss shadow
+    if (world.bossFight) {
+      const b = world.bossFight.boss;
+      sg.fillStyle(0x000000, 0.35);
+      sg.fillEllipse(b.x, b.y + b.r * 0.5, b.r * 1.4, b.r * 0.5);
+    }
+    // Guest mage shadows
+    if (world.netPlayers) {
+      for (const np of world.netPlayers) {
+        if (np.state.downed) continue;
+        sg.fillStyle(0x000000, 0.3);
+        sg.fillEllipse(np.state.x, np.state.y + 10, 18, 6);
+      }
+    }
 
     // effects (rings/ground)
     world.effects.forEach((fx) => {
@@ -1207,7 +1235,7 @@ export class GameScene extends Phaser.Scene {
       if (!info) {
         let spr = this.enemySpritePool.find((s) => !s.visible);
         if (!spr) {
-          spr = this.add.sprite(0, 0, ENEMY_TEXTURE_KEYS[e.type]).setDepth(4.5);
+          spr = this.add.sprite(0, 0, ENEMY_TEXTURE_KEYS[e.type]).setDepth(e.y * 0.0001);
           this.enemySpritePool.push(spr);
         }
         spr.setTexture(ENEMY_TEXTURE_KEYS[e.type]);
@@ -1221,7 +1249,7 @@ export class GameScene extends Phaser.Scene {
       spr.setScale(enemyVisualScale(e.type, e.r));
       spr.setPosition(Math.round(e.x), Math.round(e.y));
       spr.setVisible(true);
-      spr.setDepth(4.5 + e.y * 0.0001);
+      spr.setDepth(e.y * 0.0001);
 
       // Idle/walk/hit animation switching (real-asset types only — see
       // playEnemyAnim). Purely render-layer: infers movement/damage from
@@ -1286,7 +1314,7 @@ export class GameScene extends Phaser.Scene {
 
     if (!this.bossSprite || this.currentBossDefId !== boss.defId) {
       this.bossSprite?.destroy();
-      this.bossSprite = this.add.sprite(boss.x, boss.y, BOSS_TEXTURE_KEYS[boss.defId]).setDepth(4.8);
+      this.bossSprite = this.add.sprite(boss.x, boss.y, BOSS_TEXTURE_KEYS[boss.defId]).setDepth(boss.y * 0.0001);
       this.currentBossDefId = boss.defId;
     }
     this.bossSprite.setPosition(Math.round(boss.x), Math.round(boss.y));
@@ -1356,6 +1384,7 @@ export class GameScene extends Phaser.Scene {
   private drawPlayer(): void {
     const p = this.world.player;
     this.mage.setPosition(Math.round(p.x), Math.round(p.y));
+    this.mage.setDepth(p.y * 0.0001);
     const blink = p.invuln > 0 && Math.floor(this.world.elapsed * 16) % 2 === 0;
     this.mage.setAlpha(blink ? 0.4 : 1);
     // Flip the sprite horizontally to face the mouse-aim direction (staff
@@ -1372,8 +1401,6 @@ export class GameScene extends Phaser.Scene {
     // frost armor ring + ambient glow via the fx graphics, drawn behind the sprite depth-wise is
     // acceptable given the sprite renders on its own GameObject above fxGraphics depth.
     const g = this.fxGraphics;
-    g.fillStyle(0x000000, 0.35);
-    g.fillEllipse(p.x, p.y + 10, 18, 6);
     if (this.world.cd.frostArmorActive > 0) {
       g.lineStyle(1.5, 0x8ec9e8, 1);
       g.strokeCircle(p.x, p.y, 13);
