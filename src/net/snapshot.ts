@@ -169,7 +169,7 @@ function toNetPlayer(
     phoenixCd: 0, undyingCd: 0, stillTime: 0,
     purchased: new Set<string>(), sp, spSpent,
     xp: 0, xpNext: 24,
-    cd: { bolt: 0, boltCastCount: 0, fireNova: 0, iceLance: 0, frostArmor: 0, frostArmorActive: 0, arcaneBurst: 0, vines: 0, shadowBolt: 0, timeWarp: 0, overgrowth: 0, shadowBlink: 0, eternalFrost: 0, apexSurge: 0, cull: 0, magmaCore: 0, arcaneExplosion: 0, lightningChain: 0, blizzard: 0, earthquake: 0, sporeBurst: 0, shadowNova: 0, whirlwindStrike: 0, stormCall: 0, thunderclap: 0, lightningStorm: 0, stormLord: 0, thunderStrike: 0, windGust: 0, vortex: 0, cataclysm: 0, tidalWave: 0, healingTide: 0, whirlpool: 0, tsunami: 0, flood: 0 },
+    cd: { bolt: 0, boltCastCount: 0, fireNova: 0, iceLance: 0, frostArmor: 0, frostArmorActive: 0, arcaneBurst: 0, vines: 0, shadowBolt: 0, timeWarp: 0, overgrowth: 0, shadowBlink: 0, eternalFrost: 0, apexSurge: 0, cull: 0, magmaCore: 0, arcaneExplosion: 0, lightningChain: 0, blizzard: 0, earthquake: 0, sporeBurst: 0, shadowNova: 0, whirlwindStrike: 0, stormCall: 0, thunderclap: 0, lightningStorm: 0, stormLord: 0, thunderStrike: 0, windGust: 0, vortex: 0, cataclysm: 0, tidalWave: 0, healingTide: 0, whirlpool: 0, tsunami: 0, flood: 0, boulder: 0, earthWall: 0, earthquakeRk: 0, meteor: 0, blessing: 0, divineShield: 0, judgement: 0, summonBone: 0, summonHound: 0, conjureArmy: 0, summonDeathKnight: 0, apocalypse: 0 },
     wisps: [], decoys: [],
   };
 }

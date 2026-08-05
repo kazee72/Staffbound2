@@ -289,6 +289,68 @@ export interface TornadoState {
   maxLife: number;
 }
 
+/** Boulder projectile (Rk_B) — a large rolling rock that damages all in its path. */
+export interface BoulderState {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  r: number;
+  dmg: number;
+  life: number;
+  t: number;
+  /** Enemies already hit (so it doesn't repeatedly damage the same foe). */
+  hit: Set<EnemyState>;
+}
+
+/** Earth Wall (Rk_D) — a barrier that blocks enemy movement. */
+export interface EarthWallState {
+  x: number;
+  y: number;
+  r: number;
+  life: number;
+  t: number;
+}
+
+/** Guardian Angel (H_D) — a spirit that orbits the player, damaging enemies. */
+export interface GuardianAngelState {
+  angle: number;
+  x: number;
+  y: number;
+  r: number;
+  dmg: number;
+  cd: number;
+}
+
+/** Summon types for the Summons (Sm) branch. */
+export type SummonType = 'familiar' | 'boneWarrior' | 'shadowHound' | 'deathKnight' | 'skeleton';
+
+export interface SummonState {
+  type: SummonType;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  hp: number;
+  maxHp: number;
+  dmg: number;
+  r: number;
+  /** Remaining lifetime in seconds (0 = permanent). */
+  life: number;
+  /** Orbit angle for familiar. */
+  angle: number;
+  /** Attack cooldown. */
+  cd: number;
+  /** Target enemy (null = auto-acquire). */
+  targetIdx: number;
+  /** Pin cooldown for shadow hound. */
+  pinCd: number;
+  /** Whether this summon is temporary (from Conjure Army / Apocalypse). */
+  temporary: boolean;
+  /** Whether this summon explodes on death (Necromancy). */
+  explosive: boolean;
+}
+
 export interface Cooldowns {
   bolt: number;
   boltCastCount: number;
@@ -355,6 +417,33 @@ export interface Cooldowns {
   tsunami: number;
   /** Flood (Wa_L) — screen-wide slow timer. */
   flood: number;
+  // ---------------- Rock (Rk) branch ----------------
+  /** Boulder Toss (Rk_B) — rolling boulder timer. */
+  boulder: number;
+  /** Earth Wall (Rk_D) — barrier timer. */
+  earthWall: number;
+  /** Cataclysm / Earthquake (Rk_F) — screen-wide quake timer. */
+  earthquakeRk: number;
+  /** Meteor (Rk_L) — meteor fall timer. */
+  meteor: number;
+  // ---------------- Holy (H) branch ----------------
+  /** Blessing (H_B) — passive heal timer. */
+  blessing: number;
+  /** Divine Shield (H_G) — shield timer. */
+  divineShield: number;
+  /** Judgement (H_E1) — smite timer. */
+  judgement: number;
+  // ---------------- Summons (Sm) branch ----------------
+  /** Bone Warrior (Sm_B) — summon timer. */
+  summonBone: number;
+  /** Shadow Hound (Sm_D) — summon timer. */
+  summonHound: number;
+  /** Conjure Army (Sm_E1) — army summon timer. */
+  conjureArmy: number;
+  /** Death Knight (Sm_I) — summon timer. */
+  summonDeathKnight: number;
+  /** Apocalypse (Sm_L) — skeleton wave timer. */
+  apocalypse: number;
 }
 
 export interface SkillNode {
@@ -408,6 +497,14 @@ export interface World {
   decoys: Decoy[];
   /** Wind branch tornadoes (Cataclysm W_F). */
   tornadoes: TornadoState[];
+  /** Rock branch boulders (Boulder Toss Rk_B). */
+  boulders: BoulderState[];
+  /** Rock branch earth walls (Earth Wall Rk_D). */
+  earthWalls: EarthWallState[];
+  /** Holy branch guardian angel (Seraphim H_D). */
+  guardianAngel: GuardianAngelState | null;
+  /** Summons branch (Sm) active summons. */
+  summons: SummonState[];
 
   cd: Cooldowns;
   spawnTimer: number;
@@ -546,6 +643,10 @@ export function createWorld(W: number, H: number, flash: (text: string, color: s
     wisps: [],
     decoys: [],
     tornadoes: [],
+    boulders: [],
+    earthWalls: [],
+    guardianAngel: null,
+    summons: [],
     cd: {
       bolt: 0,
       boltCastCount: 0,
@@ -583,6 +684,18 @@ export function createWorld(W: number, H: number, flash: (text: string, color: s
       whirlpool: 0,
       tsunami: 0,
       flood: 0,
+      boulder: 0,
+      earthWall: 0,
+      earthquakeRk: 0,
+      meteor: 0,
+      blessing: 0,
+      divineShield: 0,
+      judgement: 0,
+      summonBone: 0,
+      summonHound: 0,
+      conjureArmy: 0,
+      summonDeathKnight: 0,
+      apocalypse: 0,
     },
     spawnTimer: 0,
     bossTimer: 180,

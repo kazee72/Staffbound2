@@ -72,6 +72,25 @@ export function updatePlayer(world: World, input: InputState, dt: number): void 
   // naturally decays here via the invuln countdown above.
   healPlayer(world, regenPerSec(world) * dt);
   if (world.cd.frostArmorActive > 0) world.cd.frostArmorActive -= dt;
+
+  // Cleansing Rain (Wa_E2): heal 1 HP/sec while standing still.
+  if (hasNode(world.purchased, 'Wa_E2') && Math.hypot(p.vx, p.vy) < 8) {
+    healPlayer(world, dt);
+  }
+
+  // Saint's Resilience (H_J): below 25% HP, heal 2 HP/sec.
+  if (hasNode(world.purchased, 'H_J') && p.hp < maxHP(world) * 0.25) {
+    healPlayer(world, 2 * dt);
+  }
+
+  // Consecration (H_E2): standing still for 2s creates a holy field that damages enemies.
+  if (hasNode(world.purchased, 'H_E2') && p.stillTime >= 2) {
+    // Create a holy ground effect around the player every 0.5s
+    if (Math.floor(p.stillTime * 2) !== Math.floor((p.stillTime - dt) * 2)) {
+      const radius = 80;
+      world.effects.push({ type: 'ground', x: p.x, y: p.y, r: radius, color: '#c9a869', life: 0.5, t: 0, dmg: (8 + world.level * 0.3) * (hasNode(world.purchased, 'H_F') ? 2 : 1) });
+    }
+  }
 }
 
 export function tryDash(world: World): void {
@@ -193,7 +212,7 @@ export function updateProjectiles(world: World, dt: number): void {
     pr.y += pr.vy * dt;
     pr.life -= dt;
     // Read extended element flags from the projectile (set by castBolt).
-    const ext = pr as Projectile & { knockback?: number; healOnHit?: number; splashRadius?: number; chain?: number; windTrail?: boolean };
+    const ext = pr as Projectile & { knockback?: number; healOnHit?: number; splashRadius?: number; chain?: number; windTrail?: boolean; splashFrac?: number; groundCrack?: boolean; faultLine?: boolean; holyBolt?: boolean };
     // Wind trail: leave ground effect particles behind wind projectiles
     if (ext.windTrail && Math.random() < 0.3) {
       world.effects.push({ type: 'ring', x: pr.x, y: pr.y, r: 0, maxR: 8, color: '#a8d4e8', life: 0.3, t: 0 });
@@ -206,8 +225,11 @@ export function updateProjectiles(world: World, dt: number): void {
         // Wind blade knockback
         if (ext.knockback && ext.knockback > 0) {
           const ang = Math.atan2(e.y - pr.y, e.x - pr.x);
-          e.x = Math.max(5, Math.min(world.W - 5, e.x + Math.cos(ang) * ext.knockback));
-          e.y = Math.max(5, Math.min(world.H - 5, e.y + Math.sin(ang) * ext.knockback));
+          const kbDist = ext.knockback;
+          // Bedrock (Rk_J): immune to knockback — enemies with this buff aren't pushed.
+          // (This is a player skill, not enemy — player is immune to knockback from enemies.)
+          e.x = Math.max(5, Math.min(world.W - 5, e.x + Math.cos(ang) * kbDist));
+          e.y = Math.max(5, Math.min(world.H - 5, e.y + Math.sin(ang) * kbDist));
         }
         // Water bolt heal-on-hit
         if (ext.healOnHit && ext.healOnHit > 0) {
@@ -216,16 +238,34 @@ export function updateProjectiles(world: World, dt: number): void {
         // Holy light AoE splash
         if (ext.splashRadius && ext.splashRadius > 0) {
           world.effects.push({ type: 'ring', x: e.x, y: e.y, r: 0, maxR: ext.splashRadius, color: pr.color, life: 0.2, t: 0 });
+          const splashFrac = ext.splashFrac ?? 0.5;
           forEachTargetInRange(
             world,
             e.x,
             e.y,
             ext.splashRadius,
             (o: EnemyState) => {
-              if (o !== e) damageEnemy(world, o, pr.dmg * 0.5, { color: pr.color });
+              if (o !== e) damageEnemy(world, o, pr.dmg * splashFrac, { color: pr.color });
             },
             () => { /* boss already hit below if in range */ },
           );
+        }
+        // Crater (Rk_C2): bolt impact creates a ground crack that damages for 3s.
+        if (ext.groundCrack) {
+          world.effects.push({ type: 'ground', x: e.x, y: e.y, r: 30, color: '#9a8b7a', life: 3, t: 0, dmg: 4 + world.level * 0.2 });
+        }
+        // Fault Line (Rk_K): line of cracks toward nearest enemy.
+        if (ext.faultLine) {
+          const nearest = nearestEnemy(world, e.x, e.y);
+          if (nearest) {
+            const steps = 5;
+            for (let s = 1; s <= steps; s++) {
+              const t = s / steps;
+              const cx = e.x + (nearest.x - e.x) * t;
+              const cy = e.y + (nearest.y - e.y) * t;
+              world.effects.push({ type: 'ground', x: cx, y: cy, r: 20, color: '#9a8b7a', life: 2, t: 0, dmg: 3 + world.level * 0.15 });
+            }
+          }
         }
         // Chain lightning: arc to nearby enemies
         if (pr.chain && pr.chain > 0) {
@@ -244,7 +284,10 @@ export function updateProjectiles(world: World, dt: number): void {
     if (!hit && world.bossFight) {
       const boss = world.bossFight.boss;
       if (dist2(pr.x, pr.y, boss.x, boss.y) < (pr.r + boss.r) * (pr.r + boss.r)) {
-        damageBoss(world, boss, pr.dmg, { burn: pr.burn, slow: pr.slow, color: pr.color, markedBonus: pr.markedBonus });
+        // Purge (H_K): +15% damage to bosses for holy bolts.
+        let bossDmg = pr.dmg;
+        if (ext.holyBolt && hasNode(world.purchased, 'H_K')) bossDmg *= 1.15;
+        damageBoss(world, boss, bossDmg, { burn: pr.burn, slow: pr.slow, color: pr.color, markedBonus: pr.markedBonus });
         // Water bolt heal-on-hit (also triggers on boss hit)
         if (ext.healOnHit && ext.healOnHit > 0) {
           healPlayer(world, ext.healOnHit);
@@ -252,6 +295,10 @@ export function updateProjectiles(world: World, dt: number): void {
         // Holy light AoE splash on boss
         if (ext.splashRadius && ext.splashRadius > 0) {
           world.effects.push({ type: 'ring', x: boss.x, y: boss.y, r: 0, maxR: ext.splashRadius, color: pr.color, life: 0.2, t: 0 });
+        }
+        // Crater (Rk_C2): ground crack on boss hit.
+        if (ext.groundCrack) {
+          world.effects.push({ type: 'ground', x: boss.x, y: boss.y, r: 30, color: '#9a8b7a', life: 3, t: 0, dmg: 4 + world.level * 0.2 });
         }
         hit = true;
         if (pr.pierce > 0) {

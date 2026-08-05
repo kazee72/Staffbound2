@@ -67,6 +67,13 @@ export function maxHP(world: World): number {
     (hasNode(p, 'T_H') ? 0.15 : 0) +   // Static Field (T_H): +15% max HP
     (hasNode(p, 'B_J') ? 0.4 : 0) +   // Titan Heart (B_J): +40% max HP
     (hasNode(p, 'W_H') ? 0.15 : 0) +   // Windwalker (W_H): +15% max HP
+    (hasNode(p, 'Wa_G') ? 0.1 : 0) +   // Purifying Water (Wa_G): +10% max HP
+    (hasNode(p, 'Rk_G') ? 0.2 : 0) +   // Stone Skin (Rk_G): +20% max HP
+    (hasNode(p, 'Rk_H') ? 0.15 : 0) +  // Mountain Heart (Rk_H): +15% max HP
+    (hasNode(p, 'H_G') ? 0.1 : 0) +    // Divine Shield (H_G): +10% max HP
+    (hasNode(p, 'H_H') ? 0.2 : 0) +    // Blessed Vitality (H_H): +20% max HP
+    (hasNode(p, 'Sm_G') ? 0.1 : 0) +   // Spirit Link (Sm_G): +10% max HP
+    (hasNode(p, 'Sm_H') ? 0.15 : 0) +  // Soul Harvest (Sm_H): +15% max HP
     (hasNode(p, 'P_J') ? 0.1 : 0);     // Perfection (P_J): +10% all stats (HP portion)
   return 100 * grim * metaHpMult(world);
 }
@@ -83,13 +90,21 @@ export function moveSpeed(world: World): number {
     (hasNode(p, 'W_A') ? 0.15 : 0) +
     (hasNode(p, 'W_H') ? 0.1 : 0) +
     (hasNode(p, 'P_J') ? 0.1 : 0);     // Perfection: +10% all stats
-  return 230 * grim * metaMoveMult(world) * (world.player.adrenaline > 0 ? 1.25 : 1);
+  // Fluid Motion (Wa_K): +20% move speed while moving.
+  const moving = Math.hypot(world.player.vx, world.player.vy) > 20;
+  const fluidMult = hasNode(p, 'Wa_K') && moving ? 1.2 : 1;
+  return 230 * grim * metaMoveMult(world) * (world.player.adrenaline > 0 ? 1.25 : 1) * fluidMult;
 }
 
 export function regenPerSec(world: World): number {
   const base = 0.4 + (hasNode(world.purchased, 'B_E2') ? 1.6 : 0) + (hasNode(world.purchased, 'N_G') ? 0.6 : 0) + metaRegenPerSec(world);
   // Titan Heart (B_J): +50% regen
-  return hasNode(world.purchased, 'B_J') ? base * 1.5 : base;
+  let mult = hasNode(world.purchased, 'B_J') ? 1.5 : 1;
+  // Mountain Heart (Rk_H): +50% regen
+  if (hasNode(world.purchased, 'Rk_H')) mult *= 1.5;
+  // Blessed Vitality (H_H): +50% regen
+  if (hasNode(world.purchased, 'H_H')) mult *= 1.5;
+  return base * mult;
 }
 
 export function healingMult(world: World): number {
@@ -106,6 +121,14 @@ export function damageReduction(world: World): number {
   if (hasNode(world.purchased, 'V_K') && world.player.hp > maxHP(world) * 0.8) dr += 0.2;
   // Fortress (B_I): 25% DR after standing still 2+ seconds
   if (hasNode(world.purchased, 'B_I') && world.player.stillTime >= 2) dr += 0.25;
+  // Aqua Shield (Wa_H): 10% DR while above 50% HP
+  if (hasNode(world.purchased, 'Wa_H') && world.player.hp > maxHP(world) * 0.5) dr += 0.1;
+  // Stone Skin (Rk_G): 10% DR
+  if (hasNode(world.purchased, 'Rk_G')) dr += 0.1;
+  // Bedrock (Rk_J): +15% additional DR
+  if (hasNode(world.purchased, 'Rk_J')) dr += 0.15;
+  // Saint's Resilience (H_J): 50% DR below 25% HP
+  if (hasNode(world.purchased, 'H_J') && world.player.hp < maxHP(world) * 0.25) dr += 0.5;
   // Perfection (P_J): flat 10% DR (part of "all stats +10%")
   if (hasNode(world.purchased, 'P_J')) dr += 0.1;
   return Math.min(0.85, dr);
@@ -130,9 +153,35 @@ export function spellDamageMult(world: World): number {
   return mult * metaDamageMult(world);
 }
 
+/** Holy-specific damage multiplier — includes H_F capstone (doubles holy effects). */
+export function holySpellDamageMult(world: World): number {
+  return spellDamageMult(world) * holyDamageMult(world);
+}
+
 /** Projectile speed multiplier — includes Velocity (P_K) skill and Aether Velocity meta. */
 export function projectileSpeedMult(world: World): number {
   return (hasNode(world.purchased, 'P_K') ? 1.4 : 1) * metaProjSpeedMult(world);
+}
+
+/** Holy damage multiplier from the Holy (H) branch.
+ *  Ascension (H_F): all holy effects doubled. */
+export function holyDamageMult(world: World): number {
+  return hasNode(world.purchased, 'H_F') ? 2 : 1;
+}
+
+/** Summon damage multiplier from the Summons (Sm) branch.
+ *  Pack Hunter (Sm_C1): +30% damage.
+ *  Lord of the Dead (Sm_F): 2x damage. */
+export function summonDamageMult(world: World): number {
+  let mult = 1;
+  if (hasNode(world.purchased, 'Sm_C1')) mult += 0.3;
+  if (hasNode(world.purchased, 'Sm_F')) mult *= 2;
+  return mult;
+}
+
+/** Max number of summons allowed. Base 3, doubled by Lord of the Dead (Sm_F). */
+export function maxSummons(world: World): number {
+  return hasNode(world.purchased, 'Sm_F') ? 6 : 3;
 }
 
 /** Player-count-based enemy HP multiplier: 1 + (playerCount-1) * 0.5. */

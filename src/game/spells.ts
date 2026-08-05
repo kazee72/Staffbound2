@@ -1,6 +1,6 @@
 /** All spell cast functions & their cooldown update loop, ported from reference/full-reference.html */
-import type { EnemyState, Projectile, World, TornadoState } from './types';
-import { cooldownMult, spellDamageMult, projectileSpeedMult, healPlayer, maxHP } from './player';
+import type { EnemyState, Projectile, World, TornadoState, BoulderState, EarthWallState, SummonState, SummonType } from './types';
+import { cooldownMult, spellDamageMult, projectileSpeedMult, healPlayer, maxHP, holySpellDamageMult, holyDamageMult, summonDamageMult, maxSummons } from './player';
 import { hasNode } from './skillTree';
 import { damageEnemy, damageBoss } from './combat';
 import { burst } from './visuals';
@@ -304,6 +304,14 @@ export function castBolt(world: World): void {
     case 'holy':
       projColor = '#c9a869';
       projSplashRadius = 40;
+      // Holy Light (H_A): heal 1 HP per hit. Radiance (H_C1): heal 3 HP.
+      projHealOnHit = hasNode(world.purchased, 'H_C1') ? 3 : 1;
+      // Ascension (H_F): auto-attack heals 6 HP per hit.
+      if (hasNode(world.purchased, 'H_F')) projHealOnHit = 6;
+      // Radiance (H_C1): splash radius +50%.
+      if (hasNode(world.purchased, 'H_C1')) projSplashRadius = 60;
+      // Sanctify (H_C2): holy bolts deal +50% damage to marked enemies.
+      if (hasNode(world.purchased, 'H_C2')) projMarked = true;
       break;
     case 'lightning':
       projColor = '#c4e842';
@@ -321,6 +329,8 @@ export function castBolt(world: World): void {
     case 'rock':
       projColor = '#9a8b7a';
       projSplashRadius = hasNode(world.purchased, 'Rk_C1') ? 60 : 40;
+      // Shrapnel (Rk_C1): splash damage increased to 60% of bolt damage.
+      // (handled in updateProjectiles splash section — flag set on projectile)
       break;
     default:
       break;
@@ -341,7 +351,11 @@ export function castBolt(world: World): void {
     const sy = p.y - Math.sin(ang) * spawnOffset;
     let dmg = 8 + world.level * 0.6;
     if (hasNode(world.purchased, 'F_A')) dmg *= 1.2;
+    // Sanctify (H_C2): holy bolts deal +50% damage to marked enemies (applied on hit via markedBonus flag).
+    // Purge (H_K): +15% damage to bosses (applied at hit time via damageBoss path).
     dmg *= spellDamageMult(world);
+    // Holy damage doubling from Ascension (H_F) — applied for holy element.
+    if (el === 'holy') dmg *= holyDamageMult(world);
     if (empowered) dmg *= hasNode(world.purchased, 'V_J') ? 4 : 3; // Arcane Overflow (V_J): 4x instead of 3x
     fireProjectile(world, sx, sy, Math.cos(ang), Math.sin(ang), projSpeed, dmg, projColor, projPierce, {
       homing: projHoming,
@@ -352,10 +366,18 @@ export function castBolt(world: World): void {
     // Store extra element flags on the just-pushed projectile so
     // updateProjectiles can apply them (knockback, heal, splash, chain).
     const pr = world.projectiles[world.projectiles.length - 1];
-    (pr as Projectile & { knockback?: number; healOnHit?: number; splashRadius?: number; chain?: number; windTrail?: boolean }).knockback = projKnockback;
-    (pr as Projectile & { knockback?: number; healOnHit?: number; splashRadius?: number; chain?: number; windTrail?: boolean }).healOnHit = projHealOnHit;
-    (pr as Projectile & { knockback?: number; healOnHit?: number; splashRadius?: number; chain?: number; windTrail?: boolean }).splashRadius = projSplashRadius;
-    (pr as Projectile & { knockback?: number; healOnHit?: number; splashRadius?: number; chain?: number; windTrail?: boolean }).chain = projChain;
+    (pr as Projectile & { knockback?: number; healOnHit?: number; splashRadius?: number; chain?: number; windTrail?: boolean; splashFrac?: number; groundCrack?: boolean; faultLine?: boolean; holyBolt?: boolean }).knockback = projKnockback;
+    (pr as Projectile & { knockback?: number; healOnHit?: number; splashRadius?: number; chain?: number; windTrail?: boolean; splashFrac?: number; groundCrack?: boolean; faultLine?: boolean; holyBolt?: boolean }).healOnHit = projHealOnHit;
+    (pr as Projectile & { knockback?: number; healOnHit?: number; splashRadius?: number; chain?: number; windTrail?: boolean; splashFrac?: number; groundCrack?: boolean; faultLine?: boolean; holyBolt?: boolean }).splashRadius = projSplashRadius;
+    (pr as Projectile & { knockback?: number; healOnHit?: number; splashRadius?: number; chain?: number; windTrail?: boolean; splashFrac?: number; groundCrack?: boolean; faultLine?: boolean; holyBolt?: boolean }).chain = projChain;
+    // Shrapnel (Rk_C1): splash damage 60% instead of 50%.
+    if (el === 'rock' && hasNode(world.purchased, 'Rk_C1')) (pr as Projectile & { splashFrac?: number }).splashFrac = 0.6;
+    // Crater (Rk_C2): bolt impact creates a ground crack.
+    if (el === 'rock' && hasNode(world.purchased, 'Rk_C2')) (pr as Projectile & { groundCrack?: boolean }).groundCrack = true;
+    // Fault Line (Rk_K): bolt impacts create a line of cracks toward nearest enemy.
+    if (el === 'rock' && hasNode(world.purchased, 'Rk_K')) (pr as Projectile & { faultLine?: boolean }).faultLine = true;
+    // Holy bolt flag for H_K boss damage bonus.
+    if (el === 'holy') (pr as Projectile & { holyBolt?: boolean }).holyBolt = true;
     if (projKnockback > 0) (pr as Projectile & { windTrail?: boolean }).windTrail = true;
     if (empowered && hasNode(world.purchased, 'V_F')) {
       // Arcane Overflow (V_J): 6 homing bolts instead of 4
@@ -1149,6 +1171,143 @@ export function updateSpellTimers(world: World, dt: number): void {
     }
   }
 
+  // ==================== Rock (Rk) branch timers ====================
+
+  // Boulder Toss (Rk_B): rolling boulder every 5s.
+  if (hasNode(world.purchased, 'Rk_B')) {
+    const boulderCd = 5 * (hasNode(world.purchased, 'Rk_E2') ? 0.7 : 1) * cm;
+    if (world.cd.boulder > 0) {
+      world.cd.boulder -= dt;
+    } else {
+      world.cd.boulder = boulderCd;
+      castBoulder(world);
+    }
+  }
+  // Update active boulders.
+  updateBoulders(world, dt);
+
+  // Earth Wall (Rk_D): raise a barrier every 8s.
+  if (hasNode(world.purchased, 'Rk_D')) {
+    const wallCd = 8 * (hasNode(world.purchased, 'Rk_E2') ? 0.7 : 1) * cm;
+    if (world.cd.earthWall > 0) {
+      world.cd.earthWall -= dt;
+    } else {
+      world.cd.earthWall = wallCd;
+      castEarthWall(world);
+    }
+  }
+  updateEarthWalls(world, dt);
+
+  // Rock Cataclysm (Rk_F): every 15s, massive earthquake + stun.
+  if (hasNode(world.purchased, 'Rk_F')) {
+    if (world.cd.earthquakeRk > 0) {
+      world.cd.earthquakeRk -= dt;
+    } else {
+      world.cd.earthquakeRk = 15;
+      castEarthquakeRk(world);
+    }
+  }
+
+  // Meteor (Rk_L): every 8s, meteor on strongest enemy.
+  if (hasNode(world.purchased, 'Rk_L')) {
+    if (world.cd.meteor > 0) {
+      world.cd.meteor -= dt;
+    } else {
+      world.cd.meteor = 8 * cm;
+      castMeteor(world);
+    }
+  }
+
+  // ==================== Holy (H) branch timers ====================
+
+  // Blessing (H_B): heal 15 HP every 10s.
+  if (hasNode(world.purchased, 'H_B')) {
+    if (world.cd.blessing > 0) {
+      world.cd.blessing -= dt;
+    } else {
+      world.cd.blessing = 10 * cm;
+      castBlessing(world);
+    }
+  }
+
+  // Divine Shield (H_G): every 20s, gain a shield.
+  if (hasNode(world.purchased, 'H_G')) {
+    if (world.cd.divineShield > 0) {
+      world.cd.divineShield -= dt;
+    } else {
+      world.cd.divineShield = 20;
+      castDivineShield(world);
+    }
+  }
+
+  // Judgement (H_E1): every 8s, smite the strongest enemy.
+  if (hasNode(world.purchased, 'H_E1')) {
+    if (world.cd.judgement > 0) {
+      world.cd.judgement -= dt;
+    } else {
+      world.cd.judgement = 8 * cm;
+      castJudgement(world);
+    }
+  }
+
+  // Guardian Angel (H_D): update orbit + damage.
+  updateGuardianAngel(world, dt);
+
+  // ==================== Summons (Sm) branch timers ====================
+
+  // Bone Warrior (Sm_B): summon a bone warrior every 8s (up to cap).
+  if (hasNode(world.purchased, 'Sm_B')) {
+    if (world.cd.summonBone > 0) {
+      world.cd.summonBone -= dt;
+    } else {
+      world.cd.summonBone = 8 * cm;
+      spawnBoneWarrior(world, 1, false);
+    }
+  }
+
+  // Shadow Hound (Sm_D): summon a shadow hound every 10s.
+  if (hasNode(world.purchased, 'Sm_D')) {
+    if (world.cd.summonHound > 0) {
+      world.cd.summonHound -= dt;
+    } else {
+      world.cd.summonHound = 10 * cm;
+      spawnShadowHound(world);
+    }
+  }
+
+  // Conjure Army (Sm_E1): every 20s, summon 3 temporary Bone Warriors.
+  if (hasNode(world.purchased, 'Sm_E1')) {
+    if (world.cd.conjureArmy > 0) {
+      world.cd.conjureArmy -= dt;
+    } else {
+      world.cd.conjureArmy = 20;
+      castConjureArmy(world);
+    }
+  }
+
+  // Death Knight (Sm_I): every 30s, summon a powerful armored summon.
+  if (hasNode(world.purchased, 'Sm_I')) {
+    if (world.cd.summonDeathKnight > 0) {
+      world.cd.summonDeathKnight -= dt;
+    } else {
+      world.cd.summonDeathKnight = 30;
+      spawnDeathKnight(world);
+    }
+  }
+
+  // Apocalypse (Sm_L): every 30s, summon 8 skeletons.
+  if (hasNode(world.purchased, 'Sm_L')) {
+    if (world.cd.apocalypse > 0) {
+      world.cd.apocalypse -= dt;
+    } else {
+      world.cd.apocalypse = 30;
+      castApocalypse(world);
+    }
+  }
+
+  // Update all summons (movement, attacks, lifetime).
+  updateSummons(world, dt);
+
   updateWisps(world, dt);
 }
 
@@ -1469,4 +1628,549 @@ export function castFlood(world: World): void {
     boss.slowAmt = Math.max(boss.slowAmt, slowAmt * 0.6); // bosses resist
   }
   world.effects.push({ type: 'ring', x: world.player.x, y: world.player.y, r: 0, maxR: 400, color: '#4a9eff', life: 0.5, t: 0 });
+}
+
+// ==================== Rock (Rk) branch spells ====================
+
+/** Boulder Toss (Rk_B): a large rock that rolls through enemies, damaging all in its path. */
+export function castBoulder(world: World): void {
+  const p = world.player;
+  const ang = p.aimAngle;
+  let dmg = (18 + world.level * 0.5) * spellDamageMult(world);
+  let r = 16;
+  let life = 3;
+  let speed = 300 * projectileSpeedMult(world);
+  // Tectonic Shift (Rk_E2): cooldown reduced by 30% (handled in timer).
+  // Aftershock (Rk_E1): boulder hits cause a secondary explosion.
+  const boulder: BoulderState = {
+    x: p.x,
+    y: p.y,
+    vx: Math.cos(ang) * speed,
+    vy: Math.sin(ang) * speed,
+    r,
+    dmg,
+    life,
+    t: 0,
+    hit: new Set(),
+  };
+  world.boulders.push(boulder);
+  burst(world, p.x, p.y, '#9a8b7a', 12, 80);
+}
+
+/** Update all active boulders — move them, damage enemies in path, handle Aftershock. */
+export function updateBoulders(world: World, dt: number): void {
+  const hasAftershock = hasNode(world.purchased, 'Rk_E1');
+  for (let i = world.boulders.length - 1; i >= 0; i--) {
+    const b = world.boulders[i];
+    b.t += dt;
+    b.x += b.vx * dt;
+    b.y += b.vy * dt;
+    // Damage enemies in path
+    world.enemies.forEach((e) => {
+      if (e.dead || b.hit.has(e)) return;
+      if (dist2(b.x, b.y, e.x, e.y) < (b.r + e.r) * (b.r + e.r)) {
+        damageEnemy(world, e, b.dmg, { color: '#9a8b7a', allowCrit: false });
+        b.hit.add(e);
+        // Aftershock (Rk_E1): secondary explosion dealing 40% damage in a radius.
+        if (hasAftershock) {
+          const expRadius = 50;
+          world.effects.push({ type: 'ring', x: e.x, y: e.y, r: 0, maxR: expRadius, color: '#9a8b7a', life: 0.3, t: 0 });
+          forEachTargetInRange(world, e.x, e.y, expRadius, (o) => {
+            if (o !== e) damageEnemy(world, o, b.dmg * 0.4, { color: '#9a8b7a', allowCrit: false });
+          }, () => {});
+        }
+      }
+    });
+    // Damage boss
+    if (world.bossFight) {
+      const boss = world.bossFight.boss;
+      if (dist2(b.x, b.y, boss.x, boss.y) < (b.r + boss.r) * (b.r + boss.r)) {
+        damageBoss(world, boss, b.dmg, { color: '#9a8b7a' });
+        b.hit.add(boss as unknown as EnemyState);
+      }
+    }
+    // Remove when expired or off-screen
+    if (b.t >= b.life || b.x < -50 || b.x > world.W + 50 || b.y < -50 || b.y > world.H + 50) {
+      world.boulders.splice(i, 1);
+    }
+  }
+}
+
+/** Earth Wall (Rk_D): raise a barrier that blocks enemy movement for 4s. */
+export function castEarthWall(world: World): void {
+  const p = world.player;
+  // Place wall in front of the player
+  const wx = p.x + Math.cos(p.aimAngle) * 80;
+  const wy = p.y + Math.sin(p.aimAngle) * 80;
+  const wall: EarthWallState = {
+    x: wx,
+    y: wy,
+    r: 30,
+    life: 4,
+    t: 0,
+  };
+  world.earthWalls.push(wall);
+  world.effects.push({ type: 'ring', x: wx, y: wy, r: 0, maxR: wall.r, color: '#9a8b7a', life: 0.4, t: 0 });
+  burst(world, wx, wy, '#9a8b7a', 16, 100);
+}
+
+/** Update earth walls — remove expired ones. */
+export function updateEarthWalls(world: World, dt: number): void {
+  for (let i = world.earthWalls.length - 1; i >= 0; i--) {
+    const w = world.earthWalls[i];
+    w.t += dt;
+    if (w.t >= w.life) {
+      world.earthWalls.splice(i, 1);
+    }
+  }
+}
+
+/** Rock Cataclysm (Rk_F): every 15s, a massive earthquake hits all enemies + stun. */
+export function castEarthquakeRk(world: World): void {
+  const dmg = (30 + world.level * 0.8) * spellDamageMult(world);
+  const radius = 300;
+  // Continental Drift (Rk_I): earthquake hits twice, second wave 60% damage wider.
+  const waves = hasNode(world.purchased, 'Rk_I') ? 2 : 1;
+  for (let wave = 0; wave < waves; wave++) {
+    const waveDmg = wave === 0 ? dmg : dmg * 0.6;
+    const waveRadius = wave === 0 ? radius : radius * 1.3;
+    world.effects.push({ type: 'ring', x: world.player.x, y: world.player.y, r: 0, maxR: waveRadius, color: '#9a8b7a', life: 0.6, t: 0 });
+    forEachTargetInRange(
+      world,
+      world.player.x,
+      world.player.y,
+      waveRadius,
+      (e) => {
+        damageEnemy(world, e, waveDmg, { allowCrit: false, color: '#9a8b7a' });
+        e.frozenUntil = world.elapsed + 1.5; // stun
+      },
+      () => {
+        const boss = world.bossFight!.boss;
+        damageBoss(world, boss, waveDmg, { color: '#9a8b7a' });
+        boss.slowUntil = world.elapsed + 1.5;
+        boss.slowAmt = Math.max(boss.slowAmt, 0.8);
+      },
+    );
+  }
+  burst(world, world.player.x, world.player.y, '#9a8b7a', 30, 250);
+}
+
+/** Meteor (Rk_L): every 8s, a meteor falls on the strongest enemy. */
+export function castMeteor(world: World): void {
+  // Find the strongest enemy (highest HP)
+  let target: EnemyState | null = null;
+  let bestHp = 0;
+  for (const e of world.enemies) {
+    if (!e.dead && e.hp > bestHp) {
+      bestHp = e.hp;
+      target = e;
+    }
+  }
+  if (!target && world.bossFight) target = world.bossFight.boss as unknown as EnemyState;
+  if (!target) return;
+  const dmg = (40 + world.level * 1.0) * spellDamageMult(world);
+  const aoeRadius = 80;
+  // Visual: meteor falling from sky
+  world.effects.push({ type: 'ring', x: target.x, y: target.y - 300, r: 0, maxR: 20, color: '#9a8b7a', life: 0.2, t: 0 });
+  world.effects.push({ type: 'ring', x: target.x, y: target.y, r: 0, maxR: aoeRadius, color: '#9a8b7a', life: 0.5, t: 0 });
+  forEachTargetInRange(
+    world,
+    target.x,
+    target.y,
+    aoeRadius,
+    (e) => damageEnemy(world, e, dmg, { color: '#9a8b7a', burn: true }),
+    () => damageBoss(world, world.bossFight!.boss, dmg, { color: '#9a8b7a', burn: true }),
+  );
+  burst(world, target.x, target.y, '#9a8b7a', 24, 180);
+}
+
+// ==================== Holy (H) branch spells ====================
+
+/** Blessing (H_B): heal 15 HP every 10s passively. */
+export function castBlessing(world: World): void {
+  let heal = 15;
+  if (hasNode(world.purchased, 'H_F')) heal *= 2; // Ascension doubles holy effects
+  healPlayer(world, heal);
+  burst(world, world.player.x, world.player.y, '#c9a869', 12, 100, 0.3);
+}
+
+/** Divine Shield (H_G): every 20s, gain a shield that absorbs one hit. +10% max HP. */
+export function castDivineShield(world: World): void {
+  // Set a brief invulnerability that absorbs one hit.
+  world.player.invuln = Math.max(world.player.invuln, 2);
+  world.effects.push({ type: 'ring', x: world.player.x, y: world.player.y, r: 0, maxR: 40, color: '#c9a869', life: 0.5, t: 0 });
+  burst(world, world.player.x, world.player.y, '#c9a869', 16, 120);
+}
+
+/** Judgement (H_E1): every 8s, smite the strongest enemy with a pillar of light. */
+export function castJudgement(world: World): void {
+  // Find the strongest enemy
+  let target: EnemyState | null = null;
+  let bestHp = 0;
+  for (const e of world.enemies) {
+    if (!e.dead && e.hp > bestHp) {
+      bestHp = e.hp;
+      target = e;
+    }
+  }
+  if (!target && world.bossFight) target = world.bossFight.boss as unknown as EnemyState;
+  if (!target) return;
+  const dmg = (30 + world.level * 0.8) * holySpellDamageMult(world);
+  const aoeRadius = 60;
+  // Choir of Light (H_I): Judgement hits 3 enemies at once.
+  const hitCount = hasNode(world.purchased, 'H_I') ? 3 : 1;
+  const alive = world.enemies.filter((e) => !e.dead).sort((a, b) => b.hp - a.hp);
+  for (let i = 0; i < Math.min(hitCount, alive.length); i++) {
+    const t = alive[i];
+    world.effects.push({ type: 'ring', x: t.x, y: t.y, r: 0, maxR: aoeRadius, color: '#c9a869', life: 0.4, t: 0 });
+    forEachTargetInRange(
+      world,
+      t.x,
+      t.y,
+      aoeRadius,
+      (e) => damageEnemy(world, e, dmg, { color: '#c9a869' }),
+      () => damageBoss(world, world.bossFight!.boss, dmg, { color: '#c9a869' }),
+    );
+    burst(world, t.x, t.y, '#c9a869', 14, 120);
+  }
+  // If only boss, hit it
+  if (alive.length === 0 && world.bossFight) {
+    const boss = world.bossFight.boss;
+    world.effects.push({ type: 'ring', x: boss.x, y: boss.y, r: 0, maxR: aoeRadius, color: '#c9a869', life: 0.4, t: 0 });
+    damageBoss(world, boss, dmg, { color: '#c9a869' });
+    burst(world, boss.x, boss.y, '#c9a869', 14, 120);
+  }
+}
+
+/** Update Guardian Angel (H_D) — spirit orbits player, damaging enemies it touches. */
+export function updateGuardianAngel(world: World, dt: number): void {
+  if (!hasNode(world.purchased, 'H_D')) {
+    world.guardianAngel = null;
+    return;
+  }
+  if (!world.guardianAngel) {
+    world.guardianAngel = { angle: 0, x: 0, y: 0, r: 12, dmg: 10 + world.level * 0.3, cd: 0 };
+  }
+  const ga = world.guardianAngel;
+  // Choir of Light (H_I): orbit speed +50%.
+  const orbitSpeed = hasNode(world.purchased, 'H_I') ? 2.7 : 1.8;
+  ga.angle += dt * orbitSpeed;
+  const orbitRadius = 50;
+  ga.x = world.player.x + Math.cos(ga.angle) * orbitRadius;
+  ga.y = world.player.y + Math.sin(ga.angle) * orbitRadius;
+  // Damage enemies it touches
+  ga.cd -= dt;
+  if (ga.cd <= 0) {
+    let hitSomething = false;
+    world.enemies.forEach((e) => {
+      if (e.dead) return;
+      if (dist2(ga.x, ga.y, e.x, e.y) < (ga.r + e.r) * (ga.r + e.r)) {
+        // Ascension (H_F): Guardian Angel deals 3x damage.
+        const dmg = ga.dmg * holySpellDamageMult(world) * (hasNode(world.purchased, 'H_F') ? 3 : 1);
+        damageEnemy(world, e, dmg, { color: '#c9a869', allowCrit: false });
+        hitSomething = true;
+      }
+    });
+    if (world.bossFight) {
+      const boss = world.bossFight.boss;
+      if (dist2(ga.x, ga.y, boss.x, boss.y) < (ga.r + boss.r) * (ga.r + boss.r)) {
+        const dmg = ga.dmg * holySpellDamageMult(world) * (hasNode(world.purchased, 'H_F') ? 3 : 1);
+        damageBoss(world, boss, dmg, { color: '#c9a869' });
+        hitSomething = true;
+      }
+    }
+    if (hitSomething) ga.cd = 0.3; // brief cooldown per hit
+  }
+}
+
+// ==================== Summons (Sm) branch spells ====================
+
+/** Create a summon of the given type at the player's position. */
+function createSummon(world: World, type: SummonType, temporary: boolean): SummonState {
+  const p = world.player;
+  const baseDmg = summonDamageMult(world);
+  let hp = 20, dmg = 8 + world.level * 0.3, r = 8, life = 0;
+  switch (type) {
+    case 'familiar':
+      hp = 1; dmg = (6 + world.level * 0.2) * baseDmg; r = 6; life = 0; // permanent
+      break;
+    case 'boneWarrior':
+      hp = 30; dmg = (10 + world.level * 0.3) * baseDmg; r = 10;
+      // Necromancy (Sm_C2): Bone Warriors last 25s instead of 15s.
+      life = hasNode(world.purchased, 'Sm_C2') ? 25 : 15;
+      // Eternal Bond (Sm_E2): summons last 50% longer.
+      if (hasNode(world.purchased, 'Sm_E2')) life *= 1.5;
+      // Lord of the Dead (Sm_F): permanent until killed.
+      if (hasNode(world.purchased, 'Sm_F')) life = 0;
+      break;
+    case 'shadowHound':
+      hp = 40; dmg = (14 + world.level * 0.4) * baseDmg; r = 9;
+      life = 10;
+      if (hasNode(world.purchased, 'Sm_E2')) life *= 1.5;
+      if (hasNode(world.purchased, 'Sm_F')) life = 0;
+      break;
+    case 'deathKnight':
+      hp = 80; dmg = (25 + world.level * 0.6) * baseDmg; r = 12;
+      life = 20;
+      if (hasNode(world.purchased, 'Sm_E2')) life *= 1.5;
+      if (hasNode(world.purchased, 'Sm_F')) life = 0;
+      break;
+    case 'skeleton':
+      hp = 15; dmg = (8 + world.level * 0.2) * baseDmg; r = 8;
+      life = 8; // temporary skeletons from Apocalypse
+      break;
+  }
+  // Soul Cache (Sm_J): summons have +50% HP.
+  if (hasNode(world.purchased, 'Sm_J')) hp *= 1.5;
+  // Lord of the Dead (Sm_F): permanent until killed → life = 0
+  if (hasNode(world.purchased, 'Sm_F')) life = 0;
+  const explosive = type === 'boneWarrior' && hasNode(world.purchased, 'Sm_C2');
+  return {
+    type,
+    x: p.x + (Math.random() - 0.5) * 30,
+    y: p.y + (Math.random() - 0.5) * 30,
+    vx: 0,
+    vy: 0,
+    hp,
+    maxHp: hp,
+    dmg,
+    r,
+    life,
+    angle: Math.random() * Math.PI * 2,
+    cd: 0,
+    targetIdx: -1,
+    pinCd: 0,
+    temporary,
+    explosive,
+  };
+}
+
+/** Get the max number of non-familiar summons (familiar doesn't count toward the cap). */
+function nonFamiliarSummonCount(world: World): number {
+  return world.summons.filter((s) => s.type !== 'familiar').length;
+}
+
+/** Spawn the familiar if Sm_A is purchased. */
+function ensureFamiliar(world: World): void {
+  if (!hasNode(world.purchased, 'Sm_A')) return;
+  const hasFamiliar = world.summons.some((s) => s.type === 'familiar');
+  if (!hasFamiliar) {
+    world.summons.push(createSummon(world, 'familiar', false));
+  }
+}
+
+/** Spawn a Bone Warrior (Sm_B). */
+export function spawnBoneWarrior(world: World, count: number, temporary: boolean): void {
+  // Pack Hunter (Sm_C1): summon 2 instead of 1.
+  const actualCount = hasNode(world.purchased, 'Sm_C1') && !temporary ? Math.max(count, 2) : count;
+  for (let i = 0; i < actualCount; i++) {
+    if (nonFamiliarSummonCount(world) >= maxSummons(world)) break;
+    world.summons.push(createSummon(world, 'boneWarrior', temporary));
+  }
+}
+
+/** Spawn a Shadow Hound (Sm_D). */
+export function spawnShadowHound(world: World): void {
+  if (nonFamiliarSummonCount(world) >= maxSummons(world)) return;
+  world.summons.push(createSummon(world, 'shadowHound', false));
+}
+
+/** Spawn a Death Knight (Sm_I). */
+export function spawnDeathKnight(world: World): void {
+  if (nonFamiliarSummonCount(world) >= maxSummons(world)) return;
+  world.summons.push(createSummon(world, 'deathKnight', false));
+}
+
+/** Update all summons — movement, attacks, lifetime, explosions. */
+export function updateSummons(world: World, dt: number): void {
+  // Ensure familiar exists if Sm_A is purchased.
+  ensureFamiliar(world);
+
+  const p = world.player;
+  // Swarm Lord (Sm_K): familiar orbit speed +50%.
+  const familiarOrbitSpeed = hasNode(world.purchased, 'Sm_K') ? 2.7 : 1.8;
+  // Shadow Hound charge cooldown: Swarm Lord (Sm_K) → 2x as often.
+  const houndChargeCd = hasNode(world.purchased, 'Sm_K') ? 1.5 : 3;
+
+  for (let i = world.summons.length - 1; i >= 0; i--) {
+    const s = world.summons[i];
+
+    // Lifetime countdown (0 = permanent)
+    if (s.life > 0) {
+      s.life -= dt;
+      if (s.life <= 0) {
+        // Necromancy (Sm_C2): Bone Warriors explode on death.
+        if (s.explosive) {
+          explodeSummon(world, s);
+        }
+        world.summons.splice(i, 1);
+        continue;
+      }
+    }
+
+    // Spirit Link (Sm_G): summons heal player 1 HP/sec while alive.
+    if (hasNode(world.purchased, 'Sm_G')) {
+      healPlayer(world, dt);
+    }
+
+    // Behavior by type
+    if (s.type === 'familiar') {
+      // Orbit the player
+      s.angle += dt * familiarOrbitSpeed;
+      const orbitRadius = 55;
+      s.x = p.x + Math.cos(s.angle) * orbitRadius;
+      s.y = p.y + Math.sin(s.angle) * orbitRadius;
+      // Fire bolts at enemies
+      s.cd -= dt;
+      if (s.cd <= 0) {
+        // Eternal Bond (Sm_E2): familiar fires 2 extra bolts per second.
+        const fireRate = hasNode(world.purchased, 'Sm_E2') ? 0.5 : 1.0; // seconds between shots
+        s.cd = fireRate;
+        const target = nearestEnemy(world, s.x, s.y);
+        if (target) {
+          const ang = Math.atan2(target.y - s.y, target.x - s.x);
+          const projSpeed = 400 * projectileSpeedMult(world);
+          fireProjectile(world, s.x, s.y, Math.cos(ang), Math.sin(ang), projSpeed, s.dmg, '#e0a070', 0, {});
+        } else if (world.bossFight) {
+          const boss = world.bossFight.boss;
+          const ang = Math.atan2(boss.y - s.y, boss.x - s.x);
+          const projSpeed = 400 * projectileSpeedMult(world);
+          fireProjectile(world, s.x, s.y, Math.cos(ang), Math.sin(ang), projSpeed, s.dmg, '#e0a070', 0, {});
+        }
+      }
+    } else if (s.type === 'boneWarrior' || s.type === 'skeleton') {
+      // Move toward nearest enemy and attack
+      const target = nearestEnemy(world, s.x, s.y) || (world.bossFight ? world.bossFight.boss as unknown as EnemyState : null);
+      if (target) {
+        const dx = target.x - s.x;
+        const dy = target.y - s.y;
+        const dl = Math.hypot(dx, dy) || 1;
+        const spd = 120;
+        s.x += (dx / dl) * spd * dt;
+        s.y += (dy / dl) * spd * dt;
+        // Attack when close
+        s.cd -= dt;
+        if (s.cd <= 0 && dist2(s.x, s.y, target.x, target.y) < (s.r + (target as EnemyState).r + 5) * (s.r + (target as EnemyState).r + 5)) {
+          s.cd = 1.0; // attack every 1s
+          if (world.enemies.includes(target as EnemyState)) {
+            damageEnemy(world, target as EnemyState, s.dmg, { color: '#e0a070', allowCrit: false });
+          } else if (world.bossFight) {
+            damageBoss(world, world.bossFight.boss, s.dmg, { color: '#e0a070' });
+          }
+        }
+      } else {
+        // No target — follow the player
+        const dx = p.x - s.x;
+        const dy = p.y - s.y;
+        const dl = Math.hypot(dx, dy) || 1;
+        if (dl > 60) {
+          s.x += (dx / dl) * 100 * dt;
+          s.y += (dy / dl) * 100 * dt;
+        }
+      }
+    } else if (s.type === 'shadowHound') {
+      // Charge at enemies and pin them
+      s.pinCd -= dt;
+      const target = nearestEnemy(world, s.x, s.y) || (world.bossFight ? world.bossFight.boss as unknown as EnemyState : null);
+      if (target) {
+        const dx = target.x - s.x;
+        const dy = target.y - s.y;
+        const dl = Math.hypot(dx, dy) || 1;
+        const spd = s.pinCd > 1.5 ? 250 : 100; // fast charge, then slow
+        s.x += (dx / dl) * spd * dt;
+        s.y += (dy / dl) * spd * dt;
+        // Attack and pin
+        s.cd -= dt;
+        if (s.cd <= 0 && dist2(s.x, s.y, target.x, target.y) < (s.r + (target as EnemyState).r + 5) * (s.r + (target as EnemyState).r + 5)) {
+          s.cd = 1.0;
+          s.pinCd = houndChargeCd; // recharge for next charge
+          if (world.enemies.includes(target as EnemyState)) {
+            damageEnemy(world, target as EnemyState, s.dmg, { color: '#e0a070', allowCrit: false });
+            // Pin: freeze enemy for 2s
+            (target as EnemyState).frozenUntil = world.elapsed + 2;
+          } else if (world.bossFight) {
+            damageBoss(world, world.bossFight.boss, s.dmg, { color: '#e0a070' });
+          }
+        }
+      } else {
+        // Follow player
+        const dx = p.x - s.x;
+        const dy = p.y - s.y;
+        const dl = Math.hypot(dx, dy) || 1;
+        if (dl > 60) {
+          s.x += (dx / dl) * 150 * dt;
+          s.y += (dy / dl) * 150 * dt;
+        }
+      }
+    } else if (s.type === 'deathKnight') {
+      // Powerful armored summon with heavy melee attacks
+      const target = nearestEnemy(world, s.x, s.y) || (world.bossFight ? world.bossFight.boss as unknown as EnemyState : null);
+      if (target) {
+        const dx = target.x - s.x;
+        const dy = target.y - s.y;
+        const dl = Math.hypot(dx, dy) || 1;
+        const spd = 80;
+        s.x += (dx / dl) * spd * dt;
+        s.y += (dy / dl) * spd * dt;
+        s.cd -= dt;
+        if (s.cd <= 0 && dist2(s.x, s.y, target.x, target.y) < (s.r + (target as EnemyState).r + 5) * (s.r + (target as EnemyState).r + 5)) {
+          s.cd = 1.5; // heavy attack every 1.5s
+          if (world.enemies.includes(target as EnemyState)) {
+            damageEnemy(world, target as EnemyState, s.dmg, { color: '#e0a070', allowCrit: false });
+          } else if (world.bossFight) {
+            damageBoss(world, world.bossFight.boss, s.dmg, { color: '#e0a070' });
+          }
+          burst(world, target.x, target.y, '#e0a070', 8, 60);
+        }
+      } else {
+        const dx = p.x - s.x;
+        const dy = p.y - s.y;
+        const dl = Math.hypot(dx, dy) || 1;
+        if (dl > 70) {
+          s.x += (dx / dl) * 80 * dt;
+          s.y += (dy / dl) * 80 * dt;
+        }
+      }
+    }
+  }
+}
+
+/** Summon explosion (Necromancy Sm_C2 / Soul Cache Sm_J). */
+function explodeSummon(world: World, s: SummonState): void {
+  let expRadius = 50;
+  // Soul Cache (Sm_J): explosions are 50% larger.
+  if (hasNode(world.purchased, 'Sm_J')) expRadius *= 1.5;
+  const expDmg = s.dmg * 0.8;
+  world.effects.push({ type: 'ring', x: s.x, y: s.y, r: 0, maxR: expRadius, color: '#e0a070', life: 0.4, t: 0 });
+  forEachTargetInRange(
+    world,
+    s.x,
+    s.y,
+    expRadius,
+    (e) => damageEnemy(world, e, expDmg, { color: '#e0a070', allowCrit: false }),
+    () => damageBoss(world, world.bossFight!.boss, expDmg, { color: '#e0a070' }),
+  );
+  burst(world, s.x, s.y, '#e0a070', 16, 120);
+}
+
+/** Conjure Army (Sm_E1): every 20s, summon 3 temporary Bone Warriors. */
+export function castConjureArmy(world: World): void {
+  for (let i = 0; i < 3; i++) {
+    world.summons.push(createSummon(world, 'boneWarrior', true));
+  }
+  burst(world, world.player.x, world.player.y, '#e0a070', 20, 150);
+}
+
+/** Apocalypse (Sm_L): every 30s, summon a wave of 8 skeletons that sweep across the screen. */
+export function castApocalypse(world: World): void {
+  for (let i = 0; i < 8; i++) {
+    const skel = createSummon(world, 'skeleton', true);
+    // Spread them across the screen edge
+    const angle = (i / 8) * Math.PI * 2;
+    skel.x = world.player.x + Math.cos(angle) * 100;
+    skel.y = world.player.y + Math.sin(angle) * 100;
+    world.summons.push(skel);
+  }
+  world.effects.push({ type: 'ring', x: world.player.x, y: world.player.y, r: 0, maxR: 200, color: '#e0a070', life: 0.6, t: 0 });
+  burst(world, world.player.x, world.player.y, '#e0a070', 30, 200);
 }
