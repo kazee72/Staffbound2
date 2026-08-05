@@ -448,223 +448,587 @@ function generateShadowWraith(scene: Phaser.Scene): void {
   g.destroy();
 }
 
-// ---------------- BOSS: ELDER WRAITH (32x36) — bigger, more ornate wraith ----------------
+// ---------------- BOSS: ELDER WRAITH (64x80) — ghostly shadow wraith, purple/dark ----------------
+// Clean pixel art: dark outline, limited purple palette, glowing eyes, tattered hooded robe.
 function generateElderWraithBoss(scene: Phaser.Scene): void {
   const KEY = BOSS_TEXTURE_KEYS.elderWraith;
   if (scene.textures.exists(KEY)) return;
-  const W = 32;
-  const H = 36;
+  const W = 64;
+  const H = 80;
   const g = scene.make.graphics({ x: 0, y: 0 }, false);
 
-  const robe = 0x5b3f73;
-  const robeDark = 0x3a2850;
-  const robeLight = 0x7a5a9e;
-  const eye = 0xf0c8ff;
-  const crown = 0xc9a869;
+  const outline = 0x0c0612;     // near-black purple outline
+  const robe = 0x4a3268;          // mid purple robe
+  const robeDark = 0x2e1d48;     // shadow fold
+  const robeLight = 0x6b4f9a;    // highlight fold
+  const robePale = 0x8e72c4;     // top highlight
+  const voidc = 0x0a0614;        // face void
+  const eye = 0xf0c8ff;          // glowing eye
+  const eyeCore = 0xffffff;     // eye core
+  const crown = 0xc9a869;        // gold crown
+  const crownDark = 0x8a6a2a;   // gold shadow
+  const ghost = 0x3a2858;       // wisp tendril
 
-  // Hood
-  for (let y = 0; y <= 10; y++) {
-    const halfW = 7 - Math.max(0, 6 - y) * 0.35;
-    const cx = 16;
+  const cx = 31;
+
+  // ---- Hood (rounded dome, rows 4-22) ----
+  for (let y = 4; y <= 22; y++) {
+    const t = (y - 4) / 18;
+    const halfW = 15 - Math.max(0, 8 - y + 4) * 0.35 + Math.sin(t * Math.PI) * 1.5;
     for (let x = Math.round(cx - halfW); x <= Math.round(cx + halfW); x++) {
       if (x < 0 || x >= W) continue;
-      const edge = x === Math.round(cx - halfW) || x === Math.round(cx + halfW);
-      px(g, x, y, edge ? robeDark : robe);
+      const left = x === Math.round(cx - halfW);
+      const right = x === Math.round(cx + halfW);
+      if (left || right) px(g, x, y, outline);
+      else if (x === Math.round(cx - halfW) + 1) px(g, x, y, robeDark);
+      else if (x === Math.round(cx + halfW) - 1) px(g, x, y, robeDark);
+      else if (y < 12 && x > cx - 4 && x < cx + 4) px(g, x, y, robePale);
+      else if (y < 16) px(g, x, y, robeLight);
+      else px(g, x, y, robe);
     }
   }
-  // Jagged crown spikes atop the hood
-  for (let i = 0; i < 5; i++) {
-    const x = 10 + i * 3;
-    px(g, x, 0, crown);
-    px(g, x, 1, crown, 0.6);
-  }
-  // Face void + glowing eyes
-  for (let y = 6; y <= 10; y++) for (let x = 12; x <= 20; x++) px(g, x, y, 0x0a0714, 0.9);
-  for (let x = 13; x <= 15; x++) px(g, x, 8, eye);
-  for (let x = 17; x <= 19; x++) px(g, x, 8, eye);
-  px(g, 14, 8, 0xffffff, 0.5);
-  px(g, 18, 8, 0xffffff, 0.5);
+  // top dome cap
+  for (let x = cx - 4; x <= cx + 4; x++) px(g, x, 3, robeLight);
+  px(g, cx - 5, 4, outline); px(g, cx + 5, 4, outline);
+  for (let x = cx - 3; x <= cx + 3; x++) px(g, x, 2, robePale);
 
-  // Massive robe body
-  const rows = 22;
-  for (let i = 0; i < rows; i++) {
-    const y = 11 + i;
-    const t = i / rows;
-    const halfW = 8 + t * 6;
-    const cx = 16;
+  // ---- Jagged crown spikes (gold) ----
+  const spikes = [cx - 14, cx - 7, cx, cx + 7, cx + 14];
+  spikes.forEach((sx, i) => {
+    const h = i === 2 ? 7 : 5;
+    for (let y = 0; y < h; y++) {
+      px(g, sx, y, y === 0 ? crown : y === h - 1 ? crownDark : crown);
+      px(g, sx - 1, y + 1, crownDark, 0.7);
+      px(g, sx + 1, y + 1, crown, 0.8);
+    }
+    px(g, sx, 0, 0xfff0c0); // tip glint
+  });
+
+  // ---- Face void (deep shadow inside hood) ----
+  for (let y = 12; y <= 22; y++) for (let x = cx - 9; x <= cx + 9; x++) px(g, x, y, voidc, 0.95);
+
+  // ---- Glowing eyes (twin pinpoints) ----
+  // left eye
+  for (let y = 16; y <= 18; y++) for (let x = cx - 8; x <= cx - 5; x++) px(g, x, y, eye, 0.85);
+  px(g, cx - 7, 17, eyeCore); px(g, cx - 6, 17, eyeCore, 0.8);
+  // right eye
+  for (let y = 16; y <= 18; y++) for (let x = cx + 5; x <= cx + 8; x++) px(g, x, y, eye, 0.85);
+  px(g, cx + 6, 17, eyeCore); px(g, cx + 7, 17, eyeCore, 0.8);
+  // eye glow bleed
+  px(g, cx - 9, 17, eye, 0.4); px(g, cx + 9, 17, eye, 0.4);
+  px(g, cx - 4, 17, eye, 0.5); px(g, cx + 4, 17, eye, 0.5);
+
+  // ---- Tattered robe body (rows 23-72) — widening skirt ----
+  const bodyRows = 50;
+  for (let i = 0; i < bodyRows; i++) {
+    const y = 23 + i;
+    const t = i / bodyRows;
+    const halfW = 14 + t * 16;
     for (let x = Math.round(cx - halfW); x <= Math.round(cx + halfW); x++) {
       if (x < 0 || x >= W || y >= H) continue;
-      const edge = x <= Math.round(cx - halfW) + 1 || x >= Math.round(cx + halfW) - 1;
-      const alpha = i > rows - 6 ? 0.55 : 1;
-      px(g, x, y, edge ? robeDark : i % 3 === 0 ? robeLight : robe, alpha);
+      const left = x === Math.round(cx - halfW);
+      const right = x === Math.round(cx + halfW);
+      // ragged bottom fades
+      const alpha = i > bodyRows - 8 ? Math.max(0.2, 1 - (i - (bodyRows - 8)) * 0.1) : 1;
+      if (left || right) px(g, x, y, outline, alpha);
+      else if (x === Math.round(cx - halfW) + 1) px(g, x, y, robeDark, alpha);
+      else if (x === Math.round(cx + halfW) - 1) px(g, x, y, robeDark, alpha);
+      else if (i % 5 === 0 && x < cx) px(g, x, y, robeDark, alpha);
+      else if (i % 4 === 0 && x > cx) px(g, x, y, robeLight, alpha * 0.6);
+      else if (i < 8 && Math.abs(x - cx) < 6) px(g, x, y, robeLight, alpha);
+      else px(g, x, y, robe, alpha);
     }
   }
-  // gold trim belt
-  for (let x = 8; x <= 24; x++) px(g, x, 18, crown, 0.85);
-  // ragged hem
-  for (let i = 0; i < 8; i++) {
-    const x = 5 + i * 3;
-    px(g, x, H - 1, robeDark, 0.35);
+
+  // ---- Gold trim belt ----
+  for (let x = cx - 12; x <= cx + 12; x++) {
+    px(g, x, 34, crown);
+    px(g, x, 35, crownDark);
   }
+  // belt gem
+  px(g, cx, 34, eye); px(g, cx, 35, eyeCore, 0.8);
+
+  // ---- Fold lines / shading ----
+  for (let y = 24; y < 34; y += 4) { px(g, cx - 6, y, robeDark); px(g, cx + 6, y, robeDark); }
+  for (let y = 36; y < 70; y += 5) { px(g, cx - 4, y, robeDark, 0.6); px(g, cx + 4, y, robeDark, 0.6); }
+
+  // ---- Skeletal arms emerging from sleeves ----
+  // left arm
+  for (let y = 30; y <= 44; y++) { px(g, cx - 16, y, robeDark); px(g, cx - 17, y, outline); }
+  // bony hand
+  px(g, cx - 16, 45, 0xd8d0e0); px(g, cx - 15, 46, 0xd8d0e0); px(g, cx - 17, 46, 0xb5ad91);
+  px(g, cx - 16, 47, 0xb5ad91);
+  // right arm
+  for (let y = 30; y <= 44; y++) { px(g, cx + 16, y, robeDark); px(g, cx + 17, y, outline); }
+  px(g, cx + 16, 45, 0xd8d0e0); px(g, cx + 17, 46, 0xd8d0e0); px(g, cx + 15, 46, 0xb5ad91);
+  px(g, cx + 16, 47, 0xb5ad91);
+
+  // ---- Ragged hem tendrils (ghostly trailing cloth) ----
+  const hemTendrils = [cx - 22, cx - 14, cx - 6, cx, cx + 6, cx + 14, cx + 22];
+  hemTendrils.forEach((x, i) => {
+    const len = 4 + (i % 3);
+    for (let y = H - len; y < H; y++) px(g, x, y, ghost, Math.max(0.15, 1 - (y - (H - len)) * 0.2));
+  });
+
+  // ---- Ground shadow ----
+  g.fillStyle(0x000000, 0.3);
+  g.fillEllipse(cx + 0.5, H - 1, 44, 4);
 
   g.generateTexture(KEY, W, H);
   g.destroy();
 }
 
-// ---------------- BOSS: EMBER COLOSSUS (34x34) — hulking fire golem ----------------
+// ---------------- BOSS: EMBER COLOSSUS (72x80) — fire/magma golem, orange/red ----------------
+// Clean pixel art: dark outline, charcoal rock + glowing magma cracks, hulking silhouette.
 function generateEmberColossusBoss(scene: Phaser.Scene): void {
   const KEY = BOSS_TEXTURE_KEYS.emberColossus;
   if (scene.textures.exists(KEY)) return;
-  const W = 34;
-  const H = 34;
+  const W = 72;
+  const H = 80;
   const g = scene.make.graphics({ x: 0, y: 0 }, false);
 
-  const rock = 0x4a2e22;
-  const rockLight = 0x6b4230;
-  const ember = 0xe2793d;
-  const emberBright = 0xffb066;
-  const crack = 0x2a1a12;
+  const outline = 0x140a06;     // near-black outline
+  const rock = 0x3a241a;         // dark charcoal rock
+  const rockMid = 0x54301e;     // mid rock
+  const rockLight = 0x7a4830;   // light rock edge
+  const magma = 0xe2521a;        // magma orange
+  const magmaBright = 0xff9040; // bright magma
+  const magmaCore = 0xffe0a0;   // white-hot core
 
-  // Blocky torso silhouette
-  for (let y = 6; y < 30; y++) {
-    const t = (y - 6) / 24;
-    const halfW = 10 + Math.sin(t * Math.PI) * 4;
-    const cx = 17;
+  const cx = 35;
+
+  // ---- Head (blocky, rows 2-18) ----
+  for (let y = 2; y <= 18; y++) {
+    const t = (y - 2) / 16;
+    const halfW = 10 + Math.sin(t * Math.PI) * 2;
     for (let x = Math.round(cx - halfW); x <= Math.round(cx + halfW); x++) {
       if (x < 0 || x >= W) continue;
-      const edge = x <= Math.round(cx - halfW) + 1 || x >= Math.round(cx + halfW) - 1;
-      px(g, x, y, edge ? crack : (x + y) % 5 === 0 ? rockLight : rock);
+      const left = x === Math.round(cx - halfW);
+      const right = x === Math.round(cx + halfW);
+      const top = y === 2;
+      if (left || right || top) px(g, x, y, outline);
+      else if (x === Math.round(cx - halfW) + 1) px(g, x, y, rockLight);
+      else if (x === Math.round(cx + halfW) - 1) px(g, x, y, rockMid);
+      else if (y < 6) px(g, x, y, rockMid);
+      else px(g, x, y, rock);
     }
   }
-  // Molten cracks glowing across the body
-  const cracks: Array<[number, number]> = [
-    [12, 12], [13, 13], [14, 14], [20, 10], [21, 11], [22, 12], [16, 20], [17, 21], [18, 22], [10, 22], [11, 23],
-  ];
-  cracks.forEach(([x, y]) => px(g, x, y, ember, 0.9));
-  // Head with glowing core eyes
-  for (let y = 0; y <= 6; y++) {
-    for (let x = 12; x <= 22; x++) {
-      const edge = x === 12 || x === 22 || y === 0;
-      px(g, x, y, edge ? crack : rock);
-    }
+  // brow ridge
+  for (let x = cx - 7; x <= cx + 7; x++) px(g, x, 8, rockMid);
+  // glowing eyes (magma sockets)
+  for (let y = 10; y <= 12; y++) {
+    for (let x = cx - 7; x <= cx - 4; x++) px(g, x, y, magma);
+    for (let x = cx + 4; x <= cx + 7; x++) px(g, x, y, magma);
   }
-  px(g, 14, 3, emberBright);
-  px(g, 19, 3, emberBright);
-  // chest core — bright ember heart
-  for (let x = 15; x <= 19; x++) {
-    for (let y = 15; y <= 19; y++) {
-      const d = Math.hypot(x - 17, y - 17);
-      if (d < 2.6) px(g, x, y, d < 1.4 ? 0xfff0d8 : emberBright);
+  px(g, cx - 6, 11, magmaCore); px(g, cx + 6, 11, magmaCore);
+  // eye glow bleed
+  px(g, cx - 8, 11, magma, 0.5); px(g, cx + 8, 11, magma, 0.5);
+  px(g, cx - 3, 11, magma, 0.6); px(g, cx + 3, 11, magma, 0.6);
+  // jaw / mouth crack
+  for (let x = cx - 5; x <= cx + 5; x++) px(g, x, 16, magmaBright, 0.8);
+  px(g, cx - 4, 17, magma); px(g, cx, 17, magmaBright); px(g, cx + 4, 17, magma);
+  // horn nubs on head
+  px(g, cx - 10, 1, rockMid); px(g, cx - 10, 0, outline); px(g, cx - 9, 1, rockLight);
+  px(g, cx + 10, 1, rockMid); px(g, cx + 10, 0, outline); px(g, cx + 9, 1, rockLight);
+
+  // ---- Neck ----
+  for (let y = 19; y <= 22; y++) for (let x = cx - 6; x <= cx + 6; x++) px(g, x, y, rock);
+
+  // ---- Massive shoulders (rows 23-32) ----
+  for (let y = 23; y <= 32; y++) {
+    const t = (y - 23) / 9;
+    const halfW = 22 - Math.abs(0.5 - t) * 4;
+    for (let x = Math.round(cx - halfW); x <= Math.round(cx + halfW); x++) {
+      if (x < 0 || x >= W) continue;
+      const left = x === Math.round(cx - halfW);
+      const right = x === Math.round(cx + halfW);
+      if (left || right) px(g, x, y, outline);
+      else if (x === Math.round(cx - halfW) + 1) px(g, x, y, rockLight);
+      else if (x === Math.round(cx + halfW) - 1) px(g, x, y, rockMid);
+      else px(g, x, y, rock);
     }
   }
   // shoulder ember vents
-  px(g, 6, 10, ember, 0.85);
-  px(g, 28, 10, ember, 0.85);
+  for (let y = 24; y <= 28; y++) {
+    px(g, cx - 21, y, magma, 0.8); px(g, cx + 21, y, magma, 0.8);
+  }
+  px(g, cx - 22, 26, magmaBright); px(g, cx + 22, 26, magmaBright);
+
+  // ---- Torso (rows 23-58) — tapering block ----
+  for (let y = 23; y <= 58; y++) {
+    const t = (y - 23) / 35;
+    const halfW = 22 - t * 6;
+    for (let x = Math.round(cx - halfW); x <= Math.round(cx + halfW); x++) {
+      if (x < 0 || x >= W) continue;
+      const left = x === Math.round(cx - halfW);
+      const right = x === Math.round(cx + halfW);
+      if (left || right) px(g, x, y, outline);
+      else if (x === Math.round(cx - halfW) + 1) px(g, x, y, rockMid);
+      else if (x === Math.round(cx + halfW) - 1) px(g, x, y, rockMid);
+      else if ((x + y) % 7 === 0) px(g, x, y, rockMid);
+      else px(g, x, y, rock);
+    }
+  }
+
+  // ---- Magma cracks across body (glowing veins) ----
+  const crackPaths: Array<[number, number]> = [
+    // chest vertical
+    [cx - 1, 24], [cx, 25], [cx + 1, 26], [cx, 27], [cx - 1, 28], [cx, 29], [cx + 1, 30], [cx, 31],
+    // left diagonal
+    [cx - 10, 26], [cx - 11, 27], [cx - 12, 28], [cx - 13, 29], [cx - 14, 30],
+    // right diagonal
+    [cx + 10, 26], [cx + 11, 27], [cx + 12, 28], [cx + 13, 29], [cx + 14, 30],
+    // lower body
+    [cx - 6, 40], [cx - 5, 41], [cx - 4, 42], [cx - 3, 43],
+    [cx + 6, 40], [cx + 5, 41], [cx + 4, 42], [cx + 3, 43],
+    [cx - 2, 48], [cx - 1, 49], [cx, 50], [cx + 1, 51], [cx + 2, 52],
+  ];
+  crackPaths.forEach(([x, y]) => px(g, x, y, magma, 0.9));
+  // brighter crack cores
+  crackPaths.forEach(([x, y], i) => { if (i % 3 === 0) px(g, x, y, magmaBright); });
+
+  // ---- Chest core (bright ember heart) ----
+  for (let dy = -4; dy <= 4; dy++) {
+    for (let dx = -4; dx <= 4; dx++) {
+      const d = Math.hypot(dx, dy);
+      if (d < 4) px(g, cx + dx, 36 + dy, d < 1.5 ? magmaCore : d < 2.8 ? magmaBright : magma);
+    }
+  }
+  // core glow
+  px(g, cx - 5, 36, magma, 0.5); px(g, cx + 5, 36, magma, 0.5);
+  px(g, cx, 31, magma, 0.5); px(g, cx, 41, magma, 0.5);
+
+  // ---- Arms (thick rocky, rows 24-56) ----
+  // left arm
+  for (let y = 24; y <= 54; y++) {
+    px(g, cx - 24, y, outline); px(g, cx - 23, y, rockLight); px(g, cx - 22, y, rock);
+    if (y > 40) { px(g, cx - 25, y, outline); }
+  }
+  // right arm
+  for (let y = 24; y <= 54; y++) {
+    px(g, cx + 24, y, outline); px(g, cx + 23, y, rockLight); px(g, cx + 22, y, rock);
+    if (y > 40) { px(g, cx + 25, y, outline); }
+  }
+  // arm magma cracks
+  for (let y = 30; y <= 40; y += 2) { px(g, cx - 23, y, magma, 0.7); px(g, cx + 23, y, magma, 0.7); }
+  // fists
+  for (let y = 55; y <= 60; y++) for (let x = cx - 27; x <= cx - 21; x++) {
+    const edge = x === cx - 27 || x === cx - 21 || y === 60;
+    px(g, x, y, edge ? outline : rockMid);
+  }
+  for (let y = 55; y <= 60; y++) for (let x = cx + 21; x <= cx + 27; x++) {
+    const edge = x === cx + 21 || x === cx + 27 || y === 60;
+    px(g, x, y, edge ? outline : rockMid);
+  }
+  px(g, cx - 24, 58, magma); px(g, cx + 24, 58, magma);
+
+  // ---- Legs (rows 59-78) ----
+  for (let y = 59; y <= 76; y++) {
+    // left leg
+    for (let x = cx - 14; x <= cx - 4; x++) {
+      const left = x === cx - 14; const right = x === cx - 4;
+      if (left || right) px(g, x, y, outline);
+      else px(g, x, y, rock);
+    }
+    // right leg
+    for (let x = cx + 4; x <= cx + 14; x++) {
+      const left = x === cx + 4; const right = x === cx + 14;
+      if (left || right) px(g, x, y, outline);
+      else px(g, x, y, rock);
+    }
+  }
+  // leg cracks
+  px(g, cx - 10, 64, magma, 0.8); px(g, cx - 9, 65, magma); px(g, cx - 10, 66, magmaBright, 0.8);
+  px(g, cx + 10, 64, magma, 0.8); px(g, cx + 9, 65, magma); px(g, cx + 10, 66, magmaBright, 0.8);
+  // feet
+  for (let x = cx - 16; x <= cx - 4; x++) px(g, x, 77, outline);
+  for (let x = cx - 15; x <= cx - 5; x++) px(g, x, 76, rockMid);
+  for (let x = cx + 4; x <= cx + 16; x++) px(g, x, 77, outline);
+  for (let x = cx + 5; x <= cx + 15; x++) px(g, x, 76, rockMid);
+
+  // ---- Ground shadow ----
+  g.fillStyle(0x000000, 0.3);
+  g.fillEllipse(cx + 0.5, 78, 52, 5);
 
   g.generateTexture(KEY, W, H);
   g.destroy();
 }
 
-// ---------------- BOSS: RIME SOVEREIGN (32x36) — crowned ice queen ----------------
+// ---------------- BOSS: RIME SOVEREIGN (64x84) — ice queen/crystal entity, cyan/white ----------------
+// Clean pixel art: dark outline, icy blue palette, crystalline crown + flowing robe, glowing eyes.
 function generateRimeSovereignBoss(scene: Phaser.Scene): void {
   const KEY = BOSS_TEXTURE_KEYS.rimeSovereign;
   if (scene.textures.exists(KEY)) return;
-  const W = 32;
-  const H = 36;
+  const W = 64;
+  const H = 84;
   const g = scene.make.graphics({ x: 0, y: 0 }, false);
 
-  const ice = 0x4f7fa8;
-  const iceLight = 0x8ec9e8;
-  const iceBright = 0xd4f0ff;
-  const crown = 0xcfe9ff;
+  const outline = 0x0a1a2e;      // dark blue outline
+  const ice = 0x3a6890;          // mid ice blue
+  const iceMid = 0x5f9ec0;       // lighter ice
+  const iceLight = 0x9cdcf0;     // pale ice highlight
+  const iceBright = 0xe0f5ff;    // near-white frost
+  const crystal = 0xb8e8ff;      // crystal crown
+  const crystalDark = 0x6a9ec8;  // crystal shadow
+  const eyeGlow = 0xb0e8ff;      // eye glow
+  const eyeCore = 0xffffff;     // eye core
+  const frost = 0xd0e8f8;        // frost trim
 
-  // Ice crown
-  for (let i = 0; i < 5; i++) {
-    const x = 10 + i * 3;
-    const h = i % 2 === 0 ? 4 : 6;
-    for (let y = 0; y < h; y++) px(g, x, h - y - 1 + 2, crown, 1 - y * 0.15);
-  }
-  // Head/hood
-  for (let y = 6; y <= 11; y++) {
-    const halfW = 6.5;
-    const cx = 16;
+  const cx = 31;
+
+  // ---- Crystal crown (jagged ice spikes, rows 0-8) ----
+  const crownSpikes = [
+    { x: cx - 16, h: 5 },
+    { x: cx - 10, h: 8 },
+    { x: cx - 4, h: 6 },
+    { x: cx + 2, h: 9 },
+    { x: cx + 8, h: 6 },
+    { x: cx + 14, h: 5 },
+  ];
+  crownSpikes.forEach((s) => {
+    for (let y = 0; y < s.h; y++) {
+      const yt = s.h - y;
+      px(g, s.x, y, y === 0 ? iceBright : yt > s.h - 2 ? crystalDark : crystal);
+      px(g, s.x - 1, y + 1, crystalDark, 0.7);
+      px(g, s.x + 1, y, crystal, 0.8);
+    }
+    px(g, s.x, 0, 0xffffff); // tip glint
+  });
+  // crown base band
+  for (let x = cx - 17; x <= cx + 15; x++) px(g, x, 8, outline);
+  for (let x = cx - 16; x <= cx + 14; x++) px(g, x, 9, crystal);
+  for (let x = cx - 16; x <= cx + 14; x++) px(g, x, 10, crystalDark);
+
+  // ---- Head (rows 10-22) — angular hood/cowl ----
+  for (let y = 10; y <= 22; y++) {
+    const t = (y - 10) / 12;
+    const halfW = 12 - Math.max(0, 4 - y + 10) * 0.4 + Math.sin(t * Math.PI) * 1;
     for (let x = Math.round(cx - halfW); x <= Math.round(cx + halfW); x++) {
       if (x < 0 || x >= W) continue;
-      const edge = x === Math.round(cx - halfW) || x === Math.round(cx + halfW);
-      px(g, x, y, edge ? ice : iceLight);
+      const left = x === Math.round(cx - halfW);
+      const right = x === Math.round(cx + halfW);
+      if (left || right) px(g, x, y, outline);
+      else if (x === Math.round(cx - halfW) + 1) px(g, x, y, ice);
+      else if (x === Math.round(cx + halfW) - 1) px(g, x, y, iceMid);
+      else if (y < 14 && x > cx - 3 && x < cx + 3) px(g, x, y, iceLight);
+      else if (y < 18) px(g, x, y, iceMid);
+      else px(g, x, y, ice);
     }
   }
-  // Glowing pale-blue eyes
-  px(g, 13, 9, iceBright);
-  px(g, 19, 9, iceBright);
 
-  // Flowing crystalline robe, wide skirt with icy shard fringe
-  const rows = 20;
-  for (let i = 0; i < rows; i++) {
-    const y = 12 + i;
-    const t = i / rows;
-    const halfW = 7 + t * 8;
-    const cx = 16;
+  // ---- Face (pale, frozen) ----
+  for (let y = 14; y <= 20; y++) for (let x = cx - 7; x <= cx + 7; x++) px(g, x, y, 0xe8f5ff, 0.9);
+  // face outline shading
+  px(g, cx - 8, 15, ice, 0.6); px(g, cx + 8, 15, ice, 0.6);
+
+  // ---- Glowing eyes (pale blue) ----
+  for (let y = 16; y <= 18; y++) {
+    px(g, cx - 5, y, eyeGlow); px(g, cx + 5, y, eyeGlow);
+  }
+  px(g, cx - 5, 17, eyeCore); px(g, cx + 5, 17, eyeCore);
+  px(g, cx - 6, 17, eyeGlow, 0.5); px(g, cx + 6, 17, eyeGlow, 0.5);
+  // icy eyelashes (crystal spikes)
+  px(g, cx - 6, 15, iceBright, 0.8); px(g, cx + 6, 15, iceBright, 0.8);
+  // mouth (thin cold line)
+  for (let x = cx - 3; x <= cx + 3; x++) px(g, x, 21, ice, 0.8);
+
+  // ---- Flowing crystalline robe (rows 23-76) — wide skirt ----
+  const bodyRows = 54;
+  for (let i = 0; i < bodyRows; i++) {
+    const y = 23 + i;
+    const t = i / bodyRows;
+    const halfW = 13 + t * 17;
     for (let x = Math.round(cx - halfW); x <= Math.round(cx + halfW); x++) {
       if (x < 0 || x >= W || y >= H) continue;
-      const edge = x <= Math.round(cx - halfW) + 1 || x >= Math.round(cx + halfW) - 1;
-      px(g, x, y, edge ? ice : i % 4 === 0 ? iceBright : iceLight, edge ? 0.7 : 1);
+      const left = x === Math.round(cx - halfW);
+      const right = x === Math.round(cx + halfW);
+      const alpha = i > bodyRows - 6 ? Math.max(0.4, 1 - (i - (bodyRows - 6)) * 0.12) : 1;
+      if (left || right) px(g, x, y, outline, alpha);
+      else if (x === Math.round(cx - halfW) + 1) px(g, x, y, ice, alpha);
+      else if (x === Math.round(cx + halfW) - 1) px(g, x, y, ice, alpha);
+      else if (i % 6 === 0 && x < cx) px(g, x, y, iceMid, alpha * 0.7);
+      else if (i % 5 === 0 && x > cx) px(g, x, y, iceLight, alpha * 0.6);
+      else if (i < 6 && Math.abs(x - cx) < 7) px(g, x, y, iceLight, alpha);
+      else if (Math.abs(x - cx) < 4 && i > 10 && i < 40) px(g, x, y, iceMid, alpha);
+      else px(g, x, y, ice, alpha);
     }
   }
-  // icy shard fringe at hem
-  for (let i = 0; i < 9; i++) {
-    const x = 5 + i * 2.5;
-    px(g, Math.round(x), H - 1, iceBright, 0.8);
+
+  // ---- Frost trim belt ----
+  for (let x = cx - 12; x <= cx + 12; x++) px(g, x, 34, frost);
+  for (let x = cx - 12; x <= cx + 12; x++) px(g, x, 35, iceBright);
+  // belt crystal
+  for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+    const d = Math.hypot(dx, dy);
+    if (d < 2) px(g, cx + dx, 34 + dy, d < 1 ? eyeCore : iceBright);
   }
+
+  // ---- Crystalline fold lines ----
+  for (let y = 24; y < 34; y += 3) { px(g, cx - 6, y, ice, 0.7); px(g, cx + 6, y, ice, 0.7); }
+  for (let y = 36; y < 72; y += 4) {
+    px(g, cx - 8, y, ice, 0.5); px(g, cx + 8, y, ice, 0.5);
+    px(g, cx - 3, y, iceMid, 0.5); px(g, cx + 3, y, iceMid, 0.5);
+  }
+
+  // ---- Ice shard fringe at hem ----
+  const shards = [cx - 24, cx - 18, cx - 12, cx - 6, cx, cx + 6, cx + 12, cx + 18, cx + 24];
+  shards.forEach((x, i) => {
+    const len = 3 + (i % 2) * 2;
+    for (let y = H - len; y < H; y++) px(g, x, y, iceBright, Math.max(0.4, 1 - (y - (H - len)) * 0.15));
+    px(g, x, H - len, outline, 0.6);
+  });
+
+  // ---- Arms (crystalline, flowing) ----
+  for (let y = 28; y <= 48; y++) {
+    px(g, cx - 17, y, outline); px(g, cx - 16, y, ice); px(g, cx - 15, y, iceMid);
+    px(g, cx + 17, y, outline); px(g, cx + 16, y, ice); px(g, cx + 15, y, iceMid);
+  }
+  // icy hands
+  for (let dy = 0; dy < 3; dy++) for (let dx = -2; dx <= 2; dx++) {
+    px(g, cx - 16 + dx, 49 + dy, dx === -2 || dx === 2 || dy === 2 ? outline : iceLight);
+    px(g, cx + 16 + dx, 49 + dy, dx === -2 || dx === 2 || dy === 2 ? outline : iceLight);
+  }
+  // finger spikes
+  px(g, cx - 18, 52, iceBright, 0.8); px(g, cx - 14, 52, iceBright, 0.8);
+  px(g, cx + 18, 52, iceBright, 0.8); px(g, cx + 14, 52, iceBright, 0.8);
+
+  // ---- Ground shadow ----
+  g.fillStyle(0x000000, 0.3);
+  g.fillEllipse(cx + 0.5, H - 1, 46, 4);
 
   g.generateTexture(KEY, W, H);
   g.destroy();
 }
 
-// ---------------- BOSS: BRAMBLE HORROR (34x34) — writhing plant/root monstrosity ----------------
+// ---------------- BOSS: BRAMBLE HORROR (72x80) — plant/nature horror, green/brown ----------------
+// Clean pixel art: dark outline, bark + leaf palette, thorned root-monster, glowing eyes.
 function generateBrambleHorrorBoss(scene: Phaser.Scene): void {
   const KEY = BOSS_TEXTURE_KEYS.brambleHorror;
   if (scene.textures.exists(KEY)) return;
-  const W = 34;
-  const H = 34;
+  const W = 72;
+  const H = 80;
   const g = scene.make.graphics({ x: 0, y: 0 }, false);
 
-  const bark = 0x3d2c1a;
-  const leaf = 0x4d7a3d;
-  const leafLight = 0x6fa858;
-  const thornColor = 0x2a1c10;
-  const eyeColor = 0xd6ff8b;
+  const outline = 0x1a0e08;      // near-black brown outline
+  const bark = 0x3a2a18;         // dark bark
+  const barkMid = 0x5a4028;     // mid bark
+  const barkLight = 0x7a5a38;   // light bark
+  const leafMid = 0x4a8a3a;     // mid leaf
+  const leafLight = 0x7ab858;   // light leaf
+  const leafPale = 0xa8d878;    // pale leaf highlight
+  const thorn = 0x2a1c10;       // thorn dark
+  const thornLight = 0x4a3a20;  // thorn mid
+  const eye = 0xd6ff8b;         // glowing eye
+  const eyeCore = 0xffffff;     // eye core
+  const root = 0x2a1e10;        // root tendril
 
-  // Gnarled trunk-like core body
-  for (let y = 4; y < 30; y++) {
-    const t = (y - 4) / 26;
-    const halfW = 8 + Math.sin(t * Math.PI * 1.5) * 3;
-    const cx = 17;
+  const cx = 35;
+
+  // ---- Central gnarled trunk body (rows 8-68) — thick, tapering ----
+  for (let y = 8; y < 68; y++) {
+    const t = (y - 8) / 60;
+    const halfW = 16 + Math.sin(t * Math.PI * 1.5) * 4 - t * 4;
     for (let x = Math.round(cx - halfW); x <= Math.round(cx + halfW); x++) {
       if (x < 0 || x >= W) continue;
-      const edge = x <= Math.round(cx - halfW) + 1 || x >= Math.round(cx + halfW) - 1;
-      px(g, x, y, edge ? bark : (x + y) % 6 === 0 ? leafLight : leaf);
+      const left = x === Math.round(cx - halfW);
+      const right = x === Math.round(cx + halfW);
+      if (left || right) px(g, x, y, outline);
+      else if (x === Math.round(cx - halfW) + 1) px(g, x, y, bark);
+      else if (x === Math.round(cx + halfW) - 1) px(g, x, y, bark);
+      else if (Math.abs(x - cx) < 3 && y < 30) px(g, x, y, barkLight);
+      else if ((x + y) % 8 === 0) px(g, x, y, barkMid);
+      else if ((x + y) % 5 === 0) px(g, x, y, bark);
+      else px(g, x, y, barkMid);
     }
   }
-  // radiating thorn spikes
-  const spikes = 10;
-  for (let i = 0; i < spikes; i++) {
-    const ang = (i / spikes) * Math.PI * 2;
-    const cx = 17;
-    const cy = 17;
-    const r0 = 9;
-    const r1 = 14;
-    const x0 = Math.round(cx + Math.cos(ang) * r0);
-    const y0 = Math.round(cy + Math.sin(ang) * r0);
-    const x1 = Math.round(cx + Math.cos(ang) * r1);
-    const y1 = Math.round(cy + Math.sin(ang) * r1);
-    px(g, x0, y0, thornColor);
-    px(g, x1, y1, thornColor, 0.7);
+
+  // ---- Bark texture lines ----
+  for (let y = 10; y < 66; y += 3) {
+    px(g, cx - 6, y, bark, 0.7); px(g, cx + 6, y, bark, 0.7);
+    if (y % 6 === 0) { px(g, cx - 10, y, bark); px(g, cx + 10, y, bark); }
   }
-  // glowing malevolent eyes embedded in the bark
-  px(g, 13, 12, eyeColor);
-  px(g, 21, 12, eyeColor);
-  px(g, 17, 20, eyeColor, 0.85);
+  // bark knot
+  for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+    const d = Math.hypot(dx, dy);
+    if (d < 2.5) px(g, cx + 8 + dx, 44 + dy, d < 1 ? barkLight : bark);
+  }
+
+  // ---- Glowing eyes (multiple, embedded in bark) ----
+  // main pair
+  for (let y = 24; y <= 27; y++) {
+    for (let x = cx - 8; x <= cx - 5; x++) px(g, x, y, eye);
+    for (let x = cx + 5; x <= cx + 8; x++) px(g, x, y, eye);
+  }
+  px(g, cx - 7, 26, eyeCore); px(g, cx + 7, 26, eyeCore);
+  px(g, cx - 9, 26, eye, 0.5); px(g, cx + 9, 26, eye, 0.5);
+  // third eye (lower)
+  for (let y = 38; y <= 40; y++) for (let x = cx - 1; x <= cx + 1; x++) px(g, x, y, eye, 0.9);
+  px(g, cx, 39, eyeCore, 0.8);
+  // small eyes
+  px(g, cx - 12, 32, eye, 0.7); px(g, cx + 12, 32, eye, 0.7);
+  // jagged mouth (crack in bark)
+  for (let x = cx - 6; x <= cx + 6; x++) px(g, x, 32, outline, 0.8);
+  for (let x = cx - 4; x <= cx + 4; x += 2) px(g, x, 33, thorn, 0.8);
+
+  // ---- Leaf canopy at top (rows 0-12) ----
+  const leafClusters: Array<[number, number, number]> = [
+    [cx - 18, 4, 5], [cx - 12, 1, 6], [cx - 6, 0, 5], [cx, 0, 7], [cx + 6, 1, 5], [cx + 12, 2, 6], [cx + 18, 4, 5],
+  ];
+  leafClusters.forEach(([lx, ly, sz]) => {
+    for (let dy = 0; dy < sz; dy++) {
+      for (let dx = -sz + dy; dx <= sz - dy; dx++) {
+        const x = lx + dx; const y = ly + dy;
+        if (x < 0 || x >= W || y < 0 || y >= 14) continue;
+        const edge = dx === -sz + dy || dx === sz - dy || dy === 0;
+        if (edge) px(g, x, y, outline);
+        else if (dy < 2 && dx === 0) px(g, x, y, leafPale);
+        else if (dy < sz / 2) px(g, x, y, leafLight);
+        else px(g, x, y, leafMid);
+      }
+    }
+  });
+  // leaf vein highlights
+  px(g, cx - 12, 3, leafPale); px(g, cx, 3, leafPale); px(g, cx + 12, 4, leafPale);
+
+  // ---- Radiating thorn spikes around body ----
+  const thornSpike = (x0: number, y0: number, x1: number, y1: number) => {
+    const steps = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
+    for (let s = 0; s <= steps; s++) {
+      const t = s / steps;
+      const x = Math.round(x0 + (x1 - x0) * t);
+      const y = Math.round(y0 + (y1 - y0) * t);
+      px(g, x, y, s < steps ? thorn : outline);
+      if (s < steps - 1) px(g, x + 1, y, thornLight, 0.5);
+    }
+  };
+  // shoulder thorns
+  thornSpike(cx - 16, 14, cx - 24, 8);
+  thornSpike(cx + 16, 14, cx + 24, 8);
+  thornSpike(cx - 14, 22, cx - 26, 22);
+  thornSpike(cx + 14, 22, cx + 26, 22);
+  // side thorns
+  thornSpike(cx - 16, 40, cx - 28, 42);
+  thornSpike(cx + 16, 40, cx + 28, 42);
+  thornSpike(cx - 14, 54, cx - 24, 58);
+  thornSpike(cx + 14, 54, cx + 24, 58);
+
+  // ---- Root tendrils at base (rows 68-78) ----
+  const roots = [cx - 22, cx - 14, cx - 6, cx, cx + 6, cx + 14, cx + 22];
+  roots.forEach((x, i) => {
+    const len = 6 + (i % 3) * 2;
+    for (let y = 68; y < 68 + len && y < H; y++) {
+      const wave = Math.sin(y * 0.5 + i) * 2;
+      const rx = Math.round(x + wave);
+      if (rx < 0 || rx >= W) continue;
+      const alpha = Math.max(0.3, 1 - (y - 68) * 0.1);
+      px(g, rx, y, root, alpha);
+      px(g, rx - 1, y, outline, alpha * 0.6);
+    }
+  });
+
+  // ---- Ground shadow ----
+  g.fillStyle(0x000000, 0.3);
+  g.fillEllipse(cx + 0.5, 78, 50, 5);
 
   g.generateTexture(KEY, W, H);
   g.destroy();

@@ -1318,7 +1318,7 @@ export class GameScene extends Phaser.Scene {
       this.currentBossDefId = boss.defId;
     }
     this.bossSprite.setPosition(Math.round(boss.x), Math.round(boss.y));
-    this.bossSprite.setScale(1.5);
+    this.bossSprite.setScale(1.0);
     const frozenLike = boss.slowUntil > world.elapsed;
     if (frozenLike) this.bossSprite.setTint(0xc9d8e8);
     else this.bossSprite.clearTint();
