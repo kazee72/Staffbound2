@@ -711,6 +711,11 @@ export class GameScene extends Phaser.Scene {
       // Reset transient per-run fields so a restart starts fully clean.
       pendingBossAbilityUnlocks: [],
       pendingAbilityDisplay: null,
+      summons: [],
+      boulders: [],
+      earthWalls: [],
+      guardianAngel: null,
+      tornadoes: [],
     });
     this.lastStage = 1; // reset stage tracking on new run
     // Clear any leftover boss sprite from a previous run so a stale boss
