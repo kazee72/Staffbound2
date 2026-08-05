@@ -1,7 +1,7 @@
 /**
  * The expanded skill tree ("the Grimoire") — radial constellation layout.
- * 9 branches radiate from a central hub at 360/9 = 40° angular spacing.
- * Each branch has 12-13 nodes (tier 0–6), totaling ~115 nodes.
+ * 10 branches radiate from a central hub at 360/10 = 36° angular spacing.
+ * Each branch has 12-13 nodes (tier 0–6), totaling ~130 nodes.
  *
  * Layout is airy/breathable: tier radii are very generous so the outermost
  * capstone+ nodes sit far from center. Node positions are computed radially:
@@ -23,14 +23,15 @@ export interface Branch {
 
 export const BRANCHES: Branch[] = [
   { code: 'F', name: 'Ember',     color: '#e2793d', angle: -90,                          icon: '🔥' },
-  { code: 'R', name: 'Rime',      color: '#8ec9e8', angle: -90 + 40,                     icon: '❄' },
-  { code: 'V', name: 'Void',      color: '#9d8ce0', angle: -90 + 2 * 40,                 icon: '✦' },
-  { code: 'S', name: 'Umbral',    color: '#c4728f', angle: -90 + 3 * 40,                icon: '☾' },
-  { code: 'N', name: 'Verdant',   color: '#8bc48a', angle: -90 + 4 * 40,                icon: '☘' },
-  { code: 'B', name: 'Warden',    color: '#c9a869', angle: -90 + 5 * 40,                icon: '🛡' },
-  { code: 'P', name: 'Potency',   color: '#4fd6c0', angle: -90 + 6 * 40,                icon: '⚔' },
-  { code: 'T', name: 'Lightning', color: '#c4e842', angle: -90 + 7 * 40,                icon: '⚡' },
-  { code: 'W', name: 'Wind',      color: '#a8d4e8', angle: -90 + 8 * 40,               icon: '🌪' },
+  { code: 'R', name: 'Rime',      color: '#8ec9e8', angle: -90 + 36,                     icon: '❄' },
+  { code: 'V', name: 'Void',      color: '#9d8ce0', angle: -90 + 2 * 36,                 icon: '✦' },
+  { code: 'S', name: 'Umbral',    color: '#c4728f', angle: -90 + 3 * 36,                icon: '☾' },
+  { code: 'N', name: 'Verdant',   color: '#8bc48a', angle: -90 + 4 * 36,                icon: '☘' },
+  { code: 'B', name: 'Warden',    color: '#c9a869', angle: -90 + 5 * 36,                icon: '🛡' },
+  { code: 'P', name: 'Potency',   color: '#4fd6c0', angle: -90 + 6 * 36,                icon: '⚔' },
+  { code: 'T', name: 'Lightning', color: '#c4e842', angle: -90 + 7 * 36,                icon: '⚡' },
+  { code: 'W', name: 'Wind',      color: '#a8d4e8', angle: -90 + 8 * 36,               icon: '🌪' },
+  { code: 'Wa',name: 'Water',     color: '#4a9eff', angle: -90 + 9 * 36,                icon: '💧' },
 ];
 
 interface LocalNode {
@@ -44,29 +45,29 @@ interface LocalNode {
 // Per-branch node template. 13 nodes per branch (tier 0–6), with side
 // branches at tiers 2, 3, and 4. Tier 5 = capstone, tier 6 = post-capstone.
 // Void gets an extra side node X (14 total for Void).
-// Angular offsets are kept SMALL relative to the 45° branch spacing so
+// Angular offsets are kept SMALL relative to the 36° branch spacing so
 // side nodes never collide with neighbouring branches' nodes — even at the
 // outermost tiers where radii are largest. Max offset is 18° (well within
-// the ~22.5° half-gap between branches), and side-node radii for tier 6 are
+// the 18° half-gap between branches), and side-node radii for tier 6 are
 // pulled in slightly to avoid edge proximity.
 export const LOCAL: LocalNode[] = [
   { id: 'A',  tier: 0, off: 0,   pre: [] },
   { id: 'B',  tier: 1, off: 0,   pre: ['A'] },
-  { id: 'C1', tier: 2, off: -16, pre: ['B'] },
+  { id: 'C1', tier: 2, off: -14, pre: ['B'] },
   { id: 'G',  tier: 2, off: 0,   pre: ['B'] },
-  { id: 'C2', tier: 2, off: 16,  pre: ['B'] },
+  { id: 'C2', tier: 2, off: 14,  pre: ['B'] },
   { id: 'D',  tier: 3, off: 0,   pre: ['C1', 'C2'] },
-  { id: 'H',  tier: 3, off: 18,  pre: ['D'] },
-  { id: 'E1', tier: 4, off: -10, pre: ['D'] },
-  { id: 'E2', tier: 4, off: 10,  pre: ['D'] },
+  { id: 'H',  tier: 3, off: 16,  pre: ['D'] },
+  { id: 'E1', tier: 4, off: -9,  pre: ['D'] },
+  { id: 'E2', tier: 4, off: 9,   pre: ['D'] },
   { id: 'F',  tier: 5, off: 0,   pre: ['E1', 'E2'] },          // capstone
   { id: 'I',  tier: 6, off: 0,   pre: ['F'] },                 // post-capstone
-  { id: 'J',  tier: 6, off: 18,  pre: ['F'], radius: 1000 },   // post-capstone side (pulled in slightly from tier 6 max)
-  { id: 'K',  tier: 4, off: -22, pre: ['E1'] },               // extra side node
-  { id: 'L',  tier: 5, off: 22,  pre: ['E2'], radius: 920 },    // AoE side node (post-capstone-adjacent)
+  { id: 'J',  tier: 6, off: 16,  pre: ['F'], radius: 1000 },   // post-capstone side (pulled in slightly from tier 6 max)
+  { id: 'K',  tier: 4, off: -17, pre: ['E1'] },               // extra side node
+  { id: 'L',  tier: 5, off: 17,  pre: ['E2'], radius: 920 },    // AoE side node (post-capstone-adjacent)
 ];
 
-export const VOID_EXTRA: LocalNode[] = [{ id: 'X', tier: 1, off: 20, pre: ['A'] }];
+export const VOID_EXTRA: LocalNode[] = [{ id: 'X', tier: 1, off: 16, pre: ['A'] }];
 
 // Breathable, airy radii — each tier is generously spaced so nodes never
 // overlap even with angular offsets at the outermost tiers. The gap between
@@ -224,6 +225,22 @@ export const CONTENT: Record<string, Record<string, ContentEntry>> = {
     J: { name: 'Eye of the Storm', desc: 'While a tornado is active, you gain +50% move speed and invulnerability.' },
     K: { name: 'Deflecting Winds', desc: '20% chance to deflect enemy projectiles back at them.' },
     L: { name: 'Infinity Gust', desc: 'Wind Gust becomes a continuous aura — enemies near you are constantly pushed back and damaged.' },
+  },
+  Wa: {
+    A: { name: 'Water Bolt', desc: 'Your auto-attack becomes a water bolt that heals you for 2 HP per hit.' },
+    B: { name: 'Tidal Wave', desc: 'Unlocks Tidal Wave — a wave pushes enemies back in a line every 5s.' },
+    C1: { name: 'Healing Tide', desc: 'Passively heal 5 HP every 8s.' },
+    G: { name: 'Purifying Water', desc: 'Removes negative effects. +10% max HP.' },
+    C2: { name: 'Deep Bolt', desc: 'Water Bolt heals 4 HP per hit instead of 2.' },
+    D: { name: 'Whirlpool', desc: 'Unlocks Whirlpool — every 6s, pull enemies toward a point and damage them.' },
+    H: { name: 'Aqua Shield', desc: '10% damage reduction while above 50% HP.' },
+    E1: { name: 'Tsunami', desc: 'Every 15s, a massive wave sweeps across the screen, damaging and pushing all enemies.' },
+    E2: { name: 'Cleansing Rain', desc: 'Heal 1 HP/sec while standing still.' },
+    F: { name: 'Deluge', desc: 'Capstone. All water effects doubled. Water Bolt heals 8 HP per hit.' },
+    I: { name: 'Maelstrom', desc: 'Whirlpool pulls 50% faster and damages enemies it pulls.' },
+    J: { name: 'Deep Current', desc: 'Water Bolt hits 2 enemies (pierces 1).' },
+    K: { name: 'Fluid Motion', desc: '+20% move speed while moving.' },
+    L: { name: 'Flood', desc: 'Every 10s, slow all enemies on screen for 3s.' },
   },
 };
 

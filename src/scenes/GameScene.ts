@@ -1032,7 +1032,9 @@ export class GameScene extends Phaser.Scene {
     const keys = generateStageTextures(this, def);
     this.grassLayer.setTexture(keys.tileKey);
 
-    // Clear and re-scatter decor using the new stage's decor texture.
+    // Clear and re-scatter decor using the new stage's decor textures.
+    // Each stage now has multiple decor variants (tall/short/broken/etc.) so
+    // the scattered decor looks varied and layered like stage 1's forest.
     this.decorLayer.removeAll(true);
     let seed = 4242 + stage * 7919;
     const rand = () => {
@@ -1042,16 +1044,25 @@ export class GameScene extends Phaser.Scene {
     const cx = width / 2;
     const cy = height / 2;
     const clearRadius = 160;
-    const count = Math.max(18, Math.round((width * height) / 55000));
+    // Bump count for denser, more varied coverage — at least 24 per stage.
+    const count = Math.max(24, Math.round((width * height) / 28000));
+    const decorKeys = keys.decorKeys;
+    // Per-stage tint fallback (depth color). Each stage gets a subtle tint that
+    // matches its palette so back-row decor recedes into the right color.
+    const tintFallback = stage === 2 ? 0xd8d0c8 : stage === 3 ? 0xc8d8e8 : 0xc8b8d8;
     for (let i = 0; i < count; i++) {
       const x = rand() * width;
       const y = rand() * height;
       if (Math.hypot(x - cx, y - cy) < clearRadius) continue;
-      const scale = 1.3 + rand() * 0.9;
-      const spr = this.add.image(x, y, keys.decorKey).setOrigin(0.5, 1).setScale(scale);
+      // Pick a random decor variant from this stage's set.
+      const variantKey = decorKeys[Math.floor(rand() * decorKeys.length)];
+      // Scale varies for depth — small for distant, large for foreground.
+      // Use a power curve so most decor is medium, with a few very large pieces.
+      const scale = 1.0 + Math.pow(rand(), 1.4) * 2.0;
+      const spr = this.add.image(x, y, variantKey).setOrigin(0.5, 1).setScale(scale);
       spr.setAlpha(0.85 + rand() * 0.15);
       // Subtle tint variation for depth.
-      spr.setTint(rand() > 0.5 ? 0xffffff : 0xd8d0c8);
+      spr.setTint(rand() > 0.5 ? 0xffffff : tintFallback);
       // Depth-sort by y so enemies behind/below trees render correctly.
       spr.setDepth(y * 0.0001);
       this.decorLayer.add(spr);
