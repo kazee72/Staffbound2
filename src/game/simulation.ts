@@ -444,7 +444,7 @@ export function updateEffects(world: World, dt: number): void {
     const fx = world.effects[i];
     fx.t += dt;
     if (fx.type === 'ground') {
-      if (Math.floor(fx.t * 4) !== Math.floor((fx.t - dt) * 4)) {
+      if (Math.floor(fx.t * 2) !== Math.floor((fx.t - dt) * 2)) {
         world.enemies.forEach((e) => {
           if (!e.dead && dist2(e.x, e.y, fx.x, fx.y) < fx.r * fx.r) {
             damageEnemy(world, e, fx.dmg * 0.25, { allowCrit: false, burn: true });

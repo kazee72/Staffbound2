@@ -1322,13 +1322,15 @@ function updateWindTrail(world: World, dt: number): void {
   const speed = Math.hypot(p.vx, p.vy);
   if (speed < 20) return;
   windTrailAccum += dt;
-  if (windTrailAccum < 0.1) return;
+  if (windTrailAccum < 0.15) return; // spawn every 0.15s, not 0.1s
   windTrailAccum = 0;
   // Spawn a brief ground effect behind the player.
   const ang = Math.atan2(p.vy, p.vx);
   const tx = p.x - Math.cos(ang) * 20;
   const ty = p.y - Math.sin(ang) * 20;
-  world.effects.push({ type: 'ground', x: tx, y: ty, r: 18, color: '#a8d4e8', life: 0.5, t: 0, dmg: 5 + world.level * 0.2 });
+  // Short life (0.3s) so effects don't stack up. Damage is per-tick but
+  // with only ~2 ticks per effect, total damage stays reasonable.
+  world.effects.push({ type: 'ground', x: tx, y: ty, r: 18, color: '#a8d4e8', life: 0.3, t: 0, dmg: 8 + world.level * 0.4 });
 }
 
 /** Wind Gust (W_B): knockback AoE around the player with light damage. */
