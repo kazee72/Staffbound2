@@ -8,7 +8,7 @@
 import './hud.css';
 import type { World } from '../game/types';
 import { availableSP, buySkill, hasNode } from '../game/skillTree';
-import { SKILL_NODES, NODE_BY_ID, BRANCHES, LOCAL } from '../game/skillTree';
+import { SKILL_NODES, NODE_BY_ID, BRANCHES } from '../game/skillTree';
 import { maxHP } from '../game/player';
 import { currentDay } from '../game/enemies';
 import { PLACES } from '../game/waves';
@@ -216,7 +216,6 @@ export class UIManager {
       { code: 'void',      name: 'Void',      color: '#9d8ce0', desc: 'Void bolts with homing and pierce' },
       { code: 'shadow',    name: 'Shadow',    color: '#c4728f', desc: 'Shadow bolts that mark enemies for extra damage' },
       { code: 'nature',    name: 'Nature',    color: '#8bc48a', desc: 'Thorn spikes that pierce through enemies' },
-      { code: 'holy',      name: 'Holy',      color: '#c9a869', desc: 'Holy light with AoE splash on hit' },
       { code: 'lightning', name: 'Lightning', color: '#c4e842', desc: 'Chain lightning that arcs between enemies' },
       { code: 'wind',      name: 'Wind',      color: '#a8d4e8', desc: 'Wind blades that knock back + leave wind trails' },
       { code: 'water',     name: 'Water',    color: '#4a9eff', desc: 'Water bolts that heal you on every hit' },
@@ -737,12 +736,20 @@ export class UIManager {
     this.branchViewEl.style.display = 'none';
     const row = this.staffSelectorEl.querySelector('.staff-row') as HTMLDivElement;
     row.innerHTML = '';
+    // Arrange staves in a circle
+    const radius = 180;
     BRANCHES.forEach((br, i) => {
+      const angle = (i / BRANCHES.length) * Math.PI * 2 - Math.PI / 2;
+      const cx = Math.cos(angle) * radius;
+      const cy = Math.sin(angle) * radius;
       const pick = document.createElement('div');
       pick.className = 'staff-pick';
       pick.style.color = br.color;
+      pick.style.position = 'absolute';
+      pick.style.left = `calc(50% + ${cx}px)`;
+      pick.style.top = `calc(50% + ${cy}px)`;
+      pick.style.transform = 'translate(-50%, -50%)';
       pick.style.animationDelay = (i * 0.06) + 's';
-      // Use the actual staff GIF as the icon, tinted via CSS filter
       pick.innerHTML = `
         <img class="staff-gif" src="assets/icons/staff.gif" alt="${br.name}"
              style="filter: hue-rotate(${this.hueRotateFor(br.color)}deg) saturate(1.4) drop-shadow(0 0 10px ${br.color});" />
@@ -779,66 +786,36 @@ export class UIManager {
     const br = BRANCHES.find((b) => b.code === branchCode)!;
     const branchNodes = SKILL_NODES.filter((n) => n.branch === branchCode);
 
-    // Use a local radial layout: the staff is at the center, nodes radiate
-    // outward in all directions like the big radial tree, but only for this
-    // one branch. We re-project each node's angular offset from the branch
-    // base angle into a local coordinate system centered on the staff.
+    // Use a single-circle radial layout matching the meta grimoire design.
+    // All nodes at the same radius, evenly spaced around the staff at center.
+    const count = branchNodes.length;
+    const radius = count <= 6 ? 120 : count <= 10 ? 160 : 200;
+    const canvasSize = Math.ceil(radius * 2 + 140);
+    const center = canvasSize / 2;
 
-    // Use a smaller set of radii scaled for the single-branch view
-    const LOCAL_RADII = [60, 110, 165, 225, 290, 360, 430];
-    const TIER_HEIGHT = 0; // not used, radial instead
-
-    // The branch base angle is where tier-0 sits. We want nodes to spread
-    // in all directions from center, so we use the node's angular offset
-    // as the angle and the tier as the radius.
     const positions: Record<string, { x: number; y: number }> = {};
-    branchNodes.forEach((n) => {
-      const idPart = n.id.split('_')[1];
-      const localDef = LOCAL.find((l) => l.id === idPart);
-      const voidExtra = branchCode === 'V' && idPart === 'X'
-        ? { off: 20, radius: undefined as number | undefined }
-        : null;
-      const off = (voidExtra ?? localDef)?.off ?? 0;
-      const radiusOverride = (voidExtra ?? localDef)?.radius;
-      const tier = n.tier;
-      const r = radiusOverride ? radiusOverride * 0.42 : LOCAL_RADII[tier] ?? 430;
-
-      // Spread nodes in a circle around the staff. Use the angular offset
-      // as the angle, and for main-column nodes (off=0), stack them going
-      // upward (north). Side nodes branch off at their offset angles.
-      // To make it look like a radial branch, we map off=0 to angle=-90°
-      // (straight up) and spread side nodes relative to that.
-      const angleDeg = -90 + off * 1.8; // scale offset for wider spread
+    branchNodes.forEach((n, i) => {
+      const angleDeg = -90 + (360 / count) * i;
       const angleRad = (angleDeg * Math.PI) / 180;
-
       positions[n.id] = {
-        x: Math.cos(angleRad) * r,
-        y: Math.sin(angleRad) * r,
+        x: Math.cos(angleRad) * radius,
+        y: Math.sin(angleRad) * radius,
       };
     });
 
-    // Canvas size: needs to fit the largest radius + node size + padding
-    const maxR = Math.max(...Object.values(positions).map((p) => Math.hypot(p.x, p.y)));
-    const canvasSize = Math.ceil(maxR * 2 + 120);
-    const center = canvasSize / 2;
-
-    // Build SVG connectors (curved lines from parent to child)
+    // Build SVG connectors from center to each node (matching meta grimoire style)
     let svgLines = '';
     branchNodes.forEach((n) => {
-      n.pre.forEach((preId) => {
-        const pre = positions[preId];
-        const cur = positions[n.id];
-        if (!pre || !cur) return;
-        const lit = hasNode(world.purchased, preId);
-        const x1 = center + pre.x;
-        const y1 = center + pre.y;
-        const x2 = center + cur.x;
-        const y2 = center + cur.y;
-        const midX = (x1 + x2) / 2;
-        const midY = (y1 + y2) / 2;
-        const color = lit ? br.color : '#3a3d5c';
-        svgLines += `<path d="M ${x1} ${y1} Q ${midX} ${midY} ${x2} ${y2}" stroke="${color}" stroke-width="${lit ? 3 : 1.5}" fill="none" opacity="${lit ? 0.8 : 0.35}" />`;
-      });
+      const pos = positions[n.id];
+      const lit = hasNode(world.purchased, n.id);
+      const x1 = center;
+      const y1 = center;
+      const x2 = center + pos.x;
+      const y2 = center + pos.y;
+      const color = lit ? br.color : '#3a3d5c';
+      const midX = (x1 + x2) / 2;
+      const midY = (y1 + y2) / 2;
+      svgLines += `<path d="M ${x1} ${y1} Q ${midX} ${midY} ${x2} ${y2}" stroke="${color}" stroke-width="${lit ? 3 : 1.5}" fill="none" opacity="${lit ? 0.8 : 0.35}" />`;
     });
 
     // Build the HTML
@@ -899,7 +876,6 @@ export class UIManager {
     });
 
     this.spAvail.textContent = String(availableSP(world));
-    void TIER_HEIGHT;
   }
 
   /** Generate HTML for a single square node at absolute position. */

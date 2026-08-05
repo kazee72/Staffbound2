@@ -405,11 +405,11 @@
   text-align: center;
 }
 .staff-row {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 26px;
-  max-width: 760px;
+  display: block;
+  position: relative;
+  width: 440px;
+  height: 440px;
+  margin: 0 auto;
 }
 .staff-pick {
   width: 56px;

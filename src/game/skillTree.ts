@@ -23,15 +23,14 @@ export interface Branch {
 
 export const BRANCHES: Branch[] = [
   { code: 'F', name: 'Ember',     color: '#e2793d', angle: -90,                          icon: '🔥' },
-  { code: 'R', name: 'Rime',      color: '#8ec9e8', angle: -90 + 36,                     icon: '❄' },
-  { code: 'V', name: 'Void',      color: '#9d8ce0', angle: -90 + 2 * 36,                 icon: '✦' },
-  { code: 'S', name: 'Umbral',    color: '#c4728f', angle: -90 + 3 * 36,                icon: '☾' },
-  { code: 'N', name: 'Verdant',   color: '#8bc48a', angle: -90 + 4 * 36,                icon: '☘' },
-  { code: 'B', name: 'Warden',    color: '#c9a869', angle: -90 + 5 * 36,                icon: '🛡' },
-  { code: 'P', name: 'Potency',   color: '#4fd6c0', angle: -90 + 6 * 36,                icon: '⚔' },
-  { code: 'T', name: 'Lightning', color: '#c4e842', angle: -90 + 7 * 36,                icon: '⚡' },
-  { code: 'W', name: 'Wind',      color: '#a8d4e8', angle: -90 + 8 * 36,               icon: '🌪' },
-  { code: 'Wa',name: 'Water',     color: '#4a9eff', angle: -90 + 9 * 36,                icon: '💧' },
+  { code: 'R', name: 'Rime',      color: '#8ec9e8', angle: -90 + 40,                     icon: '❄' },
+  { code: 'V', name: 'Void',      color: '#9d8ce0', angle: -90 + 2 * 40,                 icon: '✦' },
+  { code: 'S', name: 'Umbral',    color: '#c4728f', angle: -90 + 3 * 40,                icon: '☾' },
+  { code: 'N', name: 'Verdant',   color: '#8bc48a', angle: -90 + 4 * 40,                icon: '☘' },
+  { code: 'P', name: 'Potency',   color: '#4fd6c0', angle: -90 + 5 * 40,                icon: '⚔' },
+  { code: 'T', name: 'Lightning', color: '#c4e842', angle: -90 + 6 * 40,                icon: '⚡' },
+  { code: 'W', name: 'Wind',      color: '#a8d4e8', angle: -90 + 7 * 40,               icon: '🌪' },
+  { code: 'Wa',name: 'Water',     color: '#4a9eff', angle: -90 + 8 * 40,                icon: '💧' },
 ];
 
 interface LocalNode {
@@ -161,22 +160,6 @@ export const CONTENT: Record<string, Record<string, ContentEntry>> = {
     J: { name: 'Cull', desc: 'Every 8 seconds, any enemy below 20% HP is instantly executed (marked foes at 30%).' },
     K: { name: 'Nightmare', desc: 'Marked enemies take 25% more damage from all sources.' },
     L: { name: 'Shadow Nova', desc: 'Every 10 seconds, a wave of shadow energy erupts from you, marking and damaging all enemies in a large radius.' },
-  },
-  B: {
-    A: { name: 'Traveler\u2019s Legs', desc: 'Move 15% faster.' },
-    B: { name: 'Iron Skin', desc: 'Increase max health by 25% and reduce your dash\u2019s cooldown.' },
-    C1: { name: 'Sure Footing', desc: 'Reduce your dash\u2019s cooldown further.' },
-    G: { name: 'Momentum', desc: 'Always in motion. +10% additional move speed.' },
-    C2: { name: 'Thick Hide', desc: 'Reduce all incoming damage by 15%.' },
-    D: { name: 'Adrenaline', desc: 'Gain a burst of speed for 3s after dashing.' },
-    H: { name: 'Bulwark', desc: 'Stand firm. Reduce all incoming damage by another 10%.' },
-    E1: { name: 'Vitality', desc: 'Increase max health by another 50%.' },
-    E2: { name: 'Battle Focus', desc: 'Health regeneration greatly increased.' },
-    F: { name: 'Undying', desc: 'Capstone. Once per minute, a killing blow instead leaves you at 1 health.' },
-    I: { name: 'Fortress', desc: 'Standing still for 2+ seconds reduces incoming damage by an additional 25%.' },
-    J: { name: 'Titan Heart', desc: 'Your max health is increased by another 40%, and regen is boosted by 50%.' },
-    K: { name: 'Second Skin', desc: 'After taking damage, gain 1 second of invulnerability (6s internal cooldown).' },
-    L: { name: 'Earthquake', desc: 'Every 15 seconds, you slam the ground, stunning all enemies in a large radius for 2 seconds.' },
   },
   P: {
     A: { name: 'Honed Edge', desc: 'Your bolts and spells deal 10% more damage.' },
