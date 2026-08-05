@@ -1,9 +1,9 @@
 /** Core per-frame simulation update functions, ported from reference/full-reference.html */
 import type { World, EnemyState, Projectile } from './types';
-import { damageReduction, dashCooldownMax, gainXP, healPlayer, maxHP, moveSpeed, regenPerSec } from './player';
+import { damageReduction, dashCooldownMax, gainXP, healPlayer, maxHP, moveSpeed, regenPerSec, xpForLevel } from './player';
 import { hasNode } from './skillTree';
 import { damageEnemy, damageBoss } from './combat';
-import { nearestEnemy, forEachTargetInRange } from './spells';
+import { nearestEnemy, forEachTargetInRange, chainLightning } from './spells';
 import { burst } from './visuals';
 import { updateBoss } from './bosses';
 import { BOSS_DEFS } from './bosses';
@@ -223,6 +223,10 @@ export function updateProjectiles(world: World, dt: number): void {
             () => { /* boss already hit below if in range */ },
           );
         }
+        // Chain lightning: arc to nearby enemies
+        if (pr.chain && pr.chain > 0) {
+          chainLightning(world, e.x, e.y, e, pr.dmg * 0.5, pr.chain, 0.6, pr.color);
+        }
         hit = true;
         if (pr.pierce > 0) {
           pr.pierce--;
@@ -438,6 +442,8 @@ export function updateBossFight(world: World, dt: number): void {
   const boss = fight.boss;
   if (boss.hp <= 0) {
     gainXP(world, boss.xpValue);
+    // Boss gives 5 levels when killed
+    for (let i = 0; i < 5; i++) gainXP(world, xpForLevel(world.level + 1) - world.xp);
     addRunEssence(world, essenceForBossKill(world, boss.xpValue));
     world.slain++;
     burst(world, boss.x, boss.y, boss.color, 46, 280);
@@ -448,8 +454,8 @@ export function updateBossFight(world: World, dt: number): void {
     if (world.currentBossIndex < world.bossesThisStage) {
       // Spawn the second (stronger) boss after a short breather.
       world.bossFight = null;
-      world.bossTimer = 8; // 8s breather before the enraged boss returns
-      world.spawnTimer = 8;
+      world.bossTimer = 6; // 6s breather before the enraged boss returns
+      world.spawnTimer = 1.5; // start spawning enemies quickly during breather
       // The bossTimer in updateSpawns will trigger spawnBoss() which uses currentBossIndex.
       setTimeout(() => {
         if (world.running) {

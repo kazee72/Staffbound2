@@ -22,15 +22,16 @@ export interface Branch {
 }
 
 export const BRANCHES: Branch[] = [
-  { code: 'F', name: 'Ember',     color: '#e2793d', angle: -90,                          icon: '🔥' },
-  { code: 'R', name: 'Rime',      color: '#8ec9e8', angle: -90 + 40,                     icon: '❄' },
-  { code: 'V', name: 'Void',      color: '#9d8ce0', angle: -90 + 2 * 40,                 icon: '✦' },
-  { code: 'S', name: 'Umbral',    color: '#c4728f', angle: -90 + 3 * 40,                icon: '☾' },
-  { code: 'N', name: 'Verdant',   color: '#8bc48a', angle: -90 + 4 * 40,                icon: '☘' },
-  { code: 'P', name: 'Potency',   color: '#4fd6c0', angle: -90 + 5 * 40,                icon: '⚔' },
-  { code: 'T', name: 'Lightning', color: '#c4e842', angle: -90 + 6 * 40,                icon: '⚡' },
-  { code: 'W', name: 'Wind',      color: '#a8d4e8', angle: -90 + 7 * 40,               icon: '🌪' },
-  { code: 'Wa',name: 'Water',     color: '#4a9eff', angle: -90 + 8 * 40,                icon: '💧' },
+  { code: 'F', name: 'Fire',      color: '#e2793d', angle: -90,                          icon: '🔥' },
+  { code: 'R', name: 'Ice',       color: '#8ec9e8', angle: -90 + 36,                     icon: '❄' },
+  { code: 'V', name: 'Void',      color: '#9d8ce0', angle: -90 + 2 * 36,                 icon: '✦' },
+  { code: 'S', name: 'Shadow',    color: '#c4728f', angle: -90 + 3 * 36,                icon: '☾' },
+  { code: 'N', name: 'Nature',    color: '#8bc48a', angle: -90 + 4 * 36,                icon: '☘' },
+  { code: 'P', name: 'Potency',   color: '#4fd6c0', angle: -90 + 5 * 36,                icon: '⚔' },
+  { code: 'T', name: 'Lightning', color: '#c4e842', angle: -90 + 6 * 36,                icon: '⚡' },
+  { code: 'W', name: 'Wind',      color: '#a8d4e8', angle: -90 + 7 * 36,               icon: '🌪' },
+  { code: 'Wa',name: 'Water',     color: '#4a9eff', angle: -90 + 8 * 36,                icon: '💧' },
+  { code: 'Rk',name: 'Rock',      color: '#9a8b7a', angle: -90 + 9 * 36,                icon: '🪨' },
 ];
 
 interface LocalNode {
@@ -224,6 +225,22 @@ export const CONTENT: Record<string, Record<string, ContentEntry>> = {
     J: { name: 'Deep Current', desc: 'Water Bolt hits 2 enemies (pierces 1).' },
     K: { name: 'Fluid Motion', desc: '+20% move speed while moving.' },
     L: { name: 'Flood', desc: 'Every 10s, slow all enemies on screen for 3s.' },
+  },
+  Rk: {
+    A: { name: 'Stone Bolt', desc: 'Rock auto-attack with splash damage around where it hits.' },
+    B: { name: 'Boulder Toss', desc: 'Unlocks Boulder — a large rock that rolls through enemies every 5s, damaging all in its path.' },
+    C1: { name: 'Shrapnel', desc: 'Splash radius +50%. Splash damage increased to 60% of bolt damage.' },
+    G: { name: 'Stone Skin', desc: '+20% max HP and 10% damage reduction.' },
+    C2: { name: 'Crater', desc: 'Bolt impact creates a ground crack that damages enemies who walk over it for 3s.' },
+    D: { name: 'Earth Wall', desc: 'Unlocks Earth Wall — raise a barrier every 8s that blocks enemy movement for 4s.' },
+    H: { name: 'Mountain Heart', desc: '+15% max HP. Regen +50%.' },
+    E1: { name: 'Aftershock', desc: 'Boulder hits cause a secondary explosion dealing 40% damage in a radius.' },
+    E2: { name: 'Tectonic Shift', desc: 'Boulder and Earth Wall cooldowns reduced by 30%.' },
+    F: { name: 'Cataclysm', desc: 'Capstone. Every 15s, a massive earthquake hits all enemies on screen for heavy damage + stun.' },
+    I: { name: 'Continental Drift', desc: 'Earthquake hits twice, second wave dealing 60% damage with a wider radius.' },
+    J: { name: 'Bedrock', desc: 'Stone Skin gives an additional 15% damage reduction. Immune to knockback.' },
+    K: { name: 'Fault Line', desc: 'Bolt impacts create a line of cracks toward the nearest enemy, damaging all along it.' },
+    L: { name: 'Meteor', desc: 'Every 8s, a meteor falls on the strongest enemy, dealing massive AoE damage.' },
   },
 };
 

@@ -186,6 +186,16 @@ export interface Projectile {
   mini?: boolean;
   /** Deals double damage if it hits a target that's currently marked (Shadow Bolt). Resolved generically in damageEnemy/damageBoss since the target isn't known until the projectile actually connects (mouse-aim casts, no pre-lock). */
   markedBonus?: boolean;
+  /** Chain lightning: number of additional targets to arc to. */
+  chain?: number;
+  /** Knockback force on hit (Wind). */
+  knockback?: number;
+  /** Heal player this amount on hit (Water). */
+  healOnHit?: number;
+  /** Splash radius on hit (Rock/Holy). */
+  splashRadius?: number;
+  /** Leaves a wind trail behind (Wind). */
+  windTrail?: boolean;
 }
 
 export interface RingEffect {

@@ -85,7 +85,7 @@ function spawnLightningArc(world: World, x1: number, y1: number, x2: number, y2:
  * @param falloff  damage multiplier per chain (0.5 = 50% per jump)
  * @param color  color of the lightning arcs
  */
-function chainLightning(
+export function chainLightning(
   world: World,
   fromX: number,
   fromY: number,
@@ -318,6 +318,10 @@ export function castBolt(world: World): void {
       projColor = '#4a9eff';
       projHealOnHit = waterBoltHealAmount(world);
       if (hasNode(world.purchased, 'Wa_J')) projPierce = Math.max(projPierce, 1); // Deep Current
+      break;
+    case 'rock':
+      projColor = '#9a8b7a';
+      projSplashRadius = hasNode(world.purchased, 'Rk_C1') ? 60 : 40;
       break;
     default:
       break;

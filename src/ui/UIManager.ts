@@ -206,7 +206,7 @@ export class UIManager {
     this.startBtn = this.startOverlay.querySelector('#startBtn')!;
     this.startBtn.addEventListener('click', () => this.onStart());
 
-    // Element selection overlay
+    // Element selection overlay — staves in a circle
     this.elementOverlay = document.createElement('div');
     this.elementOverlay.className = 'overlay hidden';
     this.elementOverlay.id = 'elementOverlay';
@@ -219,26 +219,37 @@ export class UIManager {
       { code: 'lightning', name: 'Lightning', color: '#c4e842', desc: 'Chain lightning that arcs between enemies' },
       { code: 'wind',      name: 'Wind',      color: '#a8d4e8', desc: 'Wind blades that knock back + leave wind trails' },
       { code: 'water',     name: 'Water',    color: '#4a9eff', desc: 'Water bolts that heal you on every hit' },
+      { code: 'rock',      name: 'Rock',     color: '#9a8b7a', desc: 'Stone bolts with splash damage on impact' },
     ];
     this.elementOverlay.innerHTML = `
       <div class="bigtitle">CHOOSE YOUR ELEMENT</div>
       <div class="sub">Your auto-attack will be infused with this element</div>
-      <div id="elementGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:600px;margin-top:16px;"></div>
+      <div id="elementCircle" style="position:relative;width:440px;height:440px;margin:20px auto 0;"></div>
     `;
     this.root.appendChild(this.elementOverlay);
-    const grid = this.elementOverlay.querySelector('#elementGrid')!;
-    for (const el of elements) {
-      const btn = document.createElement('div');
-      btn.style.cssText = `cursor:pointer;text-align:center;padding:14px 10px;border:2px solid ${el.color};border-radius:10px;background:var(--panel);transition:transform 0.12s,box-shadow 0.12s;`;
-      btn.innerHTML = `
-        <div style="font-family:Cinzel,serif;font-size:16px;color:${el.color};font-weight:700;letter-spacing:1px;">${el.name}</div>
-        <div style="font-size:10px;color:var(--dim);margin-top:6px;line-height:1.4;">${el.desc}</div>
+    const circle = this.elementOverlay.querySelector('#elementCircle')!;
+    const elRadius = 180;
+    const hueMap: Record<string, number> = {
+      '#e2793d': 0, '#8ec9e8': 200, '#9d8ce0': 250, '#c4728f': 320,
+      '#8bc48a': 100, '#c4e842': 80, '#a8d4e8': 200, '#4a9eff': 210, '#9a8b7a': 30,
+    };
+    elements.forEach((el, i) => {
+      const angle = (i / elements.length) * Math.PI * 2 - Math.PI / 2;
+      const cx = Math.cos(angle) * elRadius;
+      const cy = Math.sin(angle) * elRadius;
+      const pick = document.createElement('div');
+      pick.style.cssText = `position:absolute;left:calc(50% + ${cx}px);top:calc(50% + ${cy}px);transform:translate(-50%,-50%);cursor:pointer;text-align:center;width:64px;`;
+      pick.innerHTML = `
+        <img src="assets/icons/staff.gif" alt="${el.name}"
+             style="width:48px;height:48px;object-fit:contain;image-rendering:pixelated;filter:hue-rotate(${hueMap[el.color] ?? 0}deg) saturate(1.4) drop-shadow(0 0 10px ${el.color});" />
+        <div style="font-family:Cinzel,serif;font-size:12px;color:${el.color};font-weight:700;letter-spacing:1px;margin-top:4px;">${el.name}</div>
+        <div style="font-size:8px;color:var(--dim);margin-top:2px;line-height:1.3;max-width:100px;">${el.desc}</div>
       `;
-      btn.addEventListener('mouseenter', () => { btn.style.transform = 'scale(1.05)'; btn.style.boxShadow = `0 0 16px ${el.color}44`; });
-      btn.addEventListener('mouseleave', () => { btn.style.transform = 'scale(1)'; btn.style.boxShadow = 'none'; });
-      btn.addEventListener('click', () => this.onElementPick(el.code));
-      grid.appendChild(btn);
-    }
+      pick.addEventListener('mouseenter', () => { pick.style.transform = 'translate(-50%,-50%) scale(1.12)'; pick.style.filter = `drop-shadow(0 0 16px ${el.color})`; });
+      pick.addEventListener('mouseleave', () => { pick.style.transform = 'translate(-50%,-50%)'; pick.style.filter = 'none'; });
+      pick.addEventListener('click', () => this.onElementPick(el.code));
+      circle.appendChild(pick);
+    });
 
     // Game-over overlay
     this.gameOverOverlay = document.createElement('div');
@@ -803,19 +814,23 @@ export class UIManager {
       };
     });
 
-    // Build SVG connectors from center to each node (matching meta grimoire style)
+    // Build SVG connectors as a web: parent→child connections, not center→node
     let svgLines = '';
     branchNodes.forEach((n) => {
-      const pos = positions[n.id];
-      const lit = hasNode(world.purchased, n.id);
-      const x1 = center;
-      const y1 = center;
-      const x2 = center + pos.x;
-      const y2 = center + pos.y;
-      const color = lit ? br.color : '#3a3d5c';
-      const midX = (x1 + x2) / 2;
-      const midY = (y1 + y2) / 2;
-      svgLines += `<path d="M ${x1} ${y1} Q ${midX} ${midY} ${x2} ${y2}" stroke="${color}" stroke-width="${lit ? 3 : 1.5}" fill="none" opacity="${lit ? 0.8 : 0.35}" />`;
+      n.pre.forEach((preId) => {
+        const pre = positions[preId];
+        const cur = positions[n.id];
+        if (!pre || !cur) return;
+        const lit = hasNode(world.purchased, preId);
+        const x1 = center + pre.x;
+        const y1 = center + pre.y;
+        const x2 = center + cur.x;
+        const y2 = center + cur.y;
+        const midX = (x1 + x2) / 2;
+        const midY = (y1 + y2) / 2;
+        const color = lit ? br.color : '#3a3d5c';
+        svgLines += `<path d="M ${x1} ${y1} Q ${midX} ${midY} ${x2} ${y2}" stroke="${color}" stroke-width="${lit ? 3 : 1.5}" fill="none" opacity="${lit ? 0.8 : 0.35}" />`;
+      });
     });
 
     // Build the HTML
