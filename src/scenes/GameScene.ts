@@ -1153,6 +1153,22 @@ export class GameScene extends Phaser.Scene {
     }
 
     // Summons — draw as colored shapes
+    if (world.guardianAngel) {
+      const ga = world.guardianAngel;
+      // Shadow
+      sg.fillStyle(0x000000, 0.2);
+      sg.fillEllipse(ga.x, ga.y + 6, 10, 4);
+      // Guardian Angel: glowing golden spirit orb with halo
+      g.fillStyle(0xc9a869, 0.3);
+      g.fillCircle(ga.x, ga.y, ga.r + 6);
+      g.fillStyle(0xffe8a0, 0.7);
+      g.fillCircle(ga.x, ga.y, ga.r);
+      g.fillStyle(0xffffff, 0.9);
+      g.fillCircle(ga.x, ga.y, ga.r * 0.5);
+      // Halo ring
+      g.lineStyle(1.5, 0xffe8a0, 0.6);
+      g.strokeCircle(ga.x, ga.y - ga.r - 2, 4);
+    }
     if (world.summons && world.summons.length > 0) {
       for (const s of world.summons) {
         // Shadow
