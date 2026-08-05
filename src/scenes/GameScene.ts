@@ -1147,6 +1147,71 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
+    // Summons — draw as colored shapes
+    if (world.summons && world.summons.length > 0) {
+      for (const s of world.summons) {
+        // Shadow
+        sg.fillStyle(0x000000, 0.25);
+        sg.fillEllipse(s.x, s.y + 8, s.r * 1.2, s.r * 0.4);
+        if (s.type === 'familiar') {
+          // Spirit owl: glowing orb with wings
+          g.fillStyle(0xe0a070, 0.6);
+          g.fillCircle(s.x, s.y, s.r);
+          g.fillStyle(0xffd9a0, 0.8);
+          g.fillCircle(s.x, s.y, s.r * 0.6);
+          // Wings
+          g.lineStyle(2, 0xe0a070, 0.5);
+          const wingAng = s.angle;
+          g.beginPath();
+          g.moveTo(s.x, s.y);
+          g.lineTo(s.x + Math.cos(wingAng + 0.5) * s.r * 1.8, s.y + Math.sin(wingAng + 0.5) * s.r * 1.8);
+          g.strokePath();
+          g.beginPath();
+          g.moveTo(s.x, s.y);
+          g.lineTo(s.x + Math.cos(wingAng - 0.5) * s.r * 1.8, s.y + Math.sin(wingAng - 0.5) * s.r * 1.8);
+          g.strokePath();
+        } else if (s.type === 'boneWarrior' || s.type === 'skeleton') {
+          // Skeleton: white/bone colored blocky figure
+          g.fillStyle(0xe8e0d0, 0.9);
+          g.fillRect(s.x - 4, s.y - 8, 8, 16); // body
+          g.fillStyle(0xf0f0e8, 1);
+          g.fillRect(s.x - 3, s.y - 12, 6, 5); // head
+          g.fillStyle(0x202020, 0.8);
+          g.fillRect(s.x - 2, s.y - 10, 1, 1); // eye
+          g.fillRect(s.x + 1, s.y - 10, 1, 1); // eye
+        } else if (s.type === 'shadowHound') {
+          // Dark hound: elongated dark shape
+          g.fillStyle(0x2a1a3a, 0.9);
+          g.fillEllipse(s.x, s.y, s.r * 2, s.r);
+          g.fillStyle(0x4a2a5a, 0.8);
+          g.fillCircle(s.x + s.r * 0.5, s.y - s.r * 0.3, s.r * 0.4); // head
+          // Glowing eyes
+          g.fillStyle(0xff3030, 1);
+          g.fillRect(s.x + s.r * 0.6, s.y - s.r * 0.4, 1, 1);
+          g.fillRect(s.x + s.r * 0.8, s.y - s.r * 0.4, 1, 1);
+        } else if (s.type === 'deathKnight') {
+          // Death Knight: large armored figure
+          g.fillStyle(0x3a3a4a, 0.95);
+          g.fillRect(s.x - 6, s.y - 12, 12, 24); // body
+          g.fillStyle(0x5a5a6a, 1);
+          g.fillRect(s.x - 5, s.y - 18, 10, 7); // helmet
+          g.fillStyle(0xff4040, 1);
+          g.fillRect(s.x - 3, s.y - 15, 1, 1); // eye
+          g.fillRect(s.x + 2, s.y - 15, 1, 1); // eye
+          // Sword
+          g.fillStyle(0xc0c0d0, 1);
+          g.fillRect(s.x + 6, s.y - 10, 2, 14);
+        }
+        // HP bar for summons with hp > 0
+        if (s.hp > 0 && s.maxHp > 0 && s.hp < s.maxHp) {
+          g.fillStyle(0x1a1c2c, 1);
+          g.fillRect(s.x - 12, s.y - s.r - 8, 24, 3);
+          g.fillStyle(0xe0a070, 1);
+          g.fillRect(s.x - 12, s.y - s.r - 8, 24 * (s.hp / s.maxHp), 3);
+        }
+      }
+    }
+
     // effects (rings/ground)
     world.effects.forEach((fx) => {
       if (fx.type === 'ring') {
