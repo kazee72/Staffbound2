@@ -202,8 +202,20 @@ export class GameScene extends Phaser.Scene {
     // DOM UI overlay, layered above the canvas.
     const parentEl = document.getElementById('app')!;
     this.ui = new UIManager(parentEl);
-    this.ui.onStart = () => this.startRun();
-    this.ui.onRetry = () => this.startRun();
+    this.ui.onStart = () => {
+      // Show element selection screen before starting the run
+      this.ui.hideStart();
+      this.ui.showElementSelect();
+    };
+    this.ui.onElementPick = (element: string) => {
+      this.world.selectedElement = element;
+      this.ui.hideElementSelect();
+      this.startRun();
+    };
+    this.ui.onRetry = () => {
+      this.ui.hideGameOver();
+      this.ui.showElementSelect();
+    };
     this.ui.onToggleGrimoire = () => this.toggleGrimoire();
     this.ui.onBuySkill = (nodeId: string) => {
       // Shared authority: all skill purchases are local
@@ -227,11 +239,11 @@ export class GameScene extends Phaser.Scene {
 
     if (this.netMode === 'host') {
       this.setupHostNetworking();
-      this.startRun(); // host starts the run immediately
+      this.ui.showElementSelect();
     } else if (this.netMode === 'guest') {
       this.setupGuestNetworking();
       this.world.isGuest = true;
-      this.startRun(); // shared authority: guests run full local sim
+      this.ui.showElementSelect();
     } else {
       // Single-player: show start overlay as before.
       this.ui.showStart();

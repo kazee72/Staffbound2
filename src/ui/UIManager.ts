@@ -17,9 +17,7 @@ import {
   buyMetaRank,
   metaStateOf,
   getRunEssence,
-  hasBossAbility,
 } from '../game/metaProgression';
-import { BOSS_ABILITIES } from '../game/stages';
 
 const GAME_OVER_FLAVORS = [
   'the road was long, but not long enough',
@@ -47,6 +45,7 @@ export class UIManager {
   private cooldownSlots: Record<string, { container: HTMLDivElement; fill: HTMLDivElement; time: HTMLDivElement; label: string }>;
 
   private startOverlay: HTMLDivElement;
+  private elementOverlay: HTMLDivElement;
   private startBtn: HTMLButtonElement;
 
   private gameOverOverlay: HTMLDivElement;
@@ -77,6 +76,7 @@ export class UIManager {
   private abilityContinueBtn: HTMLButtonElement;
 
   onStart: () => void = () => {};
+  onElementPick: (element: string) => void = () => {};
   onRetry: () => void = () => {};
   onToggleGrimoire: () => void = () => {};
   onOpenMetaGrimoire: () => void = () => {};
@@ -201,6 +201,41 @@ export class UIManager {
     this.root.appendChild(this.startOverlay);
     this.startBtn = this.startOverlay.querySelector('#startBtn')!;
     this.startBtn.addEventListener('click', () => this.onStart());
+
+    // Element selection overlay
+    this.elementOverlay = document.createElement('div');
+    this.elementOverlay.className = 'overlay hidden';
+    this.elementOverlay.id = 'elementOverlay';
+    const elements = [
+      { code: 'fire',      name: 'Fire',      color: '#e2793d', desc: 'Fire balls that burn enemies over time' },
+      { code: 'ice',       name: 'Ice',       color: '#8ec9e8', desc: 'Ice shards that slow enemies on hit' },
+      { code: 'void',      name: 'Void',      color: '#9d8ce0', desc: 'Void bolts with homing and pierce' },
+      { code: 'shadow',    name: 'Shadow',    color: '#c4728f', desc: 'Shadow bolts that mark enemies for extra damage' },
+      { code: 'nature',    name: 'Nature',    color: '#8bc48a', desc: 'Thorn spikes that pierce through enemies' },
+      { code: 'holy',      name: 'Holy',      color: '#c9a869', desc: 'Holy light with AoE splash on hit' },
+      { code: 'lightning', name: 'Lightning', color: '#c4e842', desc: 'Chain lightning that arcs between enemies' },
+      { code: 'wind',      name: 'Wind',      color: '#a8d4e8', desc: 'Wind blades that knock back + leave wind trails' },
+      { code: 'water',     name: 'Water',    color: '#4a9eff', desc: 'Water bolts that heal you on every hit' },
+    ];
+    this.elementOverlay.innerHTML = `
+      <div class="bigtitle">CHOOSE YOUR ELEMENT</div>
+      <div class="sub">Your auto-attack will be infused with this element</div>
+      <div id="elementGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:600px;margin-top:16px;"></div>
+    `;
+    this.root.appendChild(this.elementOverlay);
+    const grid = this.elementOverlay.querySelector('#elementGrid')!;
+    for (const el of elements) {
+      const btn = document.createElement('div');
+      btn.style.cssText = `cursor:pointer;text-align:center;padding:14px 10px;border:2px solid ${el.color};border-radius:10px;background:var(--panel);transition:transform 0.12s,box-shadow 0.12s;`;
+      btn.innerHTML = `
+        <div style="font-family:Cinzel,serif;font-size:16px;color:${el.color};font-weight:700;letter-spacing:1px;">${el.name}</div>
+        <div style="font-size:10px;color:var(--dim);margin-top:6px;line-height:1.4;">${el.desc}</div>
+      `;
+      btn.addEventListener('mouseenter', () => { btn.style.transform = 'scale(1.05)'; btn.style.boxShadow = `0 0 16px ${el.color}44`; });
+      btn.addEventListener('mouseleave', () => { btn.style.transform = 'scale(1)'; btn.style.boxShadow = 'none'; });
+      btn.addEventListener('click', () => this.onElementPick(el.code));
+      grid.appendChild(btn);
+    }
 
     // Game-over overlay
     this.gameOverOverlay = document.createElement('div');
@@ -337,6 +372,14 @@ export class UIManager {
     this.startOverlay.classList.add('hidden');
   }
 
+  showElementSelect(): void {
+    this.elementOverlay.classList.remove('hidden');
+  }
+
+  hideElementSelect(): void {
+    this.elementOverlay.classList.add('hidden');
+  }
+
   showGameOver(world: World): void {
     this.currentWorld = world;
     this.goDay.textContent = String(currentDay(world));
@@ -434,29 +477,6 @@ export class UIManager {
       });
     });
 
-    // --- Boss Abilities section (purple/violet accent) ---
-    const bossSection = document.createElement('div');
-    bossSection.className = 'boss-ability-section';
-    bossSection.innerHTML = '<div class="boss-ability-header">BOSS ABILITIES</div>';
-    BOSS_ABILITIES.forEach((ability) => {
-      const unlocked = hasBossAbility(world, ability.bossId);
-      const row = document.createElement('div');
-      row.className = 'boss-ability-row' + (unlocked ? ' unlocked' : ' locked');
-      row.innerHTML = `
-        <div class="boss-ability-info">
-          <div class="boss-ability-name">${ability.abilityName}</div>
-          <div class="boss-ability-boss">from ${ability.bossName}</div>
-          <div class="boss-ability-desc">${ability.desc}</div>
-        </div>
-        <div class="boss-ability-status">
-          ${unlocked
-            ? '<span class="boss-ability-badge unlocked">✓ UNLOCKED</span>'
-            : '<span class="boss-ability-badge locked">LOCKED</span>'}
-        </div>
-      `;
-      bossSection.appendChild(row);
-    });
-    this.metaRowsEl.appendChild(bossSection);
   }
 
   setGrimoireVisible(open: boolean): void {

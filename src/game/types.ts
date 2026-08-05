@@ -99,7 +99,25 @@ export interface BossTelegraph {
   dur: number;
 }
 
-export type BossAttackId = 'stomp' | 'radialBurst' | 'spiral' | 'aimedVolley' | 'expandRing' | 'lineBeam';
+export type BossAttackId =
+  | 'stomp'
+  | 'radialBurst'
+  | 'spiral'
+  | 'aimedVolley'
+  | 'expandRing'
+  | 'lineBeam'
+  // Shadow Reaper — dark scythe sweeps that mark the player.
+  | 'scytheSweep'
+  // Light Paladin — converging holy beam cross.
+  | 'holyCross'
+  // Storm Titan — forked chain lightning bolts.
+  | 'chainBolts'
+  // Tempest Dragon — spiraling wind gusts + tornado rings.
+  | 'windSpiral'
+  // Tide Leviathan — sweeping tidal wave projectiles.
+  | 'tidalWave'
+  // Goliath — heavy ground-slam shockwaves.
+  | 'groundSlam';
 
 export interface BossState {
   defId: string;

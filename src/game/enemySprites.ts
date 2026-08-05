@@ -28,6 +28,12 @@ export const BOSS_TEXTURE_KEYS: Record<string, string> = {
   emberColossus: 'bossEmberColossus',
   rimeSovereign: 'bossRimeSovereign',
   brambleHorror: 'bossBrambleHorror',
+  shadowReaper: 'bossShadowReaper',
+  lightPaladin: 'bossLightPaladin',
+  stormTitan: 'bossStormTitan',
+  tempestDragon: 'bossTempestDragon',
+  tideLeviathan: 'bossTideLeviathan',
+  goliath: 'bossGoliath',
 };
 
 function px(g: Phaser.GameObjects.Graphics, x: number, y: number, color: number, alpha = 1): void {

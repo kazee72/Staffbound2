@@ -112,6 +112,120 @@ export const BOSS_DEFS: BossDef[] = [
     ],
     patterns: ['stomp', 'spiral', 'radialBurst'],
   },
+  {
+    id: 'shadowReaper',
+    name: 'Shadow Reaper',
+    color: '#2a1a3a',
+    r: 23,
+    baseHp: 1800,
+    hpPerDay: 540,
+    baseDmg: 23,
+    spd: 72,
+    xpValue: 95,
+    flavor: 'THE SHADOW REAPER DESCENDS, SCYTHE IN HAND',
+    flashColor: 'var(--umbral)',
+    phasePatterns: [
+      ['scytheSweep', 'aimedVolley', 'spiral'],
+      ['scytheSweep', 'aimedVolley', 'spiral', 'radialBurst'],
+      ['scytheSweep', 'aimedVolley', 'spiral', 'radialBurst', 'lineBeam'],
+    ],
+    patterns: ['scytheSweep', 'aimedVolley', 'spiral'],
+  },
+  {
+    id: 'lightPaladin',
+    name: 'Light Paladin',
+    color: '#e8c44a',
+    r: 24,
+    baseHp: 2100,
+    hpPerDay: 600,
+    baseDmg: 19,
+    spd: 58,
+    xpValue: 110,
+    flavor: 'THE LIGHT PALADIN RAISES THEIR HALOED BLADE',
+    flashColor: 'var(--ember)',
+    phasePatterns: [
+      ['holyCross', 'lineBeam', 'radialBurst'],
+      ['holyCross', 'lineBeam', 'radialBurst', 'aimedVolley'],
+      ['holyCross', 'lineBeam', 'radialBurst', 'aimedVolley', 'expandRing'],
+    ],
+    patterns: ['holyCross', 'lineBeam', 'radialBurst'],
+  },
+  {
+    id: 'stormTitan',
+    name: 'Storm Titan',
+    color: '#4a8cff',
+    r: 25,
+    baseHp: 1950,
+    hpPerDay: 570,
+    baseDmg: 22,
+    spd: 64,
+    xpValue: 105,
+    flavor: 'THE STORM TITAN CRACKLES WITH FURY',
+    flashColor: 'var(--frost)',
+    phasePatterns: [
+      ['chainBolts', 'radialBurst', 'aimedVolley'],
+      ['chainBolts', 'radialBurst', 'aimedVolley', 'spiral'],
+      ['chainBolts', 'radialBurst', 'aimedVolley', 'spiral', 'lineBeam'],
+    ],
+    patterns: ['chainBolts', 'radialBurst', 'aimedVolley'],
+  },
+  {
+    id: 'tempestDragon',
+    name: 'Tempest Dragon',
+    color: '#7ad8c0',
+    r: 26,
+    baseHp: 2050,
+    hpPerDay: 615,
+    baseDmg: 20,
+    spd: 78,
+    xpValue: 115,
+    flavor: 'THE TEMPEST DRAGON TAKES WING',
+    flashColor: 'var(--verdant)',
+    phasePatterns: [
+      ['windSpiral', 'expandRing', 'aimedVolley'],
+      ['windSpiral', 'expandRing', 'aimedVolley', 'spiral'],
+      ['windSpiral', 'expandRing', 'aimedVolley', 'spiral', 'radialBurst'],
+    ],
+    patterns: ['windSpiral', 'expandRing', 'aimedVolley'],
+  },
+  {
+    id: 'tideLeviathan',
+    name: 'Tide Leviathan',
+    color: '#2a8ad8',
+    r: 27,
+    baseHp: 2200,
+    hpPerDay: 660,
+    baseDmg: 18,
+    spd: 56,
+    xpValue: 120,
+    flavor: 'THE TIDE LEVIATHAN RISES FROM THE DEPTHS',
+    flashColor: 'var(--frost)',
+    phasePatterns: [
+      ['tidalWave', 'expandRing', 'spiral'],
+      ['tidalWave', 'expandRing', 'spiral', 'aimedVolley'],
+      ['tidalWave', 'expandRing', 'spiral', 'aimedVolley', 'radialBurst'],
+    ],
+    patterns: ['tidalWave', 'expandRing', 'spiral'],
+  },
+  {
+    id: 'goliath',
+    name: 'Goliath',
+    color: '#8a6a3a',
+    r: 26,
+    baseHp: 2400,
+    hpPerDay: 720,
+    baseDmg: 26,
+    spd: 52,
+    xpValue: 125,
+    flavor: 'THE GOLIATH STOMPS FORTH, EARTH TREMBLING',
+    flashColor: 'var(--ember)',
+    phasePatterns: [
+      ['groundSlam', 'stomp', 'radialBurst'],
+      ['groundSlam', 'stomp', 'radialBurst', 'aimedVolley'],
+      ['groundSlam', 'stomp', 'radialBurst', 'aimedVolley', 'expandRing'],
+    ],
+    patterns: ['groundSlam', 'stomp', 'radialBurst'],
+  },
 ];
 
 export const BOSS_DEF_BY_ID: Record<string, BossDef> = {};
@@ -326,6 +440,208 @@ function tickLineBeam(world: World, boss: BossState, _dt: number): boolean {
   return boss.patternT >= 1.25;
 }
 
+// ---------------- new element-boss patterns ----------------
+
+/** Shadow Reaper — scythe sweep: a wide arcing slash that fires a curved fan of dark blades. */
+function tickScytheSweep(world: World, boss: BossState, _dt: number): boolean {
+  const d = boss.patternData;
+  const target = nearestPlayer(world, boss.x, boss.y);
+  if (!d.started) {
+    d.started = 1;
+    d.baseAng = Math.atan2(target.y - boss.y, target.x - boss.x);
+    addTelegraph(boss, { kind: 'ring', x: boss.x, y: boss.y, radius: 50, color: boss.color, t: 0, dur: 0.5 });
+  }
+  // Two sweeps: a left-to-right arc then a right-to-left arc, each firing a fan of blades.
+  const sweeps = [
+    { t: 0.5, dir: 1, key: 's0' },
+    { t: 1.4, dir: -1, key: 's1' },
+  ];
+  for (const s of sweeps) {
+    if (!d[s.key] && boss.patternT >= s.t) {
+      d[s.key] = 1;
+      const baseAng = d.baseAng as number + s.dir * 0.7;
+      const shots = 9;
+      const arcSpread = 1.6; // ~92° fan
+      for (let k = 0; k < shots; k++) {
+        const a = baseAng + (k - (shots - 1) / 2) * (arcSpread / (shots - 1));
+        addProjectile(boss, boss.x, boss.y, a, 185, boss.dmg * 0.5, 6);
+      }
+      burst(world, boss.x, boss.y, boss.color, 14, 180);
+    }
+  }
+  void world;
+  return boss.patternT >= 2.0;
+}
+
+/** Light Paladin — holy cross: telegraphs a cross of two perpendicular line beams, then resolves both. */
+function tickHolyCross(world: World, boss: BossState, _dt: number): boolean {
+  const d = boss.patternData;
+  if (!d.started) {
+    d.started = 1;
+    d.ang0 = Math.random() * Math.PI;
+    d.ang1 = d.ang0 + Math.PI / 2;
+    addTelegraph(boss, { kind: 'line', x: boss.x, y: boss.y, angle: d.ang0, length: 1400, width: 26, color: boss.color, t: 0, dur: 1.1 });
+    addTelegraph(boss, { kind: 'line', x: boss.x, y: boss.y, angle: d.ang1, length: 1400, width: 26, color: boss.color, t: 0, dur: 1.1 });
+  }
+  if (!d.resolved && boss.patternT >= 1.1) {
+    d.resolved = 1;
+    const target = nearestPlayer(world, boss.x, boss.y);
+    const p = { x: target.x, y: target.y, invuln: 0, dashing: 0, r: 13 };
+    for (const angRaw of [d.ang0, d.ang1]) {
+      const angle = angRaw as number;
+      const dx = p.x - boss.x;
+      const dy = p.y - boss.y;
+      const along = dx * Math.cos(angle) + dy * Math.sin(angle);
+      const perp = -dx * Math.sin(angle) + dy * Math.cos(angle);
+      if (along > 0 && along < 1400 && Math.abs(perp) < 18 && p.invuln <= 0 && p.dashing <= 0) {
+        damagePlayer(world, boss.dmg * 1.3 * (1 - damageReduction(world)));
+      }
+    }
+    // Also fire a radial burst of holy bolts from the cross center.
+    const N = 16;
+    for (let k = 0; k < N; k++) {
+      const a = (k / N) * Math.PI * 2;
+      addProjectile(boss, boss.x, boss.y, a, 150, boss.dmg * 0.4, 5);
+    }
+    burst(world, boss.x, boss.y, boss.color, 28, 220);
+  }
+  void world;
+  return boss.patternT >= 1.4;
+}
+
+/** Storm Titan — chain bolts: fires forked lightning at the player; each fork splits into 3 smaller bolts. */
+function tickChainBolts(world: World, boss: BossState, _dt: number): boolean {
+  const d = boss.patternData;
+  const strikeTimes = [0.2, 0.95, 1.7];
+  for (let i = 0; i < strikeTimes.length; i++) {
+    const key = `s${i}`;
+    if (!d[key] && boss.patternT >= strikeTimes[i]) {
+      d[key] = 1;
+      const target = nearestPlayer(world, boss.x, boss.y);
+      const baseAng = Math.atan2(target.y - boss.y, target.x - boss.x);
+      // Telegraph the main bolt.
+      addTelegraph(boss, { kind: 'line', x: boss.x, y: boss.y, angle: baseAng, length: 900, width: 22, color: boss.color, t: 0, dur: 0.3 });
+      // Fire main bolt + two forks at ±18°.
+      const forks = [0, -0.32, 0.32];
+      for (const f of forks) {
+        addProjectile(boss, boss.x, boss.y, baseAng + f, 260, boss.dmg * 0.45, 5);
+      }
+      // Resolve main bolt damage.
+      const p = { x: target.x, y: target.y, invuln: 0, dashing: 0, r: 13 };
+      const dx = p.x - boss.x;
+      const dy = p.y - boss.y;
+      const along = dx * Math.cos(baseAng) + dy * Math.sin(baseAng);
+      const perp = -dx * Math.sin(baseAng) + dy * Math.cos(baseAng);
+      if (along > 0 && along < 900 && Math.abs(perp) < 16 && p.invuln <= 0 && p.dashing <= 0) {
+        damagePlayer(world, boss.dmg * 0.9 * (1 - damageReduction(world)));
+      }
+      burst(world, boss.x + Math.cos(baseAng) * 80, boss.y + Math.sin(baseAng) * 80, boss.color, 12, 200);
+    }
+  }
+  void world;
+  return boss.patternT >= 2.1;
+}
+
+/** Tempest Dragon — wind spiral: emits a tight rotating spiral of wind blades plus periodic tornado rings. */
+function tickWindSpiral(world: World, boss: BossState, dt: number): boolean {
+  const d = boss.patternData;
+  d.ang = (d.ang || 0) + dt * 6.5;
+  d.cd = (d.cd || 0) - dt;
+  const SPEED = 170;
+  if (d.cd <= 0) {
+    d.cd = 0.06;
+    // Two counter-rotating arms for a denser spiral.
+    addProjectile(boss, boss.x, boss.y, d.ang, SPEED, boss.dmg * 0.3, 4.5);
+    addProjectile(boss, boss.x, boss.y, -d.ang + Math.PI, SPEED, boss.dmg * 0.3, 4.5);
+  }
+  // One tornado ring at t=1.4: a full radial burst that forces movement.
+  if (!d.ring && boss.patternT >= 1.4) {
+    d.ring = 1;
+    const N = 28;
+    for (let k = 0; k < N; k++) {
+      const a = (k / N) * Math.PI * 2;
+      addProjectile(boss, boss.x, boss.y, a, 130, boss.dmg * 0.35, 5);
+    }
+    addTelegraph(boss, { kind: 'ring', x: boss.x, y: boss.y, radius: 45, color: boss.color, t: 0, dur: 0.3 });
+  }
+  void world;
+  return boss.patternT >= 2.6;
+}
+
+/** Tide Leviathan — tidal wave: fires three wide parallel walls of water projectiles sweeping across the arena. */
+function tickTidalWave(world: World, boss: BossState, _dt: number): boolean {
+  const d = boss.patternData;
+  const target = nearestPlayer(world, boss.x, boss.y);
+  const waveTimes = [0.2, 1.0, 1.8];
+  for (let i = 0; i < waveTimes.length; i++) {
+    const key = `w${i}`;
+    if (!d[key] && boss.patternT >= waveTimes[i]) {
+      d[key] = 1;
+      const baseAng = Math.atan2(target.y - boss.y, target.x - boss.x);
+      addTelegraph(boss, { kind: 'line', x: boss.x, y: boss.y, angle: baseAng, length: 1200, width: 40, color: boss.color, t: 0, dur: 0.35 });
+      d[`ang${i}`] = baseAng;
+    }
+    const fireKey = `f${i}`;
+    if (!d[fireKey] && boss.patternT >= waveTimes[i] + 0.35) {
+      d[fireKey] = 1;
+      const baseAng = d[`ang${i}`] as number;
+      // A wide wall of 7 parallel projectiles.
+      const rows = 7;
+      const spread = 0.9;
+      for (let k = 0; k < rows; k++) {
+        const a = baseAng + (k - (rows - 1) / 2) * (spread / (rows - 1));
+        addProjectile(boss, boss.x, boss.y, a, 140, boss.dmg * 0.42, 6);
+      }
+      burst(world, boss.x, boss.y, boss.color, 16, 200);
+    }
+  }
+  void world;
+  return boss.patternT >= 2.45;
+}
+
+/** Goliath — ground slam: a telegraphed shockwave that expands outward, then a second inner ring. */
+function tickGroundSlam(world: World, boss: BossState, _dt: number): boolean {
+  const d = boss.patternData;
+  const RADIUS = 220;
+  if (!d.started) {
+    d.started = 1;
+    addTelegraph(boss, { kind: 'ring', x: boss.x, y: boss.y, radius: RADIUS, color: boss.color, t: 0, dur: 0.8 });
+  }
+  if (!d.resolved && boss.patternT >= 0.8) {
+    d.resolved = 1;
+    const target = nearestPlayer(world, boss.x, boss.y);
+    const p = { x: target.x, y: target.y, invuln: 0, dashing: 0, r: 13 };
+    if (dist(p.x, p.y, boss.x, boss.y) < RADIUS && p.invuln <= 0 && p.dashing <= 0) {
+      damagePlayer(world, boss.dmg * 1.4 * (1 - damageReduction(world)));
+    }
+    world.effects.push({ type: 'ring', x: boss.x, y: boss.y, r: 0, maxR: RADIUS, color: boss.color, life: 0.4, t: 0 });
+    burst(world, boss.x, boss.y, boss.color, 30, 240);
+    // Fire a radial burst of rocks as the shockwave breaks.
+    const N = 20;
+    for (let k = 0; k < N; k++) {
+      const a = (k / N) * Math.PI * 2;
+      addProjectile(boss, boss.x, boss.y, a, 120, boss.dmg * 0.4, 6);
+    }
+  }
+  // Second smaller slam at t=1.6.
+  if (!d.second && boss.patternT >= 1.6) {
+    d.second = 1;
+    addTelegraph(boss, { kind: 'ring', x: boss.x, y: boss.y, radius: 150, color: boss.color, t: 0, dur: 0.5 });
+  }
+  if (!d.resolved2 && boss.patternT >= 2.1) {
+    d.resolved2 = 1;
+    const target = nearestPlayer(world, boss.x, boss.y);
+    const p = { x: target.x, y: target.y, invuln: 0, dashing: 0, r: 13 };
+    if (dist(p.x, p.y, boss.x, boss.y) < 150 && p.invuln <= 0 && p.dashing <= 0) {
+      damagePlayer(world, boss.dmg * 1.0 * (1 - damageReduction(world)));
+    }
+    world.effects.push({ type: 'ring', x: boss.x, y: boss.y, r: 0, maxR: 150, color: boss.color, life: 0.3, t: 0 });
+    burst(world, boss.x, boss.y, boss.color, 18, 200);
+  }
+  void world;
+  return boss.patternT >= 2.5;
+}
+
 function tickPattern(world: World, boss: BossState, id: BossAttackId, dt: number): boolean {
   switch (id) {
     case 'stomp':
@@ -340,6 +656,18 @@ function tickPattern(world: World, boss: BossState, id: BossAttackId, dt: number
       return tickExpandRing(world, boss, dt);
     case 'lineBeam':
       return tickLineBeam(world, boss, dt);
+    case 'scytheSweep':
+      return tickScytheSweep(world, boss, dt);
+    case 'holyCross':
+      return tickHolyCross(world, boss, dt);
+    case 'chainBolts':
+      return tickChainBolts(world, boss, dt);
+    case 'windSpiral':
+      return tickWindSpiral(world, boss, dt);
+    case 'tidalWave':
+      return tickTidalWave(world, boss, dt);
+    case 'groundSlam':
+      return tickGroundSlam(world, boss, dt);
   }
 }
 
