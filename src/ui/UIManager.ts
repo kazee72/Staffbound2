@@ -462,16 +462,28 @@ export class UIManager {
     }
     const row = this.metaStaffSelectorEl.querySelector('.staff-row') as HTMLDivElement;
     row.innerHTML = '';
-    // Build a combined list: General + 9 element branches.
+    row.style.display = 'block';
+    row.style.position = 'relative';
+    row.style.width = '440px';
+    row.style.height = '440px';
+    row.style.margin = '0 auto';
+    // Build a combined list: General + element branches.
     const allBranches = [
       { id: 'general', name: 'General', color: '#c9a869', short: 'G' },
       ...ELEMENT_BRANCHES,
     ];
+    const metaRadius = 180;
     allBranches.forEach((br, i) => {
+      const angle = (i / allBranches.length) * Math.PI * 2 - Math.PI / 2;
+      const cx = Math.cos(angle) * metaRadius;
+      const cy = Math.sin(angle) * metaRadius;
       const pick = document.createElement('div');
       pick.className = 'staff-pick';
       pick.style.color = br.color;
-      pick.style.animationDelay = (i * 0.06) + 's';
+      pick.style.position = 'absolute';
+      pick.style.left = `calc(50% + ${cx}px)`;
+      pick.style.top = `calc(50% + ${cy}px)`;
+      pick.style.transform = 'translate(-50%, -50%)';
       pick.innerHTML = `
         <img class="staff-gif" src="assets/icons/staff.gif" alt="${br.name}"
              style="filter: hue-rotate(${this.metaHueRotateFor(br.color)}deg) saturate(1.4) drop-shadow(0 0 10px ${br.color});" />

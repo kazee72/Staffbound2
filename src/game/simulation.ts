@@ -193,7 +193,11 @@ export function updateProjectiles(world: World, dt: number): void {
     pr.y += pr.vy * dt;
     pr.life -= dt;
     // Read extended element flags from the projectile (set by castBolt).
-    const ext = pr as Projectile & { knockback?: number; healOnHit?: number; splashRadius?: number };
+    const ext = pr as Projectile & { knockback?: number; healOnHit?: number; splashRadius?: number; chain?: number; windTrail?: boolean };
+    // Wind trail: leave ground effect particles behind wind projectiles
+    if (ext.windTrail && Math.random() < 0.3) {
+      world.effects.push({ type: 'ring', x: pr.x, y: pr.y, r: 0, maxR: 8, color: '#a8d4e8', life: 0.3, t: 0 });
+    }
     let hit = false;
     for (const e of world.enemies) {
       if (e.dead) continue;

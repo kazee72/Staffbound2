@@ -139,6 +139,8 @@ export interface BossState {
   slowAmt: number;
   /** Mirrors EnemyState.marked — set when a crit lands on the boss, consumed by mark-bonus damage (Shadow Bolt etc). */
   marked: number;
+  /** Timer for spawning add minions during boss fight. */
+  minionCd?: number;
 
   /** Rotation index into this boss's attack-pattern list. */
   patternIndex: number;

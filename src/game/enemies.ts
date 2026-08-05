@@ -39,7 +39,7 @@ export function currentDay(world: World): number {
   return Math.floor(world.elapsed / 60) + 1;
 }
 
-export function spawnEnemy(world: World, forceType?: EnemyType): void {
+export function spawnEnemy(world: World, forceType?: EnemyType, spawnX?: number, spawnY?: number): void {
   const day = currentDay(world);
   const stage = world.stage;
   // Filter the pool by both day and stage: only spawn types whose minDay and
@@ -53,21 +53,17 @@ export function spawnEnemy(world: World, forceType?: EnemyType): void {
   // harder — later stages require real build investment to survive.
   const scale = 1 + (stage - 1) * 0.8 + (day - 1) * 0.15;
   const hpScale = scale * playerHpScaleMult(world);
-  const edge = (Math.random() * 4) | 0;
   let x: number, y: number;
-  const { W, H } = world;
-  if (edge === 0) {
-    x = -30;
-    y = rand(0, H);
-  } else if (edge === 1) {
-    x = W + 30;
-    y = rand(0, H);
-  } else if (edge === 2) {
-    x = rand(0, W);
-    y = -30;
+  if (spawnX !== undefined && spawnY !== undefined) {
+    x = spawnX;
+    y = spawnY;
   } else {
-    x = rand(0, W);
-    y = H + 30;
+    const { W, H } = world;
+    const edge = (Math.random() * 4) | 0;
+    if (edge === 0) { x = -30; y = rand(0, H); }
+    else if (edge === 1) { x = W + 30; y = rand(0, H); }
+    else if (edge === 2) { x = rand(0, W); y = -30; }
+    else { x = rand(0, W); y = H + 30; }
   }
   const e: EnemyState = {
     type,

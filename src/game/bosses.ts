@@ -16,6 +16,7 @@ import { damagePlayer } from './simulation';
 import { damageReduction } from './player';
 import { burst } from './visuals';
 import { tryDeflectProjectile } from './spells';
+import { spawnEnemy } from './enemies';
 
 export interface BossDef {
   id: string;
@@ -730,6 +731,19 @@ export function updateBoss(world: World, dt: number): void {
     boss.patternData = {};
     world.flash('PHASE ' + newPhase, def.flashColor);
     burst(world, boss.x, boss.y, boss.color, 30, 200);
+  }
+
+  // Spawn add minions during boss fight (every 8s in phase 1, 6s in phase 2, 4s in phase 3)
+  if (boss.minionCd === undefined) boss.minionCd = 8;
+  boss.minionCd -= dt;
+  if (boss.minionCd <= 0) {
+    boss.minionCd = boss.phase === 1 ? 8 : boss.phase === 2 ? 6 : 4;
+    const addCount = boss.phase === 1 ? 2 : boss.phase === 2 ? 3 : 4;
+    for (let i = 0; i < addCount; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const dist = 80 + Math.random() * 60;
+      spawnEnemy(world, undefined, boss.x + Math.cos(ang) * dist, boss.y + Math.sin(ang) * dist);
+    }
   }
 
   // Pattern rotation.

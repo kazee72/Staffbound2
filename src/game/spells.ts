@@ -349,9 +349,11 @@ export function castBolt(world: World): void {
     // Store extra element flags on the just-pushed projectile so
     // updateProjectiles can apply them (knockback, heal, splash, chain).
     const pr = world.projectiles[world.projectiles.length - 1];
-    (pr as Projectile & { knockback?: number; healOnHit?: number; splashRadius?: number; chainCount?: number }).knockback = projKnockback;
-    (pr as Projectile & { knockback?: number; healOnHit?: number; splashRadius?: number; chainCount?: number }).healOnHit = projHealOnHit;
-    (pr as Projectile & { knockback?: number; healOnHit?: number; splashRadius?: number; chainCount?: number }).splashRadius = projSplashRadius;
+    (pr as Projectile & { knockback?: number; healOnHit?: number; splashRadius?: number; chain?: number; windTrail?: boolean }).knockback = projKnockback;
+    (pr as Projectile & { knockback?: number; healOnHit?: number; splashRadius?: number; chain?: number; windTrail?: boolean }).healOnHit = projHealOnHit;
+    (pr as Projectile & { knockback?: number; healOnHit?: number; splashRadius?: number; chain?: number; windTrail?: boolean }).splashRadius = projSplashRadius;
+    (pr as Projectile & { knockback?: number; healOnHit?: number; splashRadius?: number; chain?: number; windTrail?: boolean }).chain = projChain;
+    if (projKnockback > 0) (pr as Projectile & { windTrail?: boolean }).windTrail = true;
     if (empowered && hasNode(world.purchased, 'V_F')) {
       // Arcane Overflow (V_J): 6 homing bolts instead of 4
       const splashCount = hasNode(world.purchased, 'V_J') ? 6 : 4;
