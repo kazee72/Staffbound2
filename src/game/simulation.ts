@@ -1,14 +1,14 @@
 /** Core per-frame simulation update functions, ported from reference/full-reference.html */
-import type { World, EnemyState } from './types';
+import type { World, EnemyState, Projectile } from './types';
 import { damageReduction, dashCooldownMax, gainXP, healPlayer, maxHP, moveSpeed, regenPerSec } from './player';
 import { hasNode } from './skillTree';
 import { damageEnemy, damageBoss } from './combat';
-import { nearestEnemy } from './spells';
+import { nearestEnemy, forEachTargetInRange } from './spells';
 import { burst } from './visuals';
 import { updateBoss } from './bosses';
 import { BOSS_DEFS } from './bosses';
-import { addRunEssence, essenceForBossKill, metaDashDistMult, hasBossAbility, bossAbilityRank } from './metaProgression';
-import { getStageDef, BOSS_ABILITY_BY_BOSS } from './stages';
+import { addRunEssence, essenceForBossKill, metaDashDistMult } from './metaProgression';
+import { getStageDef } from './stages';
 
 function clamp(v: number, a: number, b: number): number {
   return Math.max(a, Math.min(b, v));
@@ -114,54 +114,11 @@ export function tryDash(world: World): void {
       });
     }
   }
-  // Spectral Step (Elder Wraith boss ability): dash leaves a fire trail
-  // along the dash path that damages and burns enemies it passes through.
-  // Rank scales: 1=15dmg, 2=25, 3=35, 4=45, 5=60.
-  if (hasBossAbility(world, 'elderWraith')) {
-    const rank = bossAbilityRank(world, 'elderWraith');
-    const trailDmg = [15, 25, 35, 45, 60][rank - 1] + world.level * 0.5;
-    const trailRadius = rank >= 4 ? 28 : 20;
-    const steps = 6;
-    for (let s = 0; s <= steps; s++) {
-      const t = s / steps;
-      const tx = startX + (p.x - startX) * t;
-      const ty = startY + (p.y - startY) * t;
-      burst(world, tx, ty, '#e2793d', 3, 60, 0.3);
-      // Visual: leave a brief ground fire effect.
-      world.effects.push({ type: 'ground', x: tx, y: ty, r: trailRadius, color: '#e2793d', life: 0.5, t: 0, dmg: trailDmg });
-      world.enemies.forEach((e) => {
-        if (!e.dead && dist2(tx, ty, e.x, e.y) < trailRadius * trailRadius) {
-          damageEnemy(world, e, trailDmg, { allowCrit: false, burn: true, color: '#e2793d' });
-        }
-      });
-    }
-  }
 }
 
-export function damagePlayer(world: World, amount: number, attacker?: EnemyState): void {
+export function damagePlayer(world: World, amount: number, _attacker?: EnemyState): void {
   const p = world.player;
   p.hp -= amount;
-
-  // Thorn Armor (Bramble Horror boss ability): reflect damage back to the
-  // attacker, scaled by rank. Ranks 2+ also knock the attacker back.
-  // Rank scales: 1=20dmg, 2=30, 3=45, 4=65, 5=90.
-  if (hasBossAbility(world, 'brambleHorror') && amount > 0) {
-    const rank = bossAbilityRank(world, 'brambleHorror');
-    const reflectDmg = [20, 30, 45, 65, 90][rank - 1];
-    const knockback = rank >= 2;
-    if (attacker && !attacker.dead) {
-      damageEnemy(world, attacker, reflectDmg, { allowCrit: false, color: '#4d7a3d' });
-      if (knockback) {
-        const ka = Math.atan2(attacker.y - p.y, attacker.x - p.x);
-        const kDist = rank >= 4 ? 60 : 40;
-        attacker.x = clamp(attacker.x + Math.cos(ka) * kDist, 5, world.W - 5);
-        attacker.y = clamp(attacker.y + Math.sin(ka) * kDist, 5, world.H - 5);
-      }
-    } else if (world.bossFight) {
-      // Boss projectile hit — reflect to the boss.
-      damageBoss(world, world.bossFight.boss, reflectDmg, { allowCrit: false, color: '#4d7a3d' });
-    }
-  }
 
   // Thornskin (N_K): reflect damage to nearby enemies.
   if (hasNode(world.purchased, 'N_K') && amount > 0) {
@@ -235,11 +192,37 @@ export function updateProjectiles(world: World, dt: number): void {
     pr.x += pr.vx * dt;
     pr.y += pr.vy * dt;
     pr.life -= dt;
+    // Read extended element flags from the projectile (set by castBolt).
+    const ext = pr as Projectile & { knockback?: number; healOnHit?: number; splashRadius?: number };
     let hit = false;
     for (const e of world.enemies) {
       if (e.dead) continue;
       if (dist2(pr.x, pr.y, e.x, e.y) < (pr.r + e.r) * (pr.r + e.r)) {
         damageEnemy(world, e, pr.dmg, { burn: pr.burn, slow: pr.slow, freeze: pr.freeze, color: pr.color, markedBonus: pr.markedBonus });
+        // Wind blade knockback
+        if (ext.knockback && ext.knockback > 0) {
+          const ang = Math.atan2(e.y - pr.y, e.x - pr.x);
+          e.x = Math.max(5, Math.min(world.W - 5, e.x + Math.cos(ang) * ext.knockback));
+          e.y = Math.max(5, Math.min(world.H - 5, e.y + Math.sin(ang) * ext.knockback));
+        }
+        // Water bolt heal-on-hit
+        if (ext.healOnHit && ext.healOnHit > 0) {
+          healPlayer(world, ext.healOnHit);
+        }
+        // Holy light AoE splash
+        if (ext.splashRadius && ext.splashRadius > 0) {
+          world.effects.push({ type: 'ring', x: e.x, y: e.y, r: 0, maxR: ext.splashRadius, color: pr.color, life: 0.2, t: 0 });
+          forEachTargetInRange(
+            world,
+            e.x,
+            e.y,
+            ext.splashRadius,
+            (o: EnemyState) => {
+              if (o !== e) damageEnemy(world, o, pr.dmg * 0.5, { color: pr.color });
+            },
+            () => { /* boss already hit below if in range */ },
+          );
+        }
         hit = true;
         if (pr.pierce > 0) {
           pr.pierce--;
@@ -254,6 +237,14 @@ export function updateProjectiles(world: World, dt: number): void {
       const boss = world.bossFight.boss;
       if (dist2(pr.x, pr.y, boss.x, boss.y) < (pr.r + boss.r) * (pr.r + boss.r)) {
         damageBoss(world, boss, pr.dmg, { burn: pr.burn, slow: pr.slow, color: pr.color, markedBonus: pr.markedBonus });
+        // Water bolt heal-on-hit (also triggers on boss hit)
+        if (ext.healOnHit && ext.healOnHit > 0) {
+          healPlayer(world, ext.healOnHit);
+        }
+        // Holy light AoE splash on boss
+        if (ext.splashRadius && ext.splashRadius > 0) {
+          world.effects.push({ type: 'ring', x: boss.x, y: boss.y, r: 0, maxR: ext.splashRadius, color: pr.color, life: 0.2, t: 0 });
+        }
         hit = true;
         if (pr.pierce > 0) {
           pr.pierce--;
@@ -291,20 +282,6 @@ export function updateEnemies(world: World, dt: number): void {
       if (!e.dead && dist2(e.x, e.y, p.x, p.y) < 120 * 120) {
         e.slowUntil = world.elapsed + 0.5; // refreshed every frame while in range
         e.slowAmt = Math.max(e.slowAmt, 0.15);
-      }
-    });
-  }
-  // Frost Aura (Rime Sovereign boss ability): passively slow enemies near the
-  // player. Rank scales radius and slow strength.
-  // Rank 1: 80px/20%, 2: 100px/25%, 3: 120px/30%, 4: 140px/35%, 5: 160px/40%.
-  if (hasBossAbility(world, 'rimeSovereign')) {
-    const rank = bossAbilityRank(world, 'rimeSovereign');
-    const radius = [80, 100, 120, 140, 160][rank - 1];
-    const slowAmt = [0.2, 0.25, 0.3, 0.35, 0.4][rank - 1];
-    world.enemies.forEach((e) => {
-      if (!e.dead && dist2(e.x, e.y, p.x, p.y) < radius * radius) {
-        e.slowUntil = world.elapsed + 0.5;
-        e.slowAmt = Math.max(e.slowAmt, slowAmt);
       }
     });
   }
@@ -465,28 +442,6 @@ export function updateBossFight(world: World, dt: number): void {
     world.slain++;
     burst(world, boss.x, boss.y, boss.color, 46, 280);
     world.flash(boss.name.toUpperCase() + ' FALLS', 'var(--gold-bright)');
-
-    // Boss ability unlock: if this boss's ability isn't already unlocked,
-    // add it to the pending list (banked to localStorage on death).
-    if (!hasBossAbility(world, boss.defId)) {
-      if (!world.pendingBossAbilityUnlocks.includes(boss.defId)) {
-        world.pendingBossAbilityUnlocks.push(boss.defId);
-        const abilityDef = BOSS_ABILITY_BY_BOSS[boss.defId];
-        if (abilityDef) {
-          // Queue a persistent ability-unlock overlay (UI shows it, game
-          // pauses until the player dismisses it by clicking).
-          setTimeout(() => {
-            if (world.running) {
-              world.pendingAbilityDisplay = {
-                abilityName: abilityDef.abilityName,
-                bossName: abilityDef.bossName,
-                desc: abilityDef.desc,
-              };
-            }
-          }, 1200);
-        }
-      }
-    }
 
     // Stage progression: check if there are more bosses this stage.
     world.currentBossIndex++;

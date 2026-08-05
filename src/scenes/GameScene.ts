@@ -406,6 +406,7 @@ export class GameScene extends Phaser.Scene {
         arcaneExplosion: 0, lightningChain: 0, blizzard: 0, earthquake: 0, sporeBurst: 0, shadowNova: 0, whirlwindStrike: 0,
         stormCall: 0, thunderclap: 0, lightningStorm: 0, stormLord: 0, thunderStrike: 0,
         windGust: 0, vortex: 0, cataclysm: 0,
+        tidalWave: 0, healingTide: 0, whirlpool: 0, tsunami: 0, flood: 0,
       },
       wisps: [],
       decoys: [],

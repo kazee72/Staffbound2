@@ -315,6 +315,16 @@ export interface Cooldowns {
   vortex: number;
   /** Cataclysm (W_F) — tornado summon timer. */
   cataclysm: number;
+  /** Tidal Wave (Wa_B) — line pushback timer. */
+  tidalWave: number;
+  /** Healing Tide (Wa_C1) — passive heal timer. */
+  healingTide: number;
+  /** Whirlpool (Wa_D) — pull-enemies timer. */
+  whirlpool: number;
+  /** Tsunami (Wa_E1) — massive wave timer. */
+  tsunami: number;
+  /** Flood (Wa_L) — screen-wide slow timer. */
+  flood: number;
 }
 
 export interface SkillNode {
@@ -347,6 +357,8 @@ export interface World {
   grimoireOpen: boolean;
   /** Toggles auto-aim vs mouse-aim. When true, bolt/ice lance/shadow bolt auto-target nearest enemy (classic behavior). When false, they fire toward player.aimAngle (mouse cursor). */
   autoAim: boolean;
+  /** Selected element at run start — determines auto-attack behavior. One of: 'fire','ice','void','shadow','nature','holy','lightning','wind','water'. Default 'void'. */
+  selectedElement: string;
 
   player: PlayerState;
   level: number;
@@ -471,6 +483,7 @@ export function createWorld(W: number, H: number, flash: (text: string, color: s
     running: false,
     grimoireOpen: false,
     autoAim: true,
+    selectedElement: 'void',
     player: {
       x: W / 2,
       y: H / 2,
@@ -535,6 +548,11 @@ export function createWorld(W: number, H: number, flash: (text: string, color: s
       windGust: 0,
       vortex: 0,
       cataclysm: 0,
+      tidalWave: 0,
+      healingTide: 0,
+      whirlpool: 0,
+      tsunami: 0,
+      flood: 0,
     },
     spawnTimer: 0,
     bossTimer: 180,

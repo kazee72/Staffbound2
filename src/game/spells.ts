@@ -4,7 +4,7 @@ import { cooldownMult, spellDamageMult, projectileSpeedMult, healPlayer, maxHP }
 import { hasNode } from './skillTree';
 import { damageEnemy, damageBoss } from './combat';
 import { burst } from './visuals';
-import { hasBossAbility, bossAbilityRank, metaSpellRadiusMult } from './metaProgression';
+import { metaSpellRadiusMult } from './metaProgression';
 
 function dist2(x1: number, y1: number, x2: number, y2: number): number {
   const dx = x1 - x2;
@@ -179,7 +179,7 @@ function getLightningFalloff(world: World): number {
  * to both regular enemies (world.enemies) and the active boss (world.bossFight)
  * so these spells still do something during a boss-exclusive fight.
  */
-function forEachTargetInRange(world: World, x: number, y: number, radius: number, fn: (e: EnemyState) => void, bossFn: () => void): void {
+export function forEachTargetInRange(world: World, x: number, y: number, radius: number, fn: (e: EnemyState) => void, bossFn: () => void): void {
   world.enemies.forEach((e) => {
     if (!e.dead && dist2(e.x, e.y, x, y) < radius * radius) fn(e);
   });
@@ -233,6 +233,23 @@ export function fireProjectile(
   world.projectiles.push(pr);
 }
 
+/** Water bolt heal amount per hit — scales with Water branch upgrades. */
+function waterBoltHealAmount(world: World): number {
+  let heal = 2;
+  if (hasNode(world.purchased, 'Wa_C2')) heal = 4;
+  if (hasNode(world.purchased, 'Wa_F')) heal = 8; // Deluge capstone
+  return heal;
+}
+
+/**
+ * Elemental auto-attack — the player's basic bolt. Behavior is determined by
+ * `world.selectedElement` (set at run start). Each element has a unique
+ * projectile color, effect, and behavior. The baseline cooldown, damage,
+ * and projectile speed are the same regardless of element (upgradable via
+ * the skill tree). Void branch nodes (V_A, V_B, V_C1, V_C2, V_D, V_F, V_G,
+ * V_J) apply to the Void bolt and also pass through to the generic bolt
+ * path used by other elements where relevant (pierce, twin cast, etc.).
+ */
 export function castBolt(world: World): void {
   const p = world.player;
   const count = 1 + (hasNode(world.purchased, 'V_B') ? 1 : 0);
@@ -249,6 +266,62 @@ export function castBolt(world: World): void {
   }
   if (baseAng === null) baseAng = p.aimAngle;
   const projSpeed = 480 * projectileSpeedMult(world);
+  // Determine element-specific projectile properties.
+  const el = world.selectedElement || 'void';
+  // Color and flags by element. Element-specific effects (burn, slow, etc.)
+  // are applied via the Projectile flags resolved generically in
+  // updateProjectiles → damageEnemy/damageBoss.
+  let projColor = '#2f8fff';
+  let projPierce = hasNode(world.purchased, 'V_C1') ? 1 : 0;
+  let projBurn = false;
+  let projSlow = 0;
+  let projMarked = false;
+  let projHoming = hasNode(world.purchased, 'V_C2');
+  let projKnockback = 0; // wind blade knockback
+  let projHealOnHit = 0; // water bolt heal
+  let projSplashRadius = 0; // holy AoE splash
+  let projChain = 0; // lightning chain count (T_A/T_B etc.)
+  switch (el) {
+    case 'fire':
+      projColor = '#e2793d';
+      projBurn = hasNode(world.purchased, 'F_A');
+      break;
+    case 'ice':
+      projColor = '#8ec9e8';
+      projSlow = hasNode(world.purchased, 'R_A') ? 0.2 : 0;
+      break;
+    case 'void':
+      projColor = '#2f8fff';
+      break;
+    case 'shadow':
+      projColor = '#c4728f';
+      projMarked = true;
+      break;
+    case 'nature':
+      projColor = '#8bc48a';
+      projPierce = Math.max(projPierce, 1); // thorn spike pierces
+      break;
+    case 'holy':
+      projColor = '#c9a869';
+      projSplashRadius = 40;
+      break;
+    case 'lightning':
+      projColor = '#c4e842';
+      projChain = getLightningChainCount(world);
+      if (projChain === 0 && hasNode(world.purchased, 'T_A') && Math.random() < 0.2) projChain = 1;
+      break;
+    case 'wind':
+      projColor = '#a8d4e8';
+      projKnockback = 30;
+      break;
+    case 'water':
+      projColor = '#4a9eff';
+      projHealOnHit = waterBoltHealAmount(world);
+      if (hasNode(world.purchased, 'Wa_J')) projPierce = Math.max(projPierce, 1); // Deep Current
+      break;
+    default:
+      break;
+  }
   // Twin Casting (V_B): fire a second bolt on the exact same trajectory as
   // the first, just spawned a bit behind so it looks like a quick burst
   // (one bolt following the other), NOT a shotgun spread.
@@ -263,11 +336,18 @@ export function castBolt(world: World): void {
     if (hasNode(world.purchased, 'F_A')) dmg *= 1.2;
     dmg *= spellDamageMult(world);
     if (empowered) dmg *= hasNode(world.purchased, 'V_J') ? 4 : 3; // Arcane Overflow (V_J): 4x instead of 3x
-    fireProjectile(world, sx, sy, Math.cos(ang), Math.sin(ang), projSpeed, dmg, '#2f8fff', hasNode(world.purchased, 'V_C1') ? 1 : 0, {
-      homing: hasNode(world.purchased, 'V_C2'),
-      burn: hasNode(world.purchased, 'F_A'),
-      slow: hasNode(world.purchased, 'R_A') ? 0.2 : 0,
+    fireProjectile(world, sx, sy, Math.cos(ang), Math.sin(ang), projSpeed, dmg, projColor, projPierce, {
+      homing: projHoming,
+      burn: projBurn,
+      slow: projSlow,
+      markedBonus: projMarked,
     });
+    // Store extra element flags on the just-pushed projectile so
+    // updateProjectiles can apply them (knockback, heal, splash, chain).
+    const pr = world.projectiles[world.projectiles.length - 1];
+    (pr as Projectile & { knockback?: number; healOnHit?: number; splashRadius?: number; chainCount?: number }).knockback = projKnockback;
+    (pr as Projectile & { knockback?: number; healOnHit?: number; splashRadius?: number; chainCount?: number }).healOnHit = projHealOnHit;
+    (pr as Projectile & { knockback?: number; healOnHit?: number; splashRadius?: number; chainCount?: number }).splashRadius = projSplashRadius;
     if (empowered && hasNode(world.purchased, 'V_F')) {
       // Arcane Overflow (V_J): 6 homing bolts instead of 4
       const splashCount = hasNode(world.purchased, 'V_J') ? 6 : 4;
@@ -279,25 +359,14 @@ export function castBolt(world: World): void {
   }
   if (hasNode(world.purchased, 'V_G') && Math.random() < 0.1) world.cd.bolt = 0;
 
-  // Lightning branch: chain from the player to nearby enemies on each bolt cast.
-  // T_A (Static Charge): 20% chance to chain to 1 enemy for 60% damage.
-  // T_B (Chain Lightning): +2 chains at 50% damage each.
-  // T_D (Overload): +2 chains.
-  // T_J (Arc Surge): +2 chains, falloff 0.75.
-  // T_F (Tempest): all attacks chain (minimum 2 chains), lightning damage doubled.
-  const chainCount = getLightningChainCount(world);
-  if (chainCount > 0 || hasNode(world.purchased, 'T_A')) {
+  // Lightning element: chain from the player to nearby enemies on each bolt cast.
+  if (el === 'lightning' && (projChain > 0 || hasNode(world.purchased, 'T_A'))) {
     const target = nearestEnemy(world, p.x, p.y);
     if (target || world.bossFight) {
-      let effectiveChain = chainCount;
-      // T_A alone: 20% chance for 1 chain
-      if (chainCount === 0 && hasNode(world.purchased, 'T_A')) {
-        if (Math.random() < 0.2) effectiveChain = 1;
-        else return;
-      }
+      let effectiveChain = projChain;
       const boltDmg = (8 + world.level * 0.6) * 0.6 * lightningDamageMult(world);
       const falloff = getLightningFalloff(world);
-      chainLightning(world, p.x, p.y, target, boltDmg, effectiveChain, falloff, "#c4e842");
+      chainLightning(world, p.x, p.y, target, boltDmg, effectiveChain, falloff, '#c4e842');
     }
   }
 }
@@ -755,34 +824,6 @@ export function updateSpellTimers(world: World, dt: number): void {
     }
   }
 
-  // Magma Core (Ember Colossus boss ability): passive fire pulse every 8s.
-  // Rank scales radius and damage. Rank 1: 120px/20dmg, 2: 140/30, 3: 160/40,
-  // 4: 180/55, 5: 200/75. Always applies burn.
-  if (hasBossAbility(world, 'emberColossus')) {
-    if (world.cd.magmaCore > 0) {
-      world.cd.magmaCore -= dt;
-    } else {
-      world.cd.magmaCore = 8;
-      const rank = bossAbilityRank(world, 'emberColossus');
-      const radius = [120, 140, 160, 180, 200][rank - 1];
-      const baseDmg = [20, 30, 40, 55, 75][rank - 1];
-      const dmg = (baseDmg + world.level * 0.8) * spellDamageMult(world);
-      world.enemies.forEach((e) => {
-        if (!e.dead && dist2(e.x, e.y, world.player.x, world.player.y) < radius * radius) {
-          damageEnemy(world, e, dmg, { allowCrit: false, burn: true, color: '#e2793d' });
-        }
-      });
-      if (world.bossFight) {
-        const boss = world.bossFight.boss;
-        if (dist2(boss.x, boss.y, world.player.x, world.player.y) < radius * radius) {
-          damageBoss(world, boss, dmg, { burn: true, color: '#e2793d' });
-        }
-      }
-      world.effects.push({ type: 'ring', x: world.player.x, y: world.player.y, r: 0, maxR: radius, color: '#e2793d', life: 0.4, t: 0 });
-      burst(world, world.player.x, world.player.y, '#e2793d', 12, 120, 0.35);
-    }
-  }
-
   // ---------------- New AoE abilities (tier-5 L nodes) ----------------
 
   // Arcane Explosion (F_L): every 6s, a massive arcane burst around the player.
@@ -1058,6 +1099,58 @@ export function updateSpellTimers(world: World, dt: number): void {
     updateWindTrail(world, dt);
   }
 
+  // ==================== Water branch timers ====================
+
+  // Tidal Wave (Wa_B): push enemies back in a line every 5s.
+  if (hasNode(world.purchased, 'Wa_B')) {
+    if (world.cd.tidalWave > 0) {
+      world.cd.tidalWave -= dt;
+    } else {
+      world.cd.tidalWave = 5 * cm;
+      castTidalWave(world);
+    }
+  }
+
+  // Healing Tide (Wa_C1): passively heal 5 HP every 8s.
+  if (hasNode(world.purchased, 'Wa_C1')) {
+    if (world.cd.healingTide > 0) {
+      world.cd.healingTide -= dt;
+    } else {
+      world.cd.healingTide = 8 * cm;
+      castHealingTide(world);
+    }
+  }
+
+  // Whirlpool (Wa_D): pull enemies toward a point every 6s.
+  if (hasNode(world.purchased, 'Wa_D')) {
+    if (world.cd.whirlpool > 0) {
+      world.cd.whirlpool -= dt;
+    } else {
+      world.cd.whirlpool = 6 * cm;
+      castWhirlpool(world);
+    }
+  }
+
+  // Tsunami (Wa_E1): massive wave across screen every 15s.
+  if (hasNode(world.purchased, 'Wa_E1')) {
+    if (world.cd.tsunami > 0) {
+      world.cd.tsunami -= dt;
+    } else {
+      world.cd.tsunami = 15 * cm;
+      castTsunami(world);
+    }
+  }
+
+  // Flood (Wa_L): screen-wide slow all enemies every 10s.
+  if (hasNode(world.purchased, 'Wa_L')) {
+    if (world.cd.flood > 0) {
+      world.cd.flood -= dt;
+    } else {
+      world.cd.flood = 10 * cm;
+      castFlood(world);
+    }
+  }
+
   updateWisps(world, dt);
 }
 
@@ -1262,4 +1355,120 @@ export function tryDeflectProjectile(world: World, px: number, py: number, _prvx
     return true;
   }
   return false;
+}
+
+// ==================== Water branch spells ====================
+
+/** Tidal Wave (Wa_B): push enemies back in a line every 5s. */
+export function castTidalWave(world: World): void {
+  const p = world.player;
+  const radius = 140;
+  const dmg = (12 + world.level * 0.3) * spellDamageMult(world);
+  const knockback = 50;
+  // Visual: a ring expanding from the player
+  world.effects.push({ type: 'ring', x: p.x, y: p.y, r: 0, maxR: radius, color: '#4a9eff', life: 0.4, t: 0 });
+  forEachTargetInRange(
+    world,
+    p.x,
+    p.y,
+    radius,
+    (e) => {
+      damageEnemy(world, e, dmg, { color: '#4a9eff' });
+      const ang = Math.atan2(e.y - p.y, e.x - p.x);
+      e.x = Math.max(5, Math.min(world.W - 5, e.x + Math.cos(ang) * knockback));
+      e.y = Math.max(5, Math.min(world.H - 5, e.y + Math.sin(ang) * knockback));
+      e.slowUntil = world.elapsed + 1.5;
+      e.slowAmt = Math.max(e.slowAmt, 0.3);
+    },
+    () => {
+      damageBoss(world, world.bossFight!.boss, dmg, { color: '#4a9eff' });
+    },
+  );
+  burst(world, p.x, p.y, '#4a9eff', 16, 140);
+}
+
+/** Healing Tide (Wa_C1): passively heal 5 HP every 8s. */
+export function castHealingTide(world: World): void {
+  let heal = 5;
+  if (hasNode(world.purchased, 'Wa_F')) heal *= 2; // Deluge doubles all water effects
+  healPlayer(world, heal);
+  burst(world, world.player.x, world.player.y, '#4a9eff', 10, 80, 0.3);
+}
+
+/** Whirlpool (Wa_D): pull enemies toward a point every 6s. */
+export function castWhirlpool(world: World): void {
+  const p = world.player;
+  // Target a point in front of the player (where they're aiming)
+  const tx = p.x + Math.cos(p.aimAngle) * 120;
+  const ty = p.y + Math.sin(p.aimAngle) * 120;
+  let radius = 130;
+  let pullSpeed = 1;
+  let dmg = (14 + world.level * 0.4) * spellDamageMult(world);
+  if (hasNode(world.purchased, 'Wa_I')) pullSpeed *= 1.5; // Maelstrom: +50% pull
+  if (hasNode(world.purchased, 'Wa_F')) { radius *= 2; dmg *= 2; } // Deluge
+  world.effects.push({ type: 'ring', x: tx, y: ty, r: 0, maxR: radius, color: '#4a9eff', life: 0.5, t: 0 });
+  forEachTargetInRange(
+    world,
+    tx,
+    ty,
+    radius,
+    (e) => {
+      damageEnemy(world, e, dmg, { color: '#4a9eff' });
+      const ang = Math.atan2(ty - e.y, tx - e.x);
+      const pullDist = Math.sqrt(dist2(tx, ty, e.x, e.y)) * 0.4 * pullSpeed;
+      e.x = Math.max(5, Math.min(world.W - 5, e.x + Math.cos(ang) * pullDist));
+      e.y = Math.max(5, Math.min(world.H - 5, e.y + Math.sin(ang) * pullDist));
+    },
+    () => {
+      damageBoss(world, world.bossFight!.boss, dmg, { color: '#4a9eff' });
+    },
+  );
+  burst(world, tx, ty, '#4a9eff', 18, 120);
+}
+
+/** Tsunami (Wa_E1): massive wave across screen every 15s. */
+export function castTsunami(world: World): void {
+  const p = world.player;
+  let radius = 300;
+  let dmg = (25 + world.level * 0.6) * spellDamageMult(world);
+  let knockback = 70;
+  if (hasNode(world.purchased, 'Wa_F')) { radius *= 2; dmg *= 2; knockback *= 2; } // Deluge
+  world.effects.push({ type: 'ring', x: p.x, y: p.y, r: 0, maxR: radius, color: '#4a9eff', life: 0.6, t: 0 });
+  forEachTargetInRange(
+    world,
+    p.x,
+    p.y,
+    radius,
+    (e) => {
+      damageEnemy(world, e, dmg, { color: '#4a9eff' });
+      const ang = Math.atan2(e.y - p.y, e.x - p.x);
+      e.x = Math.max(5, Math.min(world.W - 5, e.x + Math.cos(ang) * knockback));
+      e.y = Math.max(5, Math.min(world.H - 5, e.y + Math.sin(ang) * knockback));
+      e.slowUntil = world.elapsed + 2;
+      e.slowAmt = Math.max(e.slowAmt, 0.4);
+    },
+    () => {
+      damageBoss(world, world.bossFight!.boss, dmg, { color: '#4a9eff' });
+    },
+  );
+  burst(world, p.x, p.y, '#4a9eff', 30, 200);
+}
+
+/** Flood (Wa_L): screen-wide slow all enemies every 10s. */
+export function castFlood(world: World): void {
+  let slowAmt = 0.4;
+  let dur = 3;
+  if (hasNode(world.purchased, 'Wa_F')) { slowAmt = 0.6; dur *= 2; } // Deluge
+  world.enemies.forEach((e) => {
+    if (!e.dead) {
+      e.slowUntil = world.elapsed + dur;
+      e.slowAmt = Math.max(e.slowAmt, slowAmt);
+    }
+  });
+  if (world.bossFight) {
+    const boss = world.bossFight.boss;
+    boss.slowUntil = world.elapsed + dur;
+    boss.slowAmt = Math.max(boss.slowAmt, slowAmt * 0.6); // bosses resist
+  }
+  world.effects.push({ type: 'ring', x: world.player.x, y: world.player.y, r: 0, maxR: 400, color: '#4a9eff', life: 0.5, t: 0 });
 }
