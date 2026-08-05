@@ -53,6 +53,12 @@ export function generateEnemyTextures(scene: Phaser.Scene): void {
   generateEmberColossusBoss(scene);
   generateRimeSovereignBoss(scene);
   generateBrambleHorrorBoss(scene);
+  generateShadowReaperBoss(scene);
+  generateLightPaladinBoss(scene);
+  generateStormTitanBoss(scene);
+  generateTempestDragonBoss(scene);
+  generateTideLeviathanBoss(scene);
+  generateGoliathBoss(scene);
 }
 
 // ---------------- SLIME (16x14) ----------------
@@ -901,6 +907,1135 @@ function generateRimeSovereignBoss(scene: Phaser.Scene): void {
   // ---- Ground shadow ----
   g.fillStyle(0x000000, 0.3);
   g.fillEllipse(cx + 0.5, H - 1, 46, 4);
+
+  g.generateTexture(KEY, W, H);
+  g.destroy();
+}
+
+// ---------------- BOSS: SHADOW REAPER (68x82) — dark hooded reaper with scythe, black/purple ----------------
+// Clean pixel art: dark outline, shadow palette, glowing red eyes, skeletal hands, scythe.
+function generateShadowReaperBoss(scene: Phaser.Scene): void {
+  const KEY = BOSS_TEXTURE_KEYS.shadowReaper;
+  if (scene.textures.exists(KEY)) return;
+  const W = 68;
+  const H = 82;
+  const g = scene.make.graphics({ x: 0, y: 0 }, false);
+
+  const outline = 0x08040e;      // near-black purple outline
+  const robe = 0x2a1a3a;         // dark shadow robe
+  const robeDark = 0x1a0e28;     // shadow fold
+  const robeLight = 0x4a3468;    // highlight fold
+  const voidc = 0x06030c;        // face void
+  const eye = 0xff4040;          // glowing red eye
+  const eyeCore = 0xffe0e0;     // eye core
+  const bone = 0xd0c8e0;        // bone/blade
+  const boneDark = 0x8a82a0;    // bone shadow
+  const scytheBlade = 0x6a5a8a;  // dark scythe blade
+  const scytheEdge = 0xa898d8;   // scythe edge
+
+  const cx = 33;
+
+  // ---- Hood (rounded dome, rows 2-20) ----
+  for (let y = 2; y <= 20; y++) {
+    const t = (y - 2) / 18;
+    const halfW = 13 - Math.max(0, 7 - y + 2) * 0.32 + Math.sin(t * Math.PI) * 1.2;
+    for (let x = Math.round(cx - halfW); x <= Math.round(cx + halfW); x++) {
+      if (x < 0 || x >= W) continue;
+      const left = x === Math.round(cx - halfW);
+      const right = x === Math.round(cx + halfW);
+      if (left || right) px(g, x, y, outline);
+      else if (x === Math.round(cx - halfW) + 1) px(g, x, y, robeDark);
+      else if (x === Math.round(cx + halfW) - 1) px(g, x, y, robeDark);
+      else if (y < 10 && x > cx - 4 && x < cx + 4) px(g, x, y, robeLight);
+      else if (y < 14) px(g, x, y, robeLight);
+      else px(g, x, y, robe);
+    }
+  }
+  // hood top cap
+  for (let x = cx - 3; x <= cx + 3; x++) px(g, x, 1, robeLight);
+  px(g, cx - 4, 2, outline); px(g, cx + 4, 2, outline);
+
+  // ---- Face void (deep shadow inside hood) ----
+  for (let y = 10; y <= 20; y++) for (let x = cx - 8; x <= cx + 8; x++) px(g, x, y, voidc, 0.95);
+
+  // ---- Glowing red eyes (twin pinpoints) ----
+  for (let y = 14; y <= 16; y++) {
+    for (let x = cx - 7; x <= cx - 4; x++) px(g, x, y, eye, 0.85);
+    for (let x = cx + 4; x <= cx + 7; x++) px(g, x, y, eye, 0.85);
+  }
+  px(g, cx - 6, 15, eyeCore); px(g, cx + 6, 15, eyeCore);
+  // eye glow bleed
+  px(g, cx - 8, 15, eye, 0.4); px(g, cx + 8, 15, eye, 0.4);
+  px(g, cx - 3, 15, eye, 0.5); px(g, cx + 3, 15, eye, 0.5);
+
+  // ---- Tattered robe body (rows 21-72) — widening skirt ----
+  const bodyRows = 52;
+  for (let i = 0; i < bodyRows; i++) {
+    const y = 21 + i;
+    const t = i / bodyRows;
+    const halfW = 13 + t * 15;
+    for (let x = Math.round(cx - halfW); x <= Math.round(cx + halfW); x++) {
+      if (x < 0 || x >= W || y >= H) continue;
+      const left = x === Math.round(cx - halfW);
+      const right = x === Math.round(cx + halfW);
+      const alpha = i > bodyRows - 8 ? Math.max(0.2, 1 - (i - (bodyRows - 8)) * 0.1) : 1;
+      if (left || right) px(g, x, y, outline, alpha);
+      else if (x === Math.round(cx - halfW) + 1) px(g, x, y, robeDark, alpha);
+      else if (x === Math.round(cx + halfW) - 1) px(g, x, y, robeDark, alpha);
+      else if (i % 5 === 0 && x < cx) px(g, x, y, robeDark, alpha);
+      else if (i % 4 === 0 && x > cx) px(g, x, y, robeLight, alpha * 0.5);
+      else if (i < 8 && Math.abs(x - cx) < 6) px(g, x, y, robeLight, alpha);
+      else px(g, x, y, robe, alpha);
+    }
+  }
+
+  // ---- Fold lines / shading ----
+  for (let y = 22; y < 32; y += 4) { px(g, cx - 6, y, robeDark); px(g, cx + 6, y, robeDark); }
+  for (let y = 34; y < 70; y += 5) { px(g, cx - 4, y, robeDark, 0.6); px(g, cx + 4, y, robeDark, 0.6); }
+
+  // ---- Skeletal arms emerging from sleeves ----
+  // left arm
+  for (let y = 28; y <= 42; y++) { px(g, cx - 15, y, robeDark); px(g, cx - 16, y, outline); }
+  px(g, cx - 15, 43, bone); px(g, cx - 14, 44, bone); px(g, cx - 16, 44, boneDark);
+  px(g, cx - 15, 45, boneDark);
+  // bony fingers
+  px(g, cx - 17, 45, bone, 0.7); px(g, cx - 13, 45, bone, 0.7);
+
+  // ---- Scythe (right side, large curved blade) ----
+  // Scythe handle (long pole, right side)
+  for (let y = 24; y <= 74; y++) {
+    px(g, cx + 22, y, outline);
+    px(g, cx + 23, y, boneDark);
+    px(g, cx + 24, y, bone);
+  }
+  // Scythe blade (curved arc at top of pole)
+  const bladePath: Array<[number, number]> = [
+    [cx + 24, 24], [cx + 26, 22], [cx + 29, 20], [cx + 32, 19], [cx + 35, 19],
+    [cx + 38, 20], [cx + 40, 22], [cx + 41, 25], [cx + 41, 28], [cx + 40, 31],
+    [cx + 38, 33], [cx + 35, 34], [cx + 32, 34],
+  ];
+  bladePath.forEach(([x, y]) => {
+    px(g, x, y, outline);
+    px(g, x - 1, y, scytheBlade);
+    px(g, x, y, scytheEdge, 0.7);
+  });
+  // blade fill (inner curve)
+  for (let i = 0; i < bladePath.length - 1; i++) {
+    const [x0, y0] = bladePath[i];
+    const [x1, y1] = bladePath[i + 1];
+    const steps = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
+    for (let s = 1; s < steps; s++) {
+      const t = s / steps;
+      const x = Math.round(x0 + (x1 - x0) * t);
+      const y = Math.round(y0 + (y1 - y0) * t);
+      px(g, x - 1, y, scytheBlade);
+    }
+  }
+  // blade inner shadow
+  for (let i = 2; i < bladePath.length - 2; i++) {
+    const [x, y] = bladePath[i];
+    px(g, x - 2, y, robeDark, 0.6);
+  }
+  // scythe glint
+  px(g, cx + 36, 21, 0xe0d8ff, 0.8); px(g, cx + 37, 22, 0xc0b8e0, 0.6);
+
+  // ---- Ragged hem tendrils (shadow wisps) ----
+  const hemTendrils = [cx - 20, cx - 12, cx - 4, cx + 4, cx + 12, cx + 20];
+  hemTendrils.forEach((x, i) => {
+    const len = 4 + (i % 3);
+    for (let y = H - len; y < H; y++) px(g, x, y, robeDark, Math.max(0.15, 1 - (y - (H - len)) * 0.2));
+  });
+
+  // ---- Ground shadow ----
+  g.fillStyle(0x000000, 0.3);
+  g.fillEllipse(cx + 0.5, H - 1, 42, 4);
+
+  g.generateTexture(KEY, W, H);
+  g.destroy();
+}
+
+// ---------------- BOSS: LIGHT PALADIN (70x80) — golden armored paladin, holy/holy beams ----------------
+// Clean pixel art: dark outline, gold + white palette, glowing halo, holy sword, holy shield.
+function generateLightPaladinBoss(scene: Phaser.Scene): void {
+  const KEY = BOSS_TEXTURE_KEYS.lightPaladin;
+  if (scene.textures.exists(KEY)) return;
+  const W = 70;
+  const H = 80;
+  const g = scene.make.graphics({ x: 0, y: 0 }, false);
+
+  const outline = 0x2a1e08;      // dark gold outline
+  const gold = 0xe8c44a;         // gold armor
+  const goldDark = 0xa88830;     // gold shadow
+  const goldLight = 0xfff0a0;    // gold highlight
+  const goldPale = 0xfff8d0;     // pale gold
+  const steel = 0xc0c8d8;        // steel/white
+  const steelDark = 0x8a90a8;    // steel shadow
+  const steelLight = 0xe8ecf4;   // steel highlight
+  const holy = 0xfff8e0;         // holy glow
+  const holyCore = 0xffffff;    // holy core
+  const eyeGlow = 0xffe8a0;      // eye glow
+
+  const cx = 34;
+
+  // ---- Halo (ring of light above head, rows 0-8) ----
+  for (let dy = -4; dy <= 4; dy++) {
+    for (let dx = -12; dx <= 12; dx++) {
+      const d = Math.hypot(dx, dy);
+      if (d > 4 && d < 12) {
+        const a = Math.max(0, 1 - Math.abs(d - 8) / 4) * 0.7;
+        px(g, cx + dx, 5 + dy, holy, a);
+      }
+    }
+  }
+  // halo bright ring
+  for (let a = 0; a < 28; a++) {
+    const ang = (a / 28) * Math.PI * 2;
+    const rx = Math.round(cx + Math.cos(ang) * 9);
+    const ry = Math.round(5 + Math.sin(ang) * 4);
+    px(g, rx, ry, holyCore, 0.8);
+  }
+
+  // ---- Helm (rows 6-18) — angular gold helm ----
+  for (let y = 6; y <= 18; y++) {
+    const t = (y - 6) / 12;
+    const halfW = 11 - Math.max(0, 5 - y + 6) * 0.35 + Math.sin(t * Math.PI) * 1;
+    for (let x = Math.round(cx - halfW); x <= Math.round(cx + halfW); x++) {
+      if (x < 0 || x >= W) continue;
+      const left = x === Math.round(cx - halfW);
+      const right = x === Math.round(cx + halfW);
+      if (left || right) px(g, x, y, outline);
+      else if (x === Math.round(cx - halfW) + 1) px(g, x, y, goldDark);
+      else if (x === Math.round(cx + halfW) - 1) px(g, x, y, goldDark);
+      else if (y < 10 && x > cx - 3 && x < cx + 3) px(g, x, y, goldLight);
+      else if (y < 14) px(g, x, y, gold);
+      else px(g, x, y, goldDark);
+    }
+  }
+  // helm crest (vertical gold ridge)
+  for (let y = 4; y <= 10; y++) px(g, cx, y, goldLight);
+  px(g, cx, 3, goldPale);
+  // helm brow
+  for (let x = cx - 9; x <= cx + 9; x++) px(g, x, 10, goldDark);
+
+  // ---- Face (visor slit with glowing eyes) ----
+  for (let y = 12; y <= 16; y++) {
+    for (let x = cx - 8; x <= cx + 8; x++) px(g, x, y, steel, 0.9);
+  }
+  // visor slit
+  for (let x = cx - 6; x <= cx + 6; x++) px(g, x, 14, outline);
+  // glowing eyes through visor
+  for (let x = cx - 5; x <= cx - 3; x++) px(g, x, 14, eyeGlow);
+  for (let x = cx + 3; x <= cx + 5; x++) px(g, x, 14, eyeGlow);
+  px(g, cx - 4, 14, holyCore); px(g, cx + 4, 14, holyCore);
+  // visor glow bleed
+  px(g, cx - 7, 14, eyeGlow, 0.4); px(g, cx + 7, 14, eyeGlow, 0.4);
+
+  // ---- Pauldrons (shoulders, rows 19-26) — wide, ornate ----
+  for (let y = 19; y <= 26; y++) {
+    const t = (y - 19) / 7;
+    const halfW = 20 - Math.abs(0.5 - t) * 4;
+    for (let x = Math.round(cx - halfW); x <= Math.round(cx + halfW); x++) {
+      if (x < 0 || x >= W) continue;
+      const left = x === Math.round(cx - halfW);
+      const right = x === Math.round(cx + halfW);
+      if (left || right) px(g, x, y, outline);
+      else if (x === Math.round(cx - halfW) + 1) px(g, x, y, goldLight);
+      else if (x === Math.round(cx + halfW) - 1) px(g, x, y, goldDark);
+      else if (y < 22 && Math.abs(x - cx) < 6) px(g, x, y, goldLight);
+      else px(g, x, y, gold);
+    }
+  }
+  // pauldron spikes
+  px(g, cx - 20, 19, outline); px(g, cx - 19, 20, goldDark); px(g, cx - 20, 21, gold);
+  px(g, cx + 20, 19, outline); px(g, cx + 19, 20, goldDark); px(g, cx + 20, 21, gold);
+
+  // ---- Chestplate (rows 27-56) — tapering block with holy symbol ----
+  for (let y = 27; y <= 56; y++) {
+    const t = (y - 27) / 29;
+    const halfW = 18 - t * 4;
+    for (let x = Math.round(cx - halfW); x <= Math.round(cx + halfW); x++) {
+      if (x < 0 || x >= W) continue;
+      const left = x === Math.round(cx - halfW);
+      const right = x === Math.round(cx + halfW);
+      if (left || right) px(g, x, y, outline);
+      else if (x === Math.round(cx - halfW) + 1) px(g, x, y, goldDark);
+      else if (x === Math.round(cx + halfW) - 1) px(g, x, y, goldDark);
+      else if ((x + y) % 7 === 0) px(g, x, y, goldDark);
+      else px(g, x, y, gold);
+    }
+  }
+  // holy symbol on chest (glowing cross)
+  for (let y = 34; y <= 46; y++) px(g, cx, y, holyCore, 0.9);
+  for (let x = cx - 4; x <= cx + 4; x++) px(g, x, 38, holyCore, 0.9);
+  // cross glow
+  px(g, cx, 38, holy); px(g, cx, 39, holy);
+  px(g, cx - 1, 38, holy, 0.7); px(g, cx + 1, 38, holy, 0.7);
+
+  // ---- Belt (gold with gem) ----
+  for (let x = cx - 14; x <= cx + 14; x++) {
+    px(g, x, 54, goldDark);
+    px(g, x, 55, goldLight);
+  }
+  // belt gem (holy crystal)
+  for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+    const d = Math.hypot(dx, dy);
+    if (d < 2) px(g, cx + dx, 54 + dy, d < 1 ? holyCore : holy);
+  }
+
+  // ---- Holy sword (right hand, large blade) ----
+  for (let y = 26; y <= 64; y++) {
+    px(g, cx + 24, y, outline);
+    px(g, cx + 25, y, steelDark);
+    px(g, cx + 26, y, steel);
+    px(g, cx + 27, y, steelLight);
+  }
+  // sword crossguard
+  for (let x = cx + 21; x <= cx + 29; x++) px(g, x, 62, gold);
+  px(g, cx + 24, 62, goldDark); px(g, cx + 26, 62, goldDark);
+  // sword pommel
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++)
+    px(g, cx + 25 + dx, 66 + dy, goldLight);
+  // blade glow
+  for (let y = 28; y <= 60; y += 4) px(g, cx + 26, y, holy, 0.5);
+  px(g, cx + 27, 30, holyCore, 0.7); px(g, cx + 27, 40, holyCore, 0.5);
+
+  // ---- Holy shield (left arm) ----
+  for (let y = 30; y <= 52; y++) {
+    for (let x = cx - 26; x <= cx - 18; x++) {
+      const edge = x === cx - 26 || x === cx - 18 || y === 30 || y === 52;
+      if (edge) px(g, x, y, outline);
+      else if (x === cx - 25) px(g, x, y, goldDark);
+      else if (x === cx - 19) px(g, x, y, goldLight);
+      else px(g, x, y, gold);
+    }
+  }
+  // shield holy emblem
+  for (let y = 38; y <= 44; y++) px(g, cx - 22, y, holyCore, 0.8);
+  for (let x = cx - 24; x <= cx - 20; x++) px(g, x, 41, holyCore, 0.8);
+
+  // ---- Legs (rows 57-78) — armored greaves ----
+  for (let y = 57; y <= 76; y++) {
+    // left leg
+    for (let x = cx - 12; x <= cx - 4; x++) {
+      const left = x === cx - 12; const right = x === cx - 4;
+      if (left || right) px(g, x, y, outline);
+      else if (x === cx - 11) px(g, x, y, goldDark);
+      else px(g, x, y, steel);
+    }
+    // right leg
+    for (let x = cx + 4; x <= cx + 12; x++) {
+      const left = x === cx + 4; const right = x === cx + 12;
+      if (left || right) px(g, x, y, outline);
+      else if (x === cx + 11) px(g, x, y, goldDark);
+      else px(g, x, y, steel);
+    }
+  }
+  // greave gold trim
+  for (let y = 60; y < 76; y += 4) {
+    px(g, cx - 10, y, gold); px(g, cx + 10, y, gold);
+  }
+  // feet
+  for (let x = cx - 13; x <= cx - 4; x++) px(g, x, 77, outline);
+  for (let x = cx + 4; x <= cx + 13; x++) px(g, x, 77, outline);
+  for (let x = cx - 12; x <= cx - 5; x++) px(g, x, 76, goldDark);
+  for (let x = cx + 5; x <= cx + 12; x++) px(g, x, 76, goldDark);
+
+  // ---- Ground shadow ----
+  g.fillStyle(0x000000, 0.3);
+  g.fillEllipse(cx + 0.5, 78, 48, 5);
+
+  g.generateTexture(KEY, W, H);
+  g.destroy();
+}
+
+// ---------------- BOSS: STORM TITAN (72x84) — crackling lightning giant, blue/yellow ----------------
+// Clean pixel art: dark outline, storm-blue + electric-yellow palette, crackling energy, glowing eyes.
+function generateStormTitanBoss(scene: Phaser.Scene): void {
+  const KEY = BOSS_TEXTURE_KEYS.stormTitan;
+  if (scene.textures.exists(KEY)) return;
+  const W = 72;
+  const H = 84;
+  const g = scene.make.graphics({ x: 0, y: 0 }, false);
+
+  const outline = 0x0a1428;      // dark storm outline
+  const storm = 0x2a4a7a;       // storm blue
+  const stormMid = 0x4a78b0;    // mid storm
+  const stormLight = 0x6a98d8;  // light storm
+  const electric = 0xffe040;    // electric yellow
+  const electricBright = 0xffffa0; // bright electric
+  const electricCore = 0xffffff; // white core
+  const eyeGlow = 0xffff80;     // eye glow
+
+  const cx = 35;
+
+  // ---- Storm crown (crackling energy spikes, rows 0-8) ----
+  const crownSpikes = [
+    { x: cx - 16, h: 6 },
+    { x: cx - 10, h: 9 },
+    { x: cx - 4, h: 7 },
+    { x: cx + 2, h: 10 },
+    { x: cx + 8, h: 7 },
+    { x: cx + 14, h: 6 },
+  ];
+  crownSpikes.forEach((s) => {
+    for (let y = 0; y < s.h; y++) {
+      const yt = s.h - y;
+      px(g, s.x, y, y === 0 ? electricCore : yt > s.h - 2 ? storm : electricBright);
+      px(g, s.x - 1, y + 1, storm, 0.7);
+      px(g, s.x + 1, y, electric, 0.8);
+    }
+    px(g, s.x, 0, 0xffffff);
+  });
+  // crown base
+  for (let x = cx - 17; x <= cx + 15; x++) px(g, x, 8, outline);
+  for (let x = cx - 16; x <= cx + 14; x++) px(g, x, 9, stormMid);
+
+  // ---- Head (rows 9-20) — angular storm face ----
+  for (let y = 9; y <= 20; y++) {
+    const t = (y - 9) / 11;
+    const halfW = 11 - Math.max(0, 4 - y + 9) * 0.35 + Math.sin(t * Math.PI) * 1;
+    for (let x = Math.round(cx - halfW); x <= Math.round(cx + halfW); x++) {
+      if (x < 0 || x >= W) continue;
+      const left = x === Math.round(cx - halfW);
+      const right = x === Math.round(cx + halfW);
+      if (left || right) px(g, x, y, outline);
+      else if (x === Math.round(cx - halfW) + 1) px(g, x, y, storm);
+      else if (x === Math.round(cx + halfW) - 1) px(g, x, y, stormMid);
+      else if (y < 13 && x > cx - 3 && x < cx + 3) px(g, x, y, stormLight);
+      else if (y < 16) px(g, x, y, stormMid);
+      else px(g, x, y, storm);
+    }
+  }
+  // face energy cracks
+  px(g, cx - 6, 14, electric, 0.7); px(g, cx + 6, 14, electric, 0.7);
+
+  // ---- Glowing eyes (electric yellow) ----
+  for (let y = 15; y <= 17; y++) {
+    for (let x = cx - 7; x <= cx - 4; x++) px(g, x, y, eyeGlow);
+    for (let x = cx + 4; x <= cx + 7; x++) px(g, x, y, eyeGlow);
+  }
+  px(g, cx - 6, 16, electricCore); px(g, cx + 6, 16, electricCore);
+  px(g, cx - 8, 16, electric, 0.5); px(g, cx + 8, 16, electric, 0.5);
+  // electric mouth
+  for (let x = cx - 4; x <= cx + 4; x++) px(g, x, 19, electric, 0.8);
+  px(g, cx - 2, 20, electricBright); px(g, cx + 2, 20, electricBright);
+
+  // ---- Massive shoulders (rows 21-30) — crackling pauldrons ----
+  for (let y = 21; y <= 30; y++) {
+    const t = (y - 21) / 9;
+    const halfW = 22 - Math.abs(0.5 - t) * 4;
+    for (let x = Math.round(cx - halfW); x <= Math.round(cx + halfW); x++) {
+      if (x < 0 || x >= W) continue;
+      const left = x === Math.round(cx - halfW);
+      const right = x === Math.round(cx + halfW);
+      if (left || right) px(g, x, y, outline);
+      else if (x === Math.round(cx - halfW) + 1) px(g, x, y, stormLight);
+      else if (x === Math.round(cx + halfW) - 1) px(g, x, y, stormMid);
+      else px(g, x, y, storm);
+    }
+  }
+  // shoulder electric vents
+  for (let y = 22; y <= 26; y++) {
+    px(g, cx - 21, y, electric, 0.8); px(g, cx + 21, y, electric, 0.8);
+  }
+  px(g, cx - 22, 24, electricBright); px(g, cx + 22, 24, electricBright);
+
+  // ---- Torso (rows 21-58) — tapering block with energy core ----
+  for (let y = 21; y <= 58; y++) {
+    const t = (y - 21) / 37;
+    const halfW = 22 - t * 6;
+    for (let x = Math.round(cx - halfW); x <= Math.round(cx + halfW); x++) {
+      if (x < 0 || x >= W) continue;
+      const left = x === Math.round(cx - halfW);
+      const right = x === Math.round(cx + halfW);
+      if (left || right) px(g, x, y, outline);
+      else if (x === Math.round(cx - halfW) + 1) px(g, x, y, storm);
+      else if (x === Math.round(cx + halfW) - 1) px(g, x, y, storm);
+      else if ((x + y) % 8 === 0) px(g, x, y, stormMid);
+      else px(g, x, y, storm);
+    }
+  }
+
+  // ---- Lightning cracks across body (jagged energy veins) ----
+  const crackPaths: Array<[number, number]> = [
+    [cx - 1, 22], [cx, 23], [cx + 1, 24], [cx, 25], [cx - 1, 26], [cx, 27], [cx + 1, 28], [cx, 29],
+    [cx - 10, 24], [cx - 11, 25], [cx - 12, 26], [cx - 13, 27], [cx - 14, 28],
+    [cx + 10, 24], [cx + 11, 25], [cx + 12, 26], [cx + 13, 27], [cx + 14, 28],
+    [cx - 6, 40], [cx - 5, 41], [cx - 4, 42], [cx - 3, 43],
+    [cx + 6, 40], [cx + 5, 41], [cx + 4, 42], [cx + 3, 43],
+    [cx - 2, 48], [cx - 1, 49], [cx, 50], [cx + 1, 51], [cx + 2, 52],
+  ];
+  crackPaths.forEach(([x, y]) => px(g, x, y, electric, 0.9));
+  crackPaths.forEach(([x, y], i) => { if (i % 3 === 0) px(g, x, y, electricBright); });
+
+  // ---- Energy core (lightning heart) ----
+  for (let dy = -4; dy <= 4; dy++) {
+    for (let dx = -4; dx <= 4; dx++) {
+      const d = Math.hypot(dx, dy);
+      if (d < 4) px(g, cx + dx, 36 + dy, d < 1.5 ? electricCore : d < 2.8 ? electricBright : electric);
+    }
+  }
+  px(g, cx - 5, 36, electric, 0.5); px(g, cx + 5, 36, electric, 0.5);
+  px(g, cx, 31, electric, 0.5); px(g, cx, 41, electric, 0.5);
+
+  // ---- Arms (thick storm, rows 24-56) ----
+  // left arm
+  for (let y = 24; y <= 54; y++) {
+    px(g, cx - 24, y, outline); px(g, cx - 23, y, stormLight); px(g, cx - 22, y, storm);
+  }
+  // right arm
+  for (let y = 24; y <= 54; y++) {
+    px(g, cx + 24, y, outline); px(g, cx + 23, y, stormLight); px(g, cx + 22, y, storm);
+  }
+  // arm electric cracks
+  for (let y = 30; y <= 40; y += 2) { px(g, cx - 23, y, electric, 0.7); px(g, cx + 23, y, electric, 0.7); }
+  // fists (crackling)
+  for (let y = 55; y <= 60; y++) for (let x = cx - 27; x <= cx - 21; x++) {
+    const edge = x === cx - 27 || x === cx - 21 || y === 60;
+    px(g, x, y, edge ? outline : stormMid);
+  }
+  for (let y = 55; y <= 60; y++) for (let x = cx + 21; x <= cx + 27; x++) {
+    const edge = x === cx + 21 || x === cx + 27 || y === 60;
+    px(g, x, y, edge ? outline : stormMid);
+  }
+  px(g, cx - 24, 58, electric); px(g, cx + 24, 58, electric);
+  // electric arcs from fists
+  px(g, cx - 25, 57, electricBright, 0.7); px(g, cx + 25, 57, electricBright, 0.7);
+
+  // ---- Legs (rows 59-80) ----
+  for (let y = 59; y <= 78; y++) {
+    for (let x = cx - 14; x <= cx - 4; x++) {
+      const left = x === cx - 14; const right = x === cx - 4;
+      if (left || right) px(g, x, y, outline);
+      else px(g, x, y, storm);
+    }
+    for (let x = cx + 4; x <= cx + 14; x++) {
+      const left = x === cx + 4; const right = x === cx + 14;
+      if (left || right) px(g, x, y, outline);
+      else px(g, x, y, storm);
+    }
+  }
+  // leg cracks
+  px(g, cx - 10, 64, electric, 0.8); px(g, cx - 9, 65, electric); px(g, cx - 10, 66, electricBright, 0.8);
+  px(g, cx + 10, 64, electric, 0.8); px(g, cx + 9, 65, electric); px(g, cx + 10, 66, electricBright, 0.8);
+  // feet
+  for (let x = cx - 16; x <= cx - 4; x++) px(g, x, 79, outline);
+  for (let x = cx - 15; x <= cx - 5; x++) px(g, x, 78, stormMid);
+  for (let x = cx + 4; x <= cx + 16; x++) px(g, x, 79, outline);
+  for (let x = cx + 5; x <= cx + 15; x++) px(g, x, 78, stormMid);
+
+  // ---- Ground shadow ----
+  g.fillStyle(0x000000, 0.3);
+  g.fillEllipse(cx + 0.5, 80, 52, 5);
+
+  g.generateTexture(KEY, W, H);
+  g.destroy();
+}
+
+// ---------------- BOSS: TEMPEST DRAGON (76x72) — flying wind dragon, teal/green ----------------
+// Clean pixel art: dark outline, wind-teal palette, wings, horns, glowing eyes, wind currents.
+function generateTempestDragonBoss(scene: Phaser.Scene): void {
+  const KEY = BOSS_TEXTURE_KEYS.tempestDragon;
+  if (scene.textures.exists(KEY)) return;
+  const W = 76;
+  const H = 72;
+  const g = scene.make.graphics({ x: 0, y: 0 }, false);
+
+  const outline = 0x0a1e1a;      // dark teal outline
+  const scale = 0x2a7a68;       // dragon scale
+  const scaleMid = 0x4aa898;    // mid scale
+  const scaleLight = 0x7ad8c0;  // light scale
+  const scalePale = 0xa8f0e0;   // pale scale highlight
+  const wing = 0x3a8a78;        // wing membrane
+  const wingDark = 0x1a5a4a;    // wing shadow
+  const eye = 0xa0ffe0;         // glowing eye
+  const eyeCore = 0xffffff;     // eye core
+  const horn = 0xe0e8d0;        // horn
+  const hornDark = 0x8a9878;    // horn shadow
+  const wind = 0xc0f0e8;        // wind current
+
+  const cx = 37;
+
+  // ---- Wings (spread, rows 8-40) — large membrane wings on both sides ----
+  // Left wing
+  for (let i = 0; i < 24; i++) {
+    const t = i / 24;
+    const wingY = 12 + Math.sin(t * Math.PI) * 8;
+    const wingX = cx - 10 - t * 28;
+    // wing membrane
+    for (let w = 0; w < 6; w++) {
+      const wy = wingY + w * 0.5 - 1.5;
+      const wx = wingX + w * 0.3;
+      if (wx < 0 || wx >= W || wy < 0 || wy >= H) continue;
+      const edge = w === 0 || w === 5;
+      if (edge) px(g, Math.round(wx), Math.round(wy), outline, 0.8);
+      else if (w === 1) px(g, Math.round(wx), Math.round(wy), wingDark, 0.8);
+      else px(g, Math.round(wx), Math.round(wy), wing, 0.7);
+    }
+  }
+  // Left wing finger struts (bony supports)
+  for (let i = 0; i < 4; i++) {
+    const ang = -0.3 - i * 0.4;
+    for (let r = 6; r < 30; r++) {
+      const x = Math.round(cx - 8 + Math.cos(ang) * r);
+      const y = Math.round(14 + Math.sin(ang) * r);
+      if (x < 0 || x >= W || y < 0 || y >= H) continue;
+      px(g, x, y, wingDark, 0.6);
+    }
+  }
+
+  // Right wing
+  for (let i = 0; i < 24; i++) {
+    const t = i / 24;
+    const wingY = 12 + Math.sin(t * Math.PI) * 8;
+    const wingX = cx + 10 + t * 28;
+    for (let w = 0; w < 6; w++) {
+      const wy = wingY + w * 0.5 - 1.5;
+      const wx = wingX - w * 0.3;
+      if (wx < 0 || wx >= W || wy < 0 || wy >= H) continue;
+      const edge = w === 0 || w === 5;
+      if (edge) px(g, Math.round(wx), Math.round(wy), outline, 0.8);
+      else if (w === 1) px(g, Math.round(wx), Math.round(wy), wingDark, 0.8);
+      else px(g, Math.round(wx), Math.round(wy), wing, 0.7);
+    }
+  }
+  // Right wing finger struts
+  for (let i = 0; i < 4; i++) {
+    const ang = Math.PI + 0.3 + i * 0.4;
+    for (let r = 6; r < 30; r++) {
+      const x = Math.round(cx + 8 + Math.cos(ang) * r);
+      const y = Math.round(14 + Math.sin(ang) * r);
+      if (x < 0 || x >= W || y < 0 || y >= H) continue;
+      px(g, x, y, wingDark, 0.6);
+    }
+  }
+
+  // ---- Head (rows 2-18) — angular dragon head ----
+  for (let y = 2; y <= 18; y++) {
+    const t = (y - 2) / 16;
+    const halfW = 10 - Math.max(0, 6 - y + 2) * 0.3 + Math.sin(t * Math.PI) * 1.5;
+    for (let x = Math.round(cx - halfW); x <= Math.round(cx + halfW); x++) {
+      if (x < 0 || x >= W) continue;
+      const left = x === Math.round(cx - halfW);
+      const right = x === Math.round(cx + halfW);
+      if (left || right) px(g, x, y, outline);
+      else if (x === Math.round(cx - halfW) + 1) px(g, x, y, scale);
+      else if (x === Math.round(cx + halfW) - 1) px(g, x, y, scaleMid);
+      else if (y < 8 && x > cx - 3 && x < cx + 3) px(g, x, y, scaleLight);
+      else if (y < 12) px(g, x, y, scaleMid);
+      else px(g, x, y, scale);
+    }
+  }
+  // snout extension (front)
+  for (let y = 12; y <= 16; y++) {
+    for (let x = cx + 8; x <= cx + 16; x++) {
+      const edge = x === cx + 16 || y === 12;
+      if (edge) px(g, x, y, outline);
+      else px(g, x, y, scale);
+    }
+  }
+  // nostrils
+  px(g, cx + 15, 14, outline); px(g, cx + 15, 15, outline);
+
+  // ---- Horns (swept back from head) ----
+  const hornPath = (x0: number, y0: number, dir: number) => {
+    for (let i = 0; i < 8; i++) {
+      const x = x0 + i * dir;
+      const y = y0 - i * 0.3 + (i > 4 ? (i - 4) * 0.8 : 0);
+      px(g, x, y, outline);
+      px(g, x + dir, y, hornDark);
+      px(g, x, y + 1, horn, 0.8);
+    }
+  };
+  hornPath(cx - 8, 4, -1);
+  hornPath(cx + 8, 4, 1);
+
+  // ---- Glowing eyes ----
+  for (let y = 8; y <= 10; y++) {
+    px(g, cx - 6, y, eye); px(g, cx + 6, y, eye);
+  }
+  px(g, cx - 6, 9, eyeCore); px(g, cx + 6, 9, eyeCore);
+  px(g, cx - 7, 9, eye, 0.5); px(g, cx + 7, 9, eye, 0.5);
+  // brow ridge
+  for (let x = cx - 8; x <= cx - 4; x++) px(g, x, 7, scaleLight);
+  for (let x = cx + 4; x <= cx + 8; x++) px(g, x, 7, scaleLight);
+
+  // ---- Neck (rows 18-24) ----
+  for (let y = 18; y <= 24; y++) {
+    for (let x = cx - 7; x <= cx + 7; x++) {
+      const edge = x === cx - 7 || x === cx + 7;
+      if (edge) px(g, x, y, outline);
+      else px(g, x, y, scaleMid);
+    }
+  }
+
+  // ---- Body (rows 24-58) — serpentine dragon torso ----
+  for (let y = 24; y <= 58; y++) {
+    const t = (y - 24) / 34;
+    const halfW = 14 - t * 4 + Math.sin(t * Math.PI * 2) * 1.5;
+    for (let x = Math.round(cx - halfW); x <= Math.round(cx + halfW); x++) {
+      if (x < 0 || x >= W) continue;
+      const left = x === Math.round(cx - halfW);
+      const right = x === Math.round(cx + halfW);
+      if (left || right) px(g, x, y, outline);
+      else if (x === Math.round(cx - halfW) + 1) px(g, x, y, scale);
+      else if (x === Math.round(cx + halfW) - 1) px(g, x, y, scale);
+      else if ((x + y) % 6 === 0) px(g, x, y, scaleLight, 0.6);
+      else if (Math.abs(x - cx) < 4 && y > 30 && y < 50) px(g, x, y, scaleLight, 0.5);
+      else px(g, x, y, scaleMid);
+    }
+  }
+  // scale pattern lines
+  for (let y = 28; y < 56; y += 3) {
+    for (let x = cx - 10; x <= cx + 10; x += 4) {
+      px(g, x, y, scaleLight, 0.4);
+    }
+  }
+  // belly scales (lighter ventral)
+  for (let y = 30; y <= 54; y += 2) {
+    for (let x = cx - 3; x <= cx + 3; x++) px(g, x, y, scalePale, 0.3);
+  }
+
+  // ---- Spinal ridge (dorsal fins) ----
+  for (let y = 22; y <= 56; y += 4) {
+    px(g, cx, y, scaleLight);
+    px(g, cx, y - 1, scalePale, 0.8);
+    px(g, cx - 1, y, scaleMid, 0.7);
+  }
+
+  // ---- Tail (rows 58-68) — tapering ----
+  for (let y = 58; y <= 68; y++) {
+    const t = (y - 58) / 10;
+    const halfW = (10 - t * 8) * 0.6;
+    for (let x = Math.round(cx - halfW); x <= Math.round(cx + halfW); x++) {
+      if (x < 0 || x >= W) continue;
+      const edge = x === Math.round(cx - halfW) || x === Math.round(cx + halfW);
+      if (edge) px(g, x, y, outline);
+      else px(g, x, y, scale);
+    }
+  }
+  // tail fin
+  px(g, cx - 2, 68, scaleLight, 0.7); px(g, cx + 2, 68, scaleLight, 0.7);
+  px(g, cx - 3, 69, wingDark, 0.5); px(g, cx + 3, 69, wingDark, 0.5);
+
+  // ---- Wind currents (swirling wisps around body) ----
+  const windWisps: Array<[number, number]> = [
+    [cx - 30, 20], [cx - 28, 24], [cx - 26, 22],
+    [cx + 30, 20], [cx + 28, 24], [cx + 26, 22],
+    [cx - 24, 48], [cx - 22, 52], [cx - 20, 50],
+    [cx + 24, 48], [cx + 22, 52], [cx + 20, 50],
+  ];
+  windWisps.forEach(([x, y]) => px(g, x, y, wind, 0.4));
+
+  // ---- Ground shadow ----
+  g.fillStyle(0x000000, 0.25);
+  g.fillEllipse(cx + 0.5, H - 1, 52, 4);
+
+  g.generateTexture(KEY, W, H);
+  g.destroy();
+}
+
+// ---------------- BOSS: TIDE LEVIATHAN (78x80) — massive sea serpent, blue/teal ----------------
+// Clean pixel art: dark outline, ocean palette, scales, fins, glowing eyes, water droplets.
+function generateTideLeviathanBoss(scene: Phaser.Scene): void {
+  const KEY = BOSS_TEXTURE_KEYS.tideLeviathan;
+  if (scene.textures.exists(KEY)) return;
+  const W = 78;
+  const H = 80;
+  const g = scene.make.graphics({ x: 0, y: 0 }, false);
+
+  const outline = 0x08182a;      // dark ocean outline
+  const deep = 0x1a4a78;         // deep blue
+  const scale = 0x2a8ad8;        // sea scale
+  const scaleMid = 0x4aa8e8;     // mid scale
+  const scaleLight = 0x7ac8f0;   // light scale
+  const scalePale = 0xa8e0f8;    // pale scale
+  const foam = 0xe0f4ff;         // sea foam white
+  const eye = 0x40e0ff;          // glowing eye
+  const eyeCore = 0xffffff;     // eye core
+  const fin = 0x2a7ab0;          // fin membrane
+  const finDark = 0x1a5a88;      // fin shadow
+
+  const cx = 38;
+
+  // ---- Head (rows 2-18) — serpentine sea dragon head ----
+  for (let y = 2; y <= 18; y++) {
+    const t = (y - 2) / 16;
+    const halfW = 12 - Math.max(0, 6 - y + 2) * 0.35 + Math.sin(t * Math.PI) * 1.5;
+    for (let x = Math.round(cx - halfW); x <= Math.round(cx + halfW); x++) {
+      if (x < 0 || x >= W) continue;
+      const left = x === Math.round(cx - halfW);
+      const right = x === Math.round(cx + halfW);
+      if (left || right) px(g, x, y, outline);
+      else if (x === Math.round(cx - halfW) + 1) px(g, x, y, deep);
+      else if (x === Math.round(cx + halfW) - 1) px(g, x, y, scale);
+      else if (y < 8 && x > cx - 3 && x < cx + 3) px(g, x, y, scaleLight);
+      else if (y < 12) px(g, x, y, scaleMid);
+      else px(g, x, y, scale);
+    }
+  }
+  // elongated snout
+  for (let y = 12; y <= 16; y++) {
+    for (let x = cx + 10; x <= cx + 20; x++) {
+      const edge = x === cx + 20 || y === 12;
+      if (edge) px(g, x, y, outline);
+      else px(g, x, y, scale);
+    }
+  }
+  // nostrils
+  px(g, cx + 19, 14, outline); px(g, cx + 19, 15, outline);
+  // jaw teeth
+  for (let x = cx + 10; x <= cx + 18; x += 2) px(g, x, 16, foam, 0.7);
+
+  // ---- Head fins/crests ----
+  // dorsal crest spikes
+  for (let i = 0; i < 5; i++) {
+    const x = cx - 8 + i * 4;
+    for (let y = 0; y < 4; y++) {
+      px(g, x, y, y === 0 ? foam : y === 3 ? deep : fin);
+      px(g, x - 1, y + 1, finDark, 0.7);
+    }
+  }
+  // side fins (head)
+  for (let i = 0; i < 6; i++) {
+    const t = i / 6;
+    px(g, cx - 14 - i * 2, 10 + Math.sin(t * Math.PI) * 3, outline, 0.8);
+    px(g, cx - 13 - i * 2, 10 + Math.sin(t * Math.PI) * 3, fin, 0.7);
+    px(g, cx + 14 + i * 2, 10 + Math.sin(t * Math.PI) * 3, outline, 0.8);
+    px(g, cx + 13 + i * 2, 10 + Math.sin(t * Math.PI) * 3, fin, 0.7);
+  }
+
+  // ---- Glowing eyes ----
+  for (let y = 8; y <= 11; y++) {
+    for (let x = cx - 8; x <= cx - 5; x++) px(g, x, y, eye);
+    for (let x = cx + 5; x <= cx + 8; x++) px(g, x, y, eye);
+  }
+  px(g, cx - 7, 10, eyeCore); px(g, cx + 7, 10, eyeCore);
+  px(g, cx - 9, 10, eye, 0.5); px(g, cx + 9, 10, eye, 0.5);
+  // brow ridge
+  for (let x = cx - 9; x <= cx - 5; x++) px(g, x, 7, scaleLight);
+  for (let x = cx + 5; x <= cx + 9; x++) px(g, x, 7, scaleLight);
+
+  // ---- Neck (rows 18-26) — thick serpentine ----
+  for (let y = 18; y <= 26; y++) {
+    const t = (y - 18) / 8;
+    const halfW = 10 + Math.sin(t * Math.PI) * 2;
+    for (let x = Math.round(cx - halfW); x <= Math.round(cx + halfW); x++) {
+      if (x < 0 || x >= W) continue;
+      const edge = x === Math.round(cx - halfW) || x === Math.round(cx + halfW);
+      if (edge) px(g, x, y, outline);
+      else if ((x + y) % 6 === 0) px(g, x, y, scaleLight, 0.5);
+      else px(g, x, y, scaleMid);
+    }
+  }
+
+  // ---- Body (rows 26-66) — massive serpentine coil ----
+  for (let y = 26; y <= 66; y++) {
+    const t = (y - 26) / 40;
+    const halfW = 16 - t * 6 + Math.sin(t * Math.PI * 2.5) * 3;
+    for (let x = Math.round(cx - halfW); x <= Math.round(cx + halfW); x++) {
+      if (x < 0 || x >= W) continue;
+      const left = x === Math.round(cx - halfW);
+      const right = x === Math.round(cx + halfW);
+      if (left || right) px(g, x, y, outline);
+      else if (x === Math.round(cx - halfW) + 1) px(g, x, y, deep);
+      else if (x === Math.round(cx + halfW) - 1) px(g, x, y, deep);
+      else if ((x + y) % 7 === 0) px(g, x, y, scaleLight, 0.5);
+      else if (Math.abs(x - cx) < 5 && y > 34 && y < 58) px(g, x, y, scaleLight, 0.4);
+      else px(g, x, y, scale);
+    }
+  }
+  // scale pattern
+  for (let y = 30; y < 64; y += 3) {
+    for (let x = cx - 12; x <= cx + 12; x += 4) {
+      px(g, x, y, scaleLight, 0.4);
+    }
+  }
+  // belly scales
+  for (let y = 32; y <= 62; y += 2) {
+    for (let x = cx - 4; x <= cx + 4; x++) px(g, x, y, scalePale, 0.3);
+  }
+
+  // ---- Spinal ridge (dorsal fin) ----
+  for (let y = 22; y <= 64; y += 3) {
+    px(g, cx, y, scaleLight);
+    px(g, cx, y - 1, foam, 0.6);
+    px(g, cx - 1, y, scaleMid, 0.6);
+    px(g, cx + 1, y, scaleMid, 0.6);
+  }
+
+  // ---- Side fins (paddle-like) ----
+  for (let i = 0; i < 10; i++) {
+    const t = i / 10;
+    const fy = 36 + i;
+    // left fin
+    const flx = cx - 16 - Math.sin(t * Math.PI) * 8;
+    px(g, Math.round(flx), fy, outline, 0.7);
+    px(g, Math.round(flx + 1), fy, fin, 0.6);
+    // right fin
+    const frx = cx + 16 + Math.sin(t * Math.PI) * 8;
+    px(g, Math.round(frx), fy, outline, 0.7);
+    px(g, Math.round(frx - 1), fy, fin, 0.6);
+  }
+
+  // ---- Tail (rows 66-76) — tapering whip ----
+  for (let y = 66; y <= 76; y++) {
+    const t = (y - 66) / 10;
+    const halfW = (10 - t * 9) * 0.7;
+    for (let x = Math.round(cx - halfW); x <= Math.round(cx + halfW); x++) {
+      if (x < 0 || x >= W) continue;
+      const edge = x === Math.round(cx - halfW) || x === Math.round(cx + halfW);
+      if (edge) px(g, x, y, outline);
+      else px(g, x, y, scale);
+    }
+  }
+  // tail fluke
+  px(g, cx - 4, 76, fin, 0.7); px(g, cx + 4, 76, fin, 0.7);
+  px(g, cx - 5, 77, finDark, 0.5); px(g, cx + 5, 77, finDark, 0.5);
+
+  // ---- Water droplets/foam ----
+  const droplets: Array<[number, number]> = [
+    [cx - 22, 28], [cx + 22, 30], [cx - 26, 40], [cx + 26, 42],
+    [cx - 20, 50], [cx + 20, 52], [cx - 28, 58], [cx + 28, 60],
+  ];
+  droplets.forEach(([x, y]) => {
+    px(g, x, y, foam, 0.6);
+    px(g, x + 1, y, foam, 0.4);
+  });
+
+  // ---- Ground shadow ----
+  g.fillStyle(0x000000, 0.25);
+  g.fillEllipse(cx + 0.5, H - 1, 54, 4);
+
+  g.generateTexture(KEY, W, H);
+  g.destroy();
+}
+
+// ---------------- BOSS: GOLIATH (72x80) — muscular brute, brown/earth, pure physical ----------------
+// Clean pixel art: dark outline, earth/brown palette, massive muscles, glowing fists, ground cracks.
+function generateGoliathBoss(scene: Phaser.Scene): void {
+  const KEY = BOSS_TEXTURE_KEYS.goliath;
+  if (scene.textures.exists(KEY)) return;
+  const W = 72;
+  const H = 80;
+  const g = scene.make.graphics({ x: 0, y: 0 }, false);
+
+  const outline = 0x1a0e04;      // dark earth outline
+  const skin = 0x8a6a3a;         // earth-tanned skin
+  const skinDark = 0x5a4028;     // skin shadow
+  const skinLight = 0xaa8a5a;    // skin highlight
+  const skinPale = 0xc8a878;     // pale skin
+  const muscle = 0x6a4a28;       // muscle definition
+  const muscleDark = 0x4a3018;   // deep muscle
+  const eye = 0xff8040;          // glowing orange eye
+  const eyeCore = 0xffffa0;     // eye core
+  const loincloth = 0x4a3a28;    // loincloth
+  const loinclothDark = 0x2a1e10; // loincloth shadow
+  const rock = 0x5a4a38;         // rock accents
+
+  const cx = 35;
+
+  // ---- Head (rows 4-18) — brutish, thick brow ----
+  for (let y = 4; y <= 18; y++) {
+    const t = (y - 4) / 14;
+    const halfW = 10 - Math.max(0, 5 - y + 4) * 0.3 + Math.sin(t * Math.PI) * 1;
+    for (let x = Math.round(cx - halfW); x <= Math.round(cx + halfW); x++) {
+      if (x < 0 || x >= W) continue;
+      const left = x === Math.round(cx - halfW);
+      const right = x === Math.round(cx + halfW);
+      if (left || right) px(g, x, y, outline);
+      else if (x === Math.round(cx - halfW) + 1) px(g, x, y, skinDark);
+      else if (x === Math.round(cx + halfW) - 1) px(g, x, y, skinDark);
+      else if (y < 8 && x > cx - 3 && x < cx + 3) px(g, x, y, skinLight);
+      else if (y < 12) px(g, x, y, skinLight);
+      else px(g, x, y, skin);
+    }
+  }
+  // thick brow ridge
+  for (let x = cx - 9; x <= cx + 9; x++) px(g, x, 10, skinDark);
+  for (let x = cx - 8; x <= cx + 8; x++) px(g, x, 11, muscleDark, 0.8);
+
+  // ---- Glowing eyes (fierce orange) ----
+  px(g, cx - 6, 12, eye); px(g, cx + 6, 12, eye);
+  px(g, cx - 5, 12, eyeCore, 0.8); px(g, cx + 5, 12, eyeCore, 0.8);
+  px(g, cx - 7, 12, eye, 0.5); px(g, cx + 7, 12, eye, 0.5);
+  // angry brow shadow
+  px(g, cx - 7, 11, muscleDark); px(g, cx + 7, 11, muscleDark);
+  // nose (broad)
+  px(g, cx - 2, 14, skinDark); px(g, cx + 2, 14, skinDark);
+  px(g, cx, 15, skinDark, 0.7);
+  // mouth (grimace with tusks)
+  for (let x = cx - 5; x <= cx + 5; x++) px(g, x, 17, outline, 0.8);
+  // tusks (lower)
+  px(g, cx - 4, 18, skinPale); px(g, cx - 4, 19, skinPale, 0.8);
+  px(g, cx + 4, 18, skinPale); px(g, cx + 4, 19, skinPale, 0.8);
+
+  // ---- Neck (thick) ----
+  for (let y = 19; y <= 22; y++) for (let x = cx - 7; x <= cx + 7; x++) px(g, x, y, skinDark);
+
+  // ---- Massive shoulders (rows 20-30) — hulking ----
+  for (let y = 20; y <= 30; y++) {
+    const t = (y - 20) / 10;
+    const halfW = 24 - Math.abs(0.5 - t) * 6;
+    for (let x = Math.round(cx - halfW); x <= Math.round(cx + halfW); x++) {
+      if (x < 0 || x >= W) continue;
+      const left = x === Math.round(cx - halfW);
+      const right = x === Math.round(cx + halfW);
+      if (left || right) px(g, x, y, outline);
+      else if (x === Math.round(cx - halfW) + 1) px(g, x, y, skinLight);
+      else if (x === Math.round(cx + halfW) - 1) px(g, x, y, skinDark);
+      else if (y < 24 && Math.abs(x - cx) < 6) px(g, x, y, skinLight);
+      else px(g, x, y, skin);
+    }
+  }
+
+  // ---- Torso (rows 22-58) — barrel chest, muscle definition ----
+  for (let y = 22; y <= 58; y++) {
+    const t = (y - 22) / 36;
+    const halfW = 22 - t * 6;
+    for (let x = Math.round(cx - halfW); x <= Math.round(cx + halfW); x++) {
+      if (x < 0 || x >= W) continue;
+      const left = x === Math.round(cx - halfW);
+      const right = x === Math.round(cx + halfW);
+      if (left || right) px(g, x, y, outline);
+      else if (x === Math.round(cx - halfW) + 1) px(g, x, y, skinDark);
+      else if (x === Math.round(cx + halfW) - 1) px(g, x, y, skinDark);
+      else px(g, x, y, skin);
+    }
+  }
+  // pectoral muscles
+  for (let y = 24; y <= 34; y++) {
+    // left pec
+    for (let x = cx - 16; x < cx - 2; x++) {
+      if (y < 28) px(g, x, y, skinLight, 0.4);
+      else px(g, x, y, skin, 0.8);
+    }
+    // right pec
+    for (let x = cx + 2; x <= cx + 16; x++) {
+      if (y < 28) px(g, x, y, skinLight, 0.4);
+      else px(g, x, y, skin, 0.8);
+    }
+  }
+  // pec separation line
+  for (let y = 24; y <= 32; y++) px(g, cx, y, muscle, 0.6);
+  // abdominal muscles
+  for (let i = 0; i < 4; i++) {
+    const y = 36 + i * 5;
+    // left ab
+    for (let dx = -5; dx < -1; dx++) px(g, cx + dx, y, muscle, 0.4);
+    // right ab
+    for (let dx = 1; dx <= 5; dx++) px(g, cx + dx, y, muscle, 0.4);
+    // ab separation
+    px(g, cx, y, muscleDark, 0.5);
+  }
+  // oblique lines
+  for (let y = 36; y <= 54; y += 3) {
+    px(g, cx - 10, y, muscle, 0.3);
+    px(g, cx + 10, y, muscle, 0.3);
+  }
+
+  // ---- Loincloth (rows 50-60) ----
+  for (let y = 50; y <= 60; y++) {
+    const halfW = 14 - (y - 50) * 0.5;
+    for (let x = Math.round(cx - halfW); x <= Math.round(cx + halfW); x++) {
+      if (x < 0 || x >= W) continue;
+      const edge = x === Math.round(cx - halfW) || x === Math.round(cx + halfW);
+      if (edge) px(g, x, y, loinclothDark);
+      else px(g, x, y, loincloth);
+    }
+  }
+  // loincloth rope belt
+  for (let x = cx - 12; x <= cx + 12; x++) {
+    px(g, x, 50, loinclothDark);
+  }
+  px(g, cx, 50, eye, 0.6); // belt gem
+
+  // ---- Arms (massive, rows 24-56) ----
+  // left arm
+  for (let y = 24; y <= 54; y++) {
+    px(g, cx - 26, y, outline); px(g, cx - 25, y, skinLight); px(g, cx - 24, y, skin);
+    px(g, cx - 23, y, skin);
+  }
+  // left arm muscle definition
+  for (let y = 30; y <= 44; y += 3) {
+    px(g, cx - 25, y, muscle, 0.4);
+    px(g, cx - 23, y, muscle, 0.3);
+  }
+  // bicep bulge
+  for (let y = 28; y <= 36; y++) {
+    px(g, cx - 24, y, skinLight, 0.3);
+  }
+  // right arm
+  for (let y = 24; y <= 54; y++) {
+    px(g, cx + 26, y, outline); px(g, cx + 25, y, skinLight); px(g, cx + 24, y, skin);
+    px(g, cx + 23, y, skin);
+  }
+  for (let y = 30; y <= 44; y += 3) {
+    px(g, cx + 25, y, muscle, 0.4);
+    px(g, cx + 23, y, muscle, 0.3);
+  }
+  for (let y = 28; y <= 36; y++) {
+    px(g, cx + 24, y, skinLight, 0.3);
+  }
+
+  // ---- Fists (massive, glowing) ----
+  for (let y = 55; y <= 62; y++) for (let x = cx - 30; x <= cx - 23; x++) {
+    const edge = x === cx - 30 || x === cx - 23 || y === 62;
+    if (edge) px(g, x, y, outline);
+    else if (x === cx - 29 || x === cx - 24) px(g, x, y, skinDark);
+    else px(g, x, y, skin);
+  }
+  for (let y = 55; y <= 62; y++) for (let x = cx + 23; x <= cx + 30; x++) {
+    const edge = x === cx + 23 || x === cx + 30 || y === 62;
+    if (edge) px(g, x, y, outline);
+    else if (x === cx + 24 || x === cx + 29) px(g, x, y, skinDark);
+    else px(g, x, y, skin);
+  }
+  // glowing knuckles (impact-ready)
+  px(g, cx - 28, 58, eye, 0.7); px(g, cx - 25, 58, eye, 0.7);
+  px(g, cx + 25, 58, eye, 0.7); px(g, cx + 28, 58, eye, 0.7);
+  // fist cracks (earth energy)
+  px(g, cx - 27, 60, eye, 0.5); px(g, cx + 27, 60, eye, 0.5);
+
+  // ---- Legs (rows 60-78) — thick stumpy ----
+  for (let y = 60; y <= 76; y++) {
+    // left leg
+    for (let x = cx - 14; x <= cx - 4; x++) {
+      const left = x === cx - 14; const right = x === cx - 4;
+      if (left || right) px(g, x, y, outline);
+      else if (x === cx - 13) px(g, x, y, skinDark);
+      else px(g, x, y, skin);
+    }
+    // right leg
+    for (let x = cx + 4; x <= cx + 14; x++) {
+      const left = x === cx + 4; const right = x === cx + 14;
+      if (left || right) px(g, x, y, outline);
+      else if (x === cx + 13) px(g, x, y, skinDark);
+      else px(g, x, y, skin);
+    }
+  }
+  // leg muscle definition
+  for (let y = 62; y < 76; y += 3) {
+    px(g, cx - 9, y, muscle, 0.3);
+    px(g, cx + 9, y, muscle, 0.3);
+  }
+  // feet
+  for (let x = cx - 16; x <= cx - 4; x++) px(g, x, 77, outline);
+  for (let x = cx - 15; x <= cx - 5; x++) px(g, x, 76, skinDark);
+  for (let x = cx + 4; x <= cx + 16; x++) px(g, x, 77, outline);
+  for (let x = cx + 5; x <= cx + 15; x++) px(g, x, 76, skinDark);
+
+  // ---- Ground cracks (earth tremor) ----
+  const crackLines: Array<[number, number]> = [
+    [cx - 20, 78], [cx - 18, 79], [cx - 16, 78],
+    [cx + 20, 78], [cx + 18, 79], [cx + 16, 78],
+    [cx - 28, 79], [cx + 28, 79],
+  ];
+  crackLines.forEach(([x, y]) => px(g, x, y, rock, 0.5));
+
+  // ---- Ground shadow ----
+  g.fillStyle(0x000000, 0.3);
+  g.fillEllipse(cx + 0.5, 78, 54, 5);
 
   g.generateTexture(KEY, W, H);
   g.destroy();

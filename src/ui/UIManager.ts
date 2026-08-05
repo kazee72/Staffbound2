@@ -14,6 +14,9 @@ import { currentDay } from '../game/enemies';
 import { PLACES } from '../game/waves';
 import {
   META_UPGRADES,
+  META_BY_ID,
+  ELEMENT_BRANCHES,
+  metaUpgradesByElement,
   buyMetaRank,
   metaStateOf,
   getRunEssence,
@@ -70,7 +73,8 @@ export class UIManager {
   private metaEssenceTxt: HTMLSpanElement;
   private metaRunEssenceTxt: HTMLSpanElement;
   private closeMetaBtn: HTMLButtonElement;
-  private metaRowsEl: HTMLDivElement;
+  private metaStaffSelectorEl: HTMLDivElement;
+  private metaBranchViewEl: HTMLDivElement;
 
   private abilityOverlay: HTMLDivElement;
   private abilityContinueBtn: HTMLButtonElement;
@@ -296,7 +300,8 @@ export class UIManager {
     this.tooltip.id = 'tooltip';
     this.root.appendChild(this.tooltip);
 
-    // Meta Grimoire overlay — persistent upgrade panel (gold/amber theme).
+    // Meta Grimoire overlay — element-focused skill tree (mirrors main Grimoire's
+    // staff selector + radial branch view, but with gold/amber theme and essence costs).
     this.metaOverlay = document.createElement('div');
     this.metaOverlay.className = 'overlay hidden';
     this.metaOverlay.id = 'metaOverlay';
@@ -310,15 +315,18 @@ export class UIManager {
         </div>
         <button id="closeMeta">CLOSE</button>
       </div>
-      <div id="metaBody">
-        <div id="metaRows"></div>
+      <div id="metaStaffSelector">
+        <div class="staff-pick-title">CHOOSE YOUR ELEMENT</div>
+        <div class="staff-row"></div>
       </div>
+      <div id="metaBranchView" style="display:none;"></div>
     `;
     this.root.appendChild(this.metaOverlay);
     this.metaEssenceTxt = this.metaOverlay.querySelector('#metaEssenceTxt')!;
     this.metaRunEssenceTxt = this.metaOverlay.querySelector('#metaRunEssenceTxt')!;
     this.closeMetaBtn = this.metaOverlay.querySelector('#closeMeta')!;
-    this.metaRowsEl = this.metaOverlay.querySelector('#metaRows')!;
+    this.metaStaffSelectorEl = this.metaOverlay.querySelector('#metaStaffSelector')!;
+    this.metaBranchViewEl = this.metaOverlay.querySelector('#metaBranchView')!;
     this.closeMetaBtn.addEventListener('click', () => this.hideMetaGrimoire());
 
     // Ability unlock overlay — persistent purple/violet banner shown when a
@@ -398,10 +406,10 @@ export class UIManager {
     this.gameOverOverlay.classList.add('hidden');
   }
 
-  /** Show the Meta Grimoire panel (called from game-over screen). Renders the upgrade rows. */
+  /** Show the Meta Grimoire panel (called from game-over screen). Renders the element staff selector. */
   showMetaGrimoire(world: World): void {
     this.currentWorld = world;
-    this.renderMetaTree(world);
+    this.renderMetaStaffSelector(world);
     this.metaOverlay.classList.remove('hidden');
   }
 
@@ -428,8 +436,11 @@ export class UIManager {
     }
   }
 
-  /** Render the meta upgrade rows from the world's attached meta state. */
-  renderMetaTree(world: World): void {
+  /** Render the element staff selector — one staff per element branch, mirroring the main Grimoire. */
+  renderMetaStaffSelector(world: World): void {
+    this.currentWorld = world;
+    this.metaStaffSelectorEl.style.display = 'flex';
+    this.metaBranchViewEl.style.display = 'none';
     const meta = metaStateOf(world);
     this.metaEssenceTxt.textContent = String(meta.essence);
     const runEssence = getRunEssence(world);
@@ -439,44 +450,189 @@ export class UIManager {
     } else {
       this.metaRunEssenceTxt.style.display = 'none';
     }
-    let html = '';
-    META_UPGRADES.forEach((def) => {
-      const rank = meta.ranks[def.id] || 0;
-      const maxed = rank >= def.maxRank;
-      const cost = maxed ? 0 : def.costAt(rank + 1);
-      const afford = !maxed && meta.essence >= cost;
-      const rankDots = Array.from({ length: def.maxRank }, (_, i) =>
-        i < rank ? '<span class="metadot on"></span>' : '<span class="metadot"></span>',
-      ).join('');
-      html += `
-        <div class="metarow${maxed ? ' maxed' : ''}" data-id="${def.id}">
-          <div class="metainfo">
-            <div class="metaname">${def.name}</div>
-            <div class="metadesc">${def.desc}</div>
-            <div class="metaranks">${rankDots} <span class="metaranktxt">rank ${rank}/${def.maxRank}</span></div>
-          </div>
-          <div class="metabuy">
-            ${maxed
-              ? '<span class="metamaxed">MAX</span>'
-              : `<button class="metabuybtn${afford ? '' : ' disabled'}" data-id="${def.id}" ${afford ? '' : 'disabled'}>${cost} essence</button>`}
-          </div>
-        </div>
+    const row = this.metaStaffSelectorEl.querySelector('.staff-row') as HTMLDivElement;
+    row.innerHTML = '';
+    // Build a combined list: General + 9 element branches.
+    const allBranches = [
+      { id: 'general', name: 'General', color: '#c9a869', short: 'G' },
+      ...ELEMENT_BRANCHES,
+    ];
+    allBranches.forEach((br, i) => {
+      const pick = document.createElement('div');
+      pick.className = 'staff-pick';
+      pick.style.color = br.color;
+      pick.style.animationDelay = (i * 0.06) + 's';
+      pick.innerHTML = `
+        <img class="staff-gif" src="assets/icons/staff.gif" alt="${br.name}"
+             style="filter: hue-rotate(${this.metaHueRotateFor(br.color)}deg) saturate(1.4) drop-shadow(0 0 10px ${br.color});" />
+        <div class="staff-label">${br.name}</div>
       `;
+      pick.addEventListener('click', () => this.renderMetaBranch(world, br.id));
+      row.appendChild(pick);
     });
-    this.metaRowsEl.innerHTML = html;
-    // Wire up buy buttons.
-    this.metaRowsEl.querySelectorAll<HTMLButtonElement>('.metabuybtn').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const id = btn.getAttribute('data-id')!;
+  }
+
+  /** Approximate hue-rotate to match a target branch color (for the staff GIF tint). */
+  private metaHueRotateFor(color: string): number {
+    const map: Record<string, number> = {
+      '#e2793d': 0,    // Fire — orange
+      '#8ec9e8': 200,  // Ice — blue
+      '#9d8ce0': 250,  // Void — purple
+      '#c4728f': 320,  // Shadow — pink
+      '#8bc48a': 100,  // Nature — green
+      '#c9a869': 40,   // Holy / General — gold
+      '#c4e842': 80,   // Lightning — yellow-green
+      '#a8d4e8': 200,  // Wind — light blue
+      '#4a9eff': 210,  // Water — blue
+    };
+    return map[color] ?? 0;
+  }
+
+  /** Render a single element's meta upgrades as a radial layout with the staff GIF at center. */
+  renderMetaBranch(world: World, branchId: string): void {
+    this.currentWorld = world;
+    this.metaStaffSelectorEl.style.display = 'none';
+    this.metaBranchViewEl.style.display = 'flex';
+
+    const meta = metaStateOf(world);
+    this.metaEssenceTxt.textContent = String(meta.essence);
+    const runEssence = getRunEssence(world);
+    if (runEssence > 0) {
+      this.metaRunEssenceTxt.style.display = 'inline';
+      this.metaRunEssenceTxt.textContent = '(+' + runEssence + ' pending from this run)';
+    } else {
+      this.metaRunEssenceTxt.style.display = 'none';
+    }
+
+    const branchDef = branchId === 'general'
+      ? { id: 'general', name: 'General', color: '#c9a869', short: 'G' }
+      : ELEMENT_BRANCHES.find((e) => e.id === branchId) ?? { id: branchId, name: branchId, color: '#c9a869', short: '?' };
+    const upgrades = metaUpgradesByElement()[branchId] ?? [];
+
+    // Radial layout: upgrades are placed in a circle around the center staff.
+    // The first upgrade (element damage) is always at the top (angle = -90°),
+    // and the rest fan out clockwise.
+    const count = upgrades.length;
+    const radius = count <= 4 ? 90 : count <= 5 ? 120 : 150;
+    const canvasSize = Math.ceil(radius * 2 + 140);
+    const center = canvasSize / 2;
+
+    const positions: Record<string, { x: number; y: number }> = {};
+    upgrades.forEach((upg, i) => {
+      const angleDeg = -90 + (360 / count) * i;
+      const angleRad = (angleDeg * Math.PI) / 180;
+      positions[upg.id] = {
+        x: Math.cos(angleRad) * radius,
+        y: Math.sin(angleRad) * radius,
+      };
+    });
+
+    // Build SVG connectors from center to each upgrade node.
+    let svgLines = '';
+    upgrades.forEach((upg) => {
+      const pos = positions[upg.id];
+      const x1 = center;
+      const y1 = center;
+      const x2 = center + pos.x;
+      const y2 = center + pos.y;
+      const rank = meta.ranks[upg.id] || 0;
+      const lit = rank > 0;
+      const color = lit ? branchDef.color : '#3a3d5c';
+      const midX = (x1 + x2) / 2;
+      const midY = (y1 + y2) / 2;
+      svgLines += `<path d="M ${x1} ${y1} Q ${midX} ${midY} ${x2} ${y2}" stroke="${color}" stroke-width="${lit ? 3 : 1.5}" fill="none" opacity="${lit ? 0.8 : 0.35}" />`;
+    });
+
+    let html = `
+      <div class="branch-view-header">
+        <div class="branch-title" style="color:${branchDef.color};text-shadow:0 0 16px ${branchDef.color};">${branchDef.name}</div>
+      </div>
+      <div class="branch-canvas" style="width:${canvasSize}px;height:${canvasSize}px;position:relative;margin:0 auto;">
+        <svg class="branch-svg" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;">
+          ${svgLines}
+        </svg>
+    `;
+
+    // Staff GIF at center (back button)
+    html += `
+      <div class="branch-staff-btn" style="position:absolute;left:${center - 28}px;top:${center - 28}px;width:56px;height:56px;cursor:pointer;z-index:5;">
+        <img src="assets/icons/staff.gif" alt="Back"
+             style="width:56px;height:56px;filter:hue-rotate(${this.metaHueRotateFor(branchDef.color)}deg) saturate(1.4) drop-shadow(0 0 12px ${branchDef.color});" />
+      </div>
+    `;
+
+    // Upgrade nodes
+    upgrades.forEach((upg) => {
+      const pos = positions[upg.id];
+      const x = center + pos.x;
+      const y = center + pos.y;
+      html += this.metaNodeBoxHTML(upg, world, x, y, branchDef.color);
+    });
+
+    html += '</div>';
+    this.metaBranchViewEl.innerHTML = html;
+
+    // Wire up staff back button
+    const backBtn = this.metaBranchViewEl.querySelector('.branch-staff-btn') as HTMLDivElement;
+    backBtn.addEventListener('click', () => this.renderMetaStaffSelector(world));
+
+    // Wire up node clicks + tooltips
+    this.metaBranchViewEl.querySelectorAll<HTMLDivElement>('.meta-node').forEach((div) => {
+      const id = div.getAttribute('data-id')!;
+      const def = META_BY_ID[id];
+      div.addEventListener('click', () => {
         if (buyMetaRank(world, id)) {
-          this.renderMetaTree(world);
+          this.renderMetaBranch(world, branchId);
           // Refresh game-over essence display too.
           const m = metaStateOf(world);
           this.goBankedVal.textContent = String(m.essence);
         }
       });
+      div.addEventListener('mouseenter', (e) => this.showMetaTip(e as MouseEvent, world, def));
+      div.addEventListener('mousemove', (e) => this.positionTip(e as MouseEvent));
+      div.addEventListener('mouseleave', () => {
+        this.tooltip.style.opacity = '0';
+      });
     });
+  }
 
+  /** Generate HTML for a single meta upgrade node at absolute position. */
+  private metaNodeBoxHTML(def: typeof META_UPGRADES[0], world: World, x: number, y: number, color: string): string {
+    const meta = metaStateOf(world);
+    const rank = meta.ranks[def.id] || 0;
+    const maxed = rank >= def.maxRank;
+    const cost = maxed ? 0 : def.costAt(rank + 1);
+    const afford = !maxed && meta.essence >= cost;
+    const cls = 'meta-node' + (maxed ? ' maxed' : rank > 0 ? ' bought' : afford ? ' affordable' : ' available');
+    const label = def.name.split(' ')[0];
+    const size = 42;
+    // Rank indicator dots below the node
+    const dots = Array.from({ length: Math.min(def.maxRank, 10) }, (_, i) =>
+      i < rank ? '<span class="metadot on"></span>' : '<span class="metadot"></span>',
+    ).join('');
+    return `<div class="${cls}" data-id="${def.id}" style="color:${color};position:absolute;left:${x - size/2}px;top:${y - size/2}px;width:${size}px;height:${size}px;">
+      <div class="meta-node-inner">${label}</div>
+      <div class="meta-node-ranks">${dots}</div>
+    </div>`;
+  }
+
+  /** Show tooltip for a meta upgrade node. */
+  private showMetaTip(e: MouseEvent, world: World, def: typeof META_UPGRADES[0]): void {
+    const meta = metaStateOf(world);
+    const rank = meta.ranks[def.id] || 0;
+    const maxed = rank >= def.maxRank;
+    const cost = maxed ? 0 : def.costAt(rank + 1);
+    const afford = !maxed && meta.essence >= cost;
+    this.tooltip.innerHTML =
+      `<div class="ttname" style="color:${def.element === 'general' ? '#c9a869' : (ELEMENT_BRANCHES.find(b => b.id === def.element)?.color ?? '#c9a869')}">${def.name}</div>` +
+      `<div class="ttdesc">${def.desc}</div>` +
+      (maxed
+        ? '<div class="metamaxed" style="font-size:11px;">MAX RANK ' + def.maxRank + '</div>'
+        : `<div class="ttcost">rank ${rank}/${def.maxRank} &mdash; ${cost} essence</div>` +
+          (afford ? '<div style="color:#8bc48a;font-size:10px;">click to purchase</div>' : '<div style="color:#c15b5b;font-size:10px;">not enough essence</div>'));
+    this.tooltip.style.opacity = '1';
+    this.positionTip(e);
+    void world;
   }
 
   setGrimoireVisible(open: boolean): void {

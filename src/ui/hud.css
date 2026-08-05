@@ -819,7 +819,7 @@
   color: var(--gold-bright);
 }
 
-/* Meta Grimoire — persistent upgrade panel (warm gold/amber theme) */
+/* Meta Grimoire — element-focused skill tree (mirrors main Grimoire's radial layout) */
 #metaOverlay {
   z-index: 26;
   background: rgba(10, 8, 5, 0.97);
@@ -850,115 +850,101 @@
   font-weight: 700;
   font-size: 16px;
 }
-#metaBody {
-  width: 100%;
-  max-width: 720px;
+/* Meta staff selector — mirrors #grimStaffSelector */
+#metaStaffSelector {
   flex: 1;
-  overflow: auto;
-  padding: 20px 26px;
-  display: flex;
-  justify-content: center;
-}
-#metaRows {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+/* Meta branch view — mirrors #branchView */
+#metaBranchView {
   width: 100%;
-}
-.metarow {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: linear-gradient(90deg, rgba(40, 32, 16, 0.55), rgba(28, 22, 12, 0.35));
-  border: 1px solid rgba(201, 168, 105, 0.22);
-  border-radius: 9px;
-  padding: 12px 16px;
-  transition: all 0.15s;
-}
-.metarow:hover {
-  border-color: rgba(201, 168, 105, 0.5);
-  box-shadow: 0 0 16px rgba(201, 168, 105, 0.18);
-}
-.metarow.maxed {
-  border-color: rgba(238, 218, 158, 0.6);
-  background: linear-gradient(90deg, rgba(60, 48, 18, 0.6), rgba(40, 30, 12, 0.4));
-}
-.metainfo {
   flex: 1;
-  padding-right: 16px;
-}
-.metaname {
-  font-family: 'Cinzel', serif;
-  font-size: 13.5px;
-  font-weight: 700;
-  color: var(--gold-bright);
-  letter-spacing: 1px;
-  margin-bottom: 3px;
-}
-.metadesc {
-  font-size: 11.5px;
-  color: var(--dim);
-  line-height: 1.35;
-  margin-bottom: 5px;
-}
-.metaranks {
+  overflow-y: auto;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 4px;
+  padding: 16px 20px 40px;
 }
-.metadot {
-  width: 8px;
-  height: 8px;
+/* Meta upgrade nodes — mirrors .gem-node styling but with gold/amber accents */
+.meta-node {
+  position: relative;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s;
+  border-radius: 6px;
+  border: 1.5px solid currentColor;
+  background: #0d0e16;
+  z-index: 2;
+}
+.meta-node:hover {
+  transform: scale(1.12);
+  z-index: 10;
+}
+.meta-node.bought {
+  background: linear-gradient(135deg, currentColor 0%, rgba(255,255,255,0.15) 50%, currentColor 100%);
+  border-color: currentColor;
+  box-shadow: 0 0 14px currentColor;
+}
+.meta-node.maxed {
+  border-width: 2px;
+  background: linear-gradient(135deg, currentColor 0%, rgba(255,255,255,0.25) 50%, currentColor 100%);
+  box-shadow: 0 0 20px currentColor;
+}
+.meta-node.available {
+  border-color: currentColor;
+  background: #0d0e16;
+}
+.meta-node.affordable {
+  border-color: currentColor;
+  background: #0d0e16;
+  box-shadow: 0 0 10px currentColor;
+}
+.meta-node-inner {
+  font-family: 'Cinzel', serif;
+  font-size: 9px;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.85);
+  text-shadow: 0 0 6px rgba(0, 0, 0, 0.6);
+  text-align: center;
+  line-height: 1.1;
+  padding: 2px;
+  z-index: 1;
+  pointer-events: none;
+}
+.meta-node.bought .meta-node-inner,
+.meta-node.maxed .meta-node-inner {
+  color: #fff;
+  text-shadow: 0 0 8px rgba(0, 0, 0, 0.8);
+}
+.meta-node-ranks {
+  position: absolute;
+  bottom: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 2px;
+  pointer-events: none;
+}
+.meta-node-ranks .metadot {
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: #2a2415;
   border: 1px solid #4a3f22;
   display: inline-block;
 }
-.metadot.on {
+.meta-node-ranks .metadot.on {
   background: var(--gold);
   border-color: var(--gold-bright);
-  box-shadow: 0 0 6px rgba(201, 168, 105, 0.7);
-}
-.metaranktxt {
-  font-size: 10px;
-  color: var(--dim);
-  font-family: 'JetBrains Mono', monospace;
-  margin-left: 6px;
-}
-.metabuy {
-  flex-shrink: 0;
-}
-.metabuybtn {
-  background: rgba(201, 168, 105, 0.15);
-  border: 1.5px solid var(--gold);
-  color: var(--gold-bright);
-  font-family: 'Cinzel', serif;
-  font-size: 12px;
-  font-weight: 700;
-  padding: 10px 18px;
-  border-radius: 7px;
-  cursor: pointer;
-  letter-spacing: 1px;
-  white-space: nowrap;
-  min-width: 110px;
-  text-align: center;
-  transition: all 0.15s;
-}
-.metabuybtn:hover {
-  background: var(--gold);
-  color: #1a1508;
-  box-shadow: 0 0 18px rgba(201, 168, 105, 0.55);
-}
-.metabuybtn.disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-  border-color: var(--dim);
-  color: var(--dim);
-}
-.metabuybtn.disabled:hover {
-  background: rgba(201, 168, 105, 0.15);
-  color: var(--dim);
-  box-shadow: none;
+  box-shadow: 0 0 4px rgba(201, 168, 105, 0.7);
 }
 .metamaxed {
   font-family: 'Cinzel', serif;
