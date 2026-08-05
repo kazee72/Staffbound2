@@ -169,7 +169,7 @@ function getLightningChainCount(world: World): number {
 }
 
 /** Falloff per chain jump — Arc Surge (T_J) improves it to 0.75. */
-function getLightningFalloff(world: World): number {
+export function getLightningFalloff(world: World): number {
   return hasNode(world.purchased, 'T_J') ? 0.75 : 0.5;
 }
 
@@ -308,7 +308,6 @@ export function castBolt(world: World): void {
     case 'lightning':
       projColor = '#c4e842';
       projChain = getLightningChainCount(world);
-      if (projChain === 0 && hasNode(world.purchased, 'T_A') && Math.random() < 0.2) projChain = 1;
       break;
     case 'wind':
       projColor = '#a8d4e8';
@@ -326,6 +325,10 @@ export function castBolt(world: World): void {
     default:
       break;
   }
+  // Static Charge (T_A): ALL elements get 20% chance to chain to 1 enemy.
+  // This applies regardless of selected element, so lightning skill tree
+  // investments work with any auto-attack.
+  if (projChain === 0 && hasNode(world.purchased, 'T_A') && Math.random() < 0.2) projChain = 1;
   // Twin Casting (V_B): fire a second bolt on the exact same trajectory as
   // the first, just spawned a bit behind so it looks like a quick burst
   // (one bolt following the other), NOT a shotgun spread.
@@ -364,17 +367,6 @@ export function castBolt(world: World): void {
     }
   }
   if (hasNode(world.purchased, 'V_G') && Math.random() < 0.1) world.cd.bolt = 0;
-
-  // Lightning element: chain from the player to nearby enemies on each bolt cast.
-  if (el === 'lightning' && (projChain > 0 || hasNode(world.purchased, 'T_A'))) {
-    const target = nearestEnemy(world, p.x, p.y);
-    if (target || world.bossFight) {
-      let effectiveChain = projChain;
-      const boltDmg = (8 + world.level * 0.6) * 0.6 * lightningDamageMult(world);
-      const falloff = getLightningFalloff(world);
-      chainLightning(world, p.x, p.y, target, boltDmg, effectiveChain, falloff, '#c4e842');
-    }
-  }
 }
 
 export function castFireNova(world: World): void {

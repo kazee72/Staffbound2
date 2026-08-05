@@ -201,10 +201,13 @@ export class UIManager {
         Your spells cast themselves &mdash; survive, grow stronger, and open your <b style="color:var(--gold);">Grimoire</b> to shape how.
       </div>
       <button id="startBtn">BEGIN THE JOURNEY</button>
+      <button id="startMetaBtn" style="margin-top:8px;font-size:11px;opacity:0.7;">META GRIMOIRE</button>
     `;
     this.root.appendChild(this.startOverlay);
     this.startBtn = this.startOverlay.querySelector('#startBtn')!;
     this.startBtn.addEventListener('click', () => this.onStart());
+    const startMetaBtn = this.startOverlay.querySelector('#startMetaBtn')!;
+    startMetaBtn.addEventListener('click', () => this.onOpenMetaGrimoire());
 
     // Element selection overlay — staves in a circle
     this.elementOverlay = document.createElement('div');
@@ -220,6 +223,7 @@ export class UIManager {
       { code: 'wind',      name: 'Wind',      color: '#a8d4e8', desc: 'Wind blades that knock back + leave wind trails' },
       { code: 'water',     name: 'Water',    color: '#4a9eff', desc: 'Water bolts that heal you on every hit' },
       { code: 'rock',      name: 'Rock',     color: '#9a8b7a', desc: 'Stone bolts with splash damage on impact' },
+      { code: 'holy',      name: 'Holy',     color: '#c9a869', desc: 'Holy light with AoE splash + heal on hit' },
     ];
     this.elementOverlay.innerHTML = `
       <div class="bigtitle">CHOOSE YOUR ELEMENT</div>
@@ -231,7 +235,7 @@ export class UIManager {
     const elRadius = 180;
     const hueMap: Record<string, number> = {
       '#e2793d': 0, '#8ec9e8': 200, '#9d8ce0': 250, '#c4728f': 320,
-      '#8bc48a': 100, '#c4e842': 80, '#a8d4e8': 200, '#4a9eff': 210, '#9a8b7a': 30,
+      '#8bc48a': 100, '#c4e842': 80, '#a8d4e8': 200, '#4a9eff': 210, '#9a8b7a': 30, '#c9a869': 40,
     };
     elements.forEach((el, i) => {
       const angle = (i / elements.length) * Math.PI * 2 - Math.PI / 2;

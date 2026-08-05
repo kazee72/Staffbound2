@@ -3,7 +3,7 @@ import type { World, EnemyState, Projectile } from './types';
 import { damageReduction, dashCooldownMax, gainXP, healPlayer, maxHP, moveSpeed, regenPerSec, xpForLevel } from './player';
 import { hasNode } from './skillTree';
 import { damageEnemy, damageBoss } from './combat';
-import { nearestEnemy, forEachTargetInRange, chainLightning } from './spells';
+import { nearestEnemy, forEachTargetInRange, chainLightning, getLightningFalloff } from './spells';
 import { burst } from './visuals';
 import { updateBoss } from './bosses';
 import { BOSS_DEFS } from './bosses';
@@ -229,7 +229,7 @@ export function updateProjectiles(world: World, dt: number): void {
         }
         // Chain lightning: arc to nearby enemies
         if (pr.chain && pr.chain > 0) {
-          chainLightning(world, e.x, e.y, e, pr.dmg * 0.5, pr.chain, 0.6, pr.color);
+          chainLightning(world, e.x, e.y, e, pr.dmg * 0.5, pr.chain, getLightningFalloff(world), pr.color);
         }
         hit = true;
         if (pr.pierce > 0) {
