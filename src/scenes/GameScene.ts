@@ -786,14 +786,14 @@ export class GameScene extends Phaser.Scene {
 
       // Kamehameha (K_F): hold E to fire a continuous beam.
       if (hasNode(this.world.purchased, 'K_F')) {
-        const canFire = hasNode(this.world.purchased, 'K_L') || this.world.cd.kamehameha >= 0;
-        if (this.keyE.isDown && canFire) {
-          // Fire beam — set a negative drain
-          if (this.world.cd.kamehameha >= 0) this.world.cd.kamehameha = -0.1; // active
+        const hasPerfect = hasNode(this.world.purchased, 'K_L');
+        if (this.keyE.isDown && (hasPerfect || this.world.cd.kamehameha > -5)) {
+          // Beam is active — set cd to negative to indicate firing
+          this.world.cd.kamehameha = -0.1;
           // Beam damage: tick all enemies in a line from player toward aim
           const beamRange = 600;
           const beamWidth = hasNode(this.world.purchased, 'K_I') ? 40 : 25;
-          const beamDmg = (20 + this.world.level * 0.8) * (hasNode(this.world.purchased, 'K_I') ? 1.5 : 1) * (hasNode(this.world.purchased, 'K_L') ? 2 : 1) * dt * 8;
+          const beamDmg = (20 + this.world.level * 0.8) * (hasNode(this.world.purchased, 'K_I') ? 1.5 : 1) * (hasPerfect ? 2 : 1) * dt * 8;
           const ang = p.aimAngle;
           const perpX = -Math.sin(ang), perpY = Math.cos(ang);
           for (const e of this.world.enemies) {
@@ -814,10 +814,14 @@ export class GameScene extends Phaser.Scene {
               damageBoss(this.world, boss, beamDmg, { color: '#ffd966' });
             }
           }
-          // Drain if not Perfect
-          if (!hasNode(this.world.purchased, 'K_L')) {
-            this.world.cd.kamehameha -= dt * 0.5; // drain the "charge"
+          // Drain charge if not Perfect
+          if (!hasPerfect) {
+            this.world.cd.kamehameha -= dt * 0.5; // drain
           }
+        } else if (!this.keyE.isDown && !hasPerfect && this.world.cd.kamehameha < 0) {
+          // Recharge when not firing
+          this.world.cd.kamehameha += dt * 0.3;
+          if (this.world.cd.kamehameha > 0) this.world.cd.kamehameha = 0;
         }
       }
       // Kaio-ken (K_E1): active state — drain HP, boost damage (passive in player.ts checks cd.kaioken)
@@ -1277,7 +1281,7 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Kamehameha beam rendering
+    // Kamehameha beam rendering — render when beam is active (cd < 0 means firing)
     if (world.cd.kamehameha < 0 && hasNode(world.purchased, 'K_F')) {
       const p = world.player;
       const ang = p.aimAngle;

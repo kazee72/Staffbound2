@@ -173,6 +173,10 @@ export class UIManager {
       { id: 'shadowNova',   label: 'Nova',     color: '#c4728f' },
       { id: 'whirlwindStrike',label: 'Whirl',  color: '#4fd6c0' },
       { id: 'magmaCore',    label: 'Magma',    color: '#e2793d' },
+      { id: 'kiBarrage',    label: 'Barrage',  color: '#ffd966' },
+      { id: 'spiritBomb',   label: 'Spirit',   color: '#ffd966' },
+      { id: 'kaioken',      label: 'Kaio-ken',color: '#ffd966' },
+      { id: 'kamehameha',   label: 'Kameha',   color: '#ffd966' },
     ];
     spellDefs.forEach((sd) => {
       const slot = document.createElement('div');
@@ -738,6 +742,11 @@ export class UIManager {
     this.updateCooldown('shadowNova', world.cd.shadowNova, 12, hasNode(world.purchased, 'S_L'));
     this.updateCooldown('whirlwindStrike', world.cd.whirlwindStrike, 8, hasNode(world.purchased, 'P_L'));
     this.updateCooldown('magmaCore', world.cd.magmaCore, 8, true); // boss ability, always active if unlocked
+    // Ki branch
+    this.updateCooldown('kiBarrage', world.cd.kiBarrage, 4, hasNode(world.purchased, 'K_C2'));
+    this.updateCooldown('spiritBomb', world.cd.spiritBomb, 10, hasNode(world.purchased, 'K_D'));
+    this.updateCooldown('kaioken', world.cd.kaioken, 12, hasNode(world.purchased, 'K_E1'));
+    this.updateCooldown('kamehameha', Math.max(0, world.cd.kamehameha), 5, hasNode(world.purchased, 'K_F'));
   }
 
   private updateCooldown(id: string, cd: number, maxCd: number, visible: boolean): void {
