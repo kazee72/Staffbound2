@@ -1,6 +1,6 @@
 /**
  * NetManager — a thin singleton wrapper around PeerJS that manages the two
- * multiplayer roles (HOST and GUEST) for HOLLOWMERE.
+ * multiplayer roles (HOST and GUEST) for STAFFBOUND2.
  *
  * The PeerServer (signaling) runs alongside Vite on port 9000 (see
  * vite.config.ts). All gameplay data flows peer-to-peer over WebRTC data
@@ -41,7 +41,7 @@ function peerServerConfig(): { host: string; port: number; path: string; key: st
     host: host || 'localhost',
     port: 9000,
     path: '/',
-    key: 'hollowmere',
+    key: 'staffbound2',
   };
 }
 

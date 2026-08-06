@@ -1,5 +1,5 @@
 /**
- * P2P message types for the HOLLOWMERE multiplayer protocol.
+ * P2P message types for the STAFFBOUND2 multiplayer protocol.
  *
  * Shared-authority model:
  *   Each client owns and simulates their OWN player locally (movement, spells,

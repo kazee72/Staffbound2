@@ -1,7 +1,7 @@
 {
-  "name": "hollowmere",
+  "name": "staffbound2",
   "version": "1.0.0",
-  "description": "HOLLOWMERE - top-down medieval-fantasy survival action game",
+  "description": "STAFFBOUND2 - top-down medieval-fantasy survival action game",
   "main": "index.js",
   "scripts": {
     "dev": "vite",

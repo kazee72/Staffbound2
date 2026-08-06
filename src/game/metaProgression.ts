@@ -11,12 +11,12 @@
  * that apply to all elements. Each upgrade has 5-10 ranks with progressive
  * cost scaling.
  *
- * Storage key: "hollowmere_meta" — a JSON blob:
+ * Storage key: "staffbound2_meta" — a JSON blob:
  *   { essence: number, ranks: Record<metaId, number> }
  */
 import type { World } from './types';
 
-const STORAGE_KEY = 'hollowmere_meta';
+const STORAGE_KEY = 'staffbound2_meta';
 
 // ---------------- Element definitions ----------------
 

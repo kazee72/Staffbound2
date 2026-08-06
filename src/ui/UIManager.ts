@@ -193,7 +193,7 @@ export class UIManager {
     this.startOverlay.className = 'overlay';
     this.startOverlay.id = 'startOverlay';
     this.startOverlay.innerHTML = `
-      <div class="bigtitle">HOLLOWMERE</div>
+      <div class="bigtitle">STAFFBOUND2</div>
       <div class="sub">a long road, an old grimoire, and whatever still lurks in the dark</div>
       <div style="font-size:12.5px;color:var(--dim);max-width:420px;line-height:1.6;">
         Move with <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> or arrow keys.

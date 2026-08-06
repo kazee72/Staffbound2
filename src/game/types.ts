@@ -1,4 +1,4 @@
-/** Shared runtime types for the Hollowmere game world, ported from reference/full-reference.html */
+/** Shared runtime types for the Staffbound2 game world, ported from reference/full-reference.html */
 
 export interface Vec2 {
   x: number;

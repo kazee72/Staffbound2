@@ -120,7 +120,7 @@ export class LobbyScene extends Phaser.Scene {
   private buildMenu(): void {
     this.menuOverlay = this.makeOverlay();
     this.menuOverlay.innerHTML = `
-      <div style="font-family:'Cinzel',serif;font-size:clamp(28px,5vw,52px);font-weight:800;letter-spacing:4px;color:#eeda9e;text-shadow:0 0 24px rgba(238,218,158,0.4);margin:0 0 6px;">HOLLOWMERE</div>
+      <div style="font-family:'Cinzel',serif;font-size:clamp(28px,5vw,52px);font-weight:800;letter-spacing:4px;color:#eeda9e;text-shadow:0 0 24px rgba(238,218,158,0.4);margin:0 0 6px;">STAFFBOUND2</div>
       <div style="color:#8789a3;font-size:15px;font-style:italic;margin-bottom:30px;">a long road, an old grimoire, and whatever still lurks in the dark</div>
       <div style="display:flex;flex-direction:column;gap:14px;align-items:center;">
         <button class="lobby-btn" id="btnSolo" style="pointer-events:auto;">
