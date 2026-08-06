@@ -746,7 +746,7 @@ export class UIManager {
     this.updateCooldown('kiBarrage', world.cd.kiBarrage, 4, hasNode(world.purchased, 'K_C2'));
     this.updateCooldown('spiritBomb', world.cd.spiritBomb, 10, hasNode(world.purchased, 'K_D'));
     this.updateCooldown('kaioken', world.cd.kaioken, 12, hasNode(world.purchased, 'K_E1'));
-    this.updateCooldown('kamehameha', Math.max(0, world.cd.kamehameha), 5, hasNode(world.purchased, 'K_F'));
+    this.updateCooldown('kamehameha', Math.max(0, world.cd.kamehameha), 6, hasNode(world.purchased, 'K_F'));
   }
 
   private updateCooldown(id: string, cd: number, maxCd: number, visible: boolean): void {

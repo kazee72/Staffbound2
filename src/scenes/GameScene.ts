@@ -59,7 +59,7 @@ export class GameScene extends Phaser.Scene {
   private keyEsc!: Phaser.Input.Keyboard.Key;
   private keyQ!: Phaser.Input.Keyboard.Key;
   private keyShift!: Phaser.Input.Keyboard.Key;
-  private keyE!: Phaser.Input.Keyboard.Key;
+  // keyE removed — kamehameha is now automatic
   private showHitbox = false;
   // UHJK alternative movement keys (vi-style)
   private keyU!: Phaser.Input.Keyboard.Key;
@@ -178,7 +178,6 @@ export class GameScene extends Phaser.Scene {
     this.keyQ = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.Q);
     this.keyShift = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
     this.keyShift.on('down', () => { this.showHitbox = !this.showHitbox; });
-    this.keyE = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     this.keyU = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.U);
     this.keyH = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.H);
     this.keyJ = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.J);
@@ -784,44 +783,49 @@ export class GameScene extends Phaser.Scene {
       if (Math.hypot(dx, dy) > 2) p.aimAngle = Math.atan2(dy, dx);
       updateSpellTimers(this.world, dt);
 
-      // Kamehameha (K_F): hold E to fire a continuous beam.
+      // Kamehameha (K_F): auto-fires a continuous beam on cooldown (no button needed).
+      // cd.kamehameha > 0 = on cooldown, cd.kamehameha <= 0 = ready/active
       if (hasNode(this.world.purchased, 'K_F')) {
         const hasPerfect = hasNode(this.world.purchased, 'K_L');
-        if (this.keyE.isDown && (hasPerfect || this.world.cd.kamehameha > -5)) {
-          // Beam is active — set cd to negative to indicate firing
-          this.world.cd.kamehameha = -0.1;
-          // Beam damage: tick all enemies in a line from player toward aim
-          const beamRange = 600;
-          const beamWidth = hasNode(this.world.purchased, 'K_I') ? 40 : 25;
-          const beamDmg = (20 + this.world.level * 0.8) * (hasNode(this.world.purchased, 'K_I') ? 1.5 : 1) * (hasPerfect ? 2 : 1) * dt * 8;
-          const ang = p.aimAngle;
-          const perpX = -Math.sin(ang), perpY = Math.cos(ang);
-          for (const e of this.world.enemies) {
-            if (e.dead) continue;
-            const dx = e.x - p.x, dy = e.y - p.y;
-            const along = dx * Math.cos(ang) + dy * Math.sin(ang);
-            const across = Math.abs(dx * perpX + dy * perpY);
-            if (along > 0 && along < beamRange && across < beamWidth + e.r) {
-              damageEnemy(this.world, e, beamDmg, { color: '#ffd966', allowCrit: false });
+        if (this.world.cd.kamehameha > 0) {
+          // On cooldown — tick down
+          this.world.cd.kamehameha -= dt;
+        } else {
+          // Beam is active — fire continuously toward aim direction
+          const beamDuration = hasPerfect ? 0 : 3; // 3s beam, then 6s cooldown (or permanent with Perfect)
+          const beamCooldown = hasPerfect ? 0 : 6;
+          // Check if we've been firing long enough (track via a separate timer)
+          // Use kamehameha cd as: 0 = ready, negative = firing (drain), positive = recharging
+          if (this.world.cd.kamehameha > -beamDuration) {
+            // Still firing
+            this.world.cd.kamehameha -= dt;
+            const beamRange = 600;
+            const beamWidth = hasNode(this.world.purchased, 'K_I') ? 40 : 25;
+            const beamDmg = (20 + this.world.level * 0.8) * (hasNode(this.world.purchased, 'K_I') ? 1.5 : 1) * (hasPerfect ? 2 : 1) * dt * 8;
+            const ang = p.aimAngle;
+            const perpX = -Math.sin(ang), perpY = Math.cos(ang);
+            for (const e of this.world.enemies) {
+              if (e.dead) continue;
+              const dx = e.x - p.x, dy = e.y - p.y;
+              const along = dx * Math.cos(ang) + dy * Math.sin(ang);
+              const across = Math.abs(dx * perpX + dy * perpY);
+              if (along > 0 && along < beamRange && across < beamWidth + e.r) {
+                damageEnemy(this.world, e, beamDmg, { color: '#ffd966', allowCrit: false });
+              }
             }
-          }
-          if (this.world.bossFight) {
-            const boss = this.world.bossFight.boss;
-            const dx = boss.x - p.x, dy = boss.y - p.y;
-            const along = dx * Math.cos(ang) + dy * Math.sin(ang);
-            const across = Math.abs(dx * perpX + dy * perpY);
-            if (along > 0 && along < beamRange && across < beamWidth + boss.r) {
-              damageBoss(this.world, boss, beamDmg, { color: '#ffd966' });
+            if (this.world.bossFight) {
+              const boss = this.world.bossFight.boss;
+              const dx = boss.x - p.x, dy = boss.y - p.y;
+              const along = dx * Math.cos(ang) + dy * Math.sin(ang);
+              const across = Math.abs(dx * perpX + dy * perpY);
+              if (along > 0 && along < beamRange && across < beamWidth + boss.r) {
+                damageBoss(this.world, boss, beamDmg, { color: '#ffd966' });
+              }
             }
+          } else {
+            // Beam ended — go on cooldown
+            this.world.cd.kamehameha = beamCooldown;
           }
-          // Drain charge if not Perfect
-          if (!hasPerfect) {
-            this.world.cd.kamehameha -= dt * 0.5; // drain
-          }
-        } else if (!this.keyE.isDown && !hasPerfect && this.world.cd.kamehameha < 0) {
-          // Recharge when not firing
-          this.world.cd.kamehameha += dt * 0.3;
-          if (this.world.cd.kamehameha > 0) this.world.cd.kamehameha = 0;
         }
       }
       // Kaio-ken (K_E1): active state — drain HP, boost damage (passive in player.ts checks cd.kaioken)
