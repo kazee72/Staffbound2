@@ -1352,17 +1352,7 @@ export function updateSpellTimers(world: World, dt: number): void {
       world.cd.kaioken = 12; // 12s cooldown total (7s downtime + 5s active)
     }
   }
-  // Kamehameha (K_F): continuous beam — handled as a beam state.
-  // The beam is active while cd.kamehameha > 0 (set by holding a key in GameScene).
-  // Here we just handle the passive drain/recharge.
-  if (hasNode(world.purchased, 'K_F') && !hasNode(world.purchased, 'K_L')) {
-    // Perfect (K_L) removes the recharge requirement
-    if (world.cd.kamehameha < 0) {
-      // Recharging
-      world.cd.kamehameha += dt * 0.3; // slow recharge
-      if (world.cd.kamehameha > 0) world.cd.kamehameha = 0;
-    }
-  }
+  // Kamehameha recharge is handled in GameScene update loop — not here.
 
   updateWisps(world, dt);
 }
@@ -1378,15 +1368,13 @@ function updateWindTrail(world: World, dt: number): void {
   const speed = Math.hypot(p.vx, p.vy);
   if (speed < 20) return;
   windTrailAccum += dt;
-  if (windTrailAccum < 0.15) return; // spawn every 0.15s, not 0.1s
+  if (windTrailAccum < 0.1) return;
   windTrailAccum = 0;
   // Spawn a brief ground effect behind the player.
   const ang = Math.atan2(p.vy, p.vx);
   const tx = p.x - Math.cos(ang) * 20;
   const ty = p.y - Math.sin(ang) * 20;
-  // Short life (0.3s) so effects don't stack up. Damage is per-tick but
-  // with only ~2 ticks per effect, total damage stays reasonable.
-  world.effects.push({ type: 'ground', x: tx, y: ty, r: 18, color: '#a8d4e8', life: 0.3, t: 0, dmg: 8 + world.level * 0.4 });
+  world.effects.push({ type: 'ground', x: tx, y: ty, r: 18, color: '#a8d4e8', life: 0.5, t: 0, dmg: 5 + world.level * 0.2 });
 }
 
 /** Wind Gust (W_B): knockback AoE around the player with light damage. */
