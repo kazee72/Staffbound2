@@ -444,6 +444,11 @@ export interface Cooldowns {
   summonDeathKnight: number;
   /** Apocalypse (Sm_L) — skeleton wave timer. */
   apocalypse: number;
+  /** Ki branch cooldowns */
+  kiBarrage: number;
+  spiritBomb: number;
+  kaioken: number;
+  kamehameha: number;
 }
 
 export interface SkillNode {
@@ -696,6 +701,10 @@ export function createWorld(W: number, H: number, flash: (text: string, color: s
       conjureArmy: 0,
       summonDeathKnight: 0,
       apocalypse: 0,
+      kiBarrage: 0,
+      spiritBomb: 0,
+      kaioken: 0,
+      kamehameha: 0,
     },
     spawnTimer: 0,
     bossTimer: 180,

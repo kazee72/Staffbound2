@@ -224,6 +224,7 @@ export class UIManager {
       { code: 'water',     name: 'Water',    color: '#4a9eff', desc: 'Water bolts that heal you on every hit' },
       { code: 'rock',      name: 'Rock',     color: '#9a8b7a', desc: 'Stone bolts with splash damage on impact' },
       { code: 'holy',      name: 'Holy',     color: '#c9a869', desc: 'Holy light with AoE splash + heal on hit' },
+      { code: 'ki',        name: 'Ki',       color: '#ffd966', desc: 'Golden ki blasts with +20% damage' },
     ];
     this.elementOverlay.innerHTML = `
       <div class="bigtitle">CHOOSE YOUR ELEMENT</div>

@@ -329,8 +329,9 @@ export function castBolt(world: World): void {
     case 'rock':
       projColor = '#9a8b7a';
       projSplashRadius = hasNode(world.purchased, 'Rk_C1') ? 60 : 40;
-      // Shrapnel (Rk_C1): splash damage increased to 60% of bolt damage.
-      // (handled in updateProjectiles splash section — flag set on projectile)
+      break;
+    case 'ki':
+      projColor = '#ffd966';
       break;
     default:
       break;
@@ -351,8 +352,12 @@ export function castBolt(world: World): void {
     const sy = p.y - Math.sin(ang) * spawnOffset;
     let dmg = 8 + world.level * 0.6;
     if (hasNode(world.purchased, 'F_A')) dmg *= 1.2;
-    // Sanctify (H_C2): holy bolts deal +50% damage to marked enemies (applied on hit via markedBonus flag).
-    // Purge (H_K): +15% damage to bosses (applied at hit time via damageBoss path).
+    // Ki Charge (K_A): ki blasts deal +20% damage
+    if (el === 'ki') dmg *= 1.2;
+    // Saiyan Spirit (K_G): below 30% HP, deal +40% damage
+    if (el === 'ki' && hasNode(world.purchased, 'K_G') && world.player.hp < maxHP(world) * 0.3) dmg *= 1.4;
+    // Perfect (K_L): ALL ki damage doubled
+    if (el === 'ki' && hasNode(world.purchased, 'K_L')) dmg *= 2;
     dmg *= spellDamageMult(world);
     // Holy damage doubling from Ascension (H_F) — applied for holy element.
     if (el === 'holy') dmg *= holyDamageMult(world);
@@ -1307,6 +1312,57 @@ export function updateSpellTimers(world: World, dt: number): void {
 
   // Update all summons (movement, attacks, lifetime).
   updateSummons(world, dt);
+
+  // ==================== Ki (K) branch timers ====================
+  const kiCm = cooldownMult(world);
+  // Ki Barrage (K_C2): fire 6 ki blasts in a spread every 4s.
+  if (hasNode(world.purchased, 'K_C2')) {
+    if (world.cd.kiBarrage > 0) world.cd.kiBarrage -= dt;
+    else {
+      world.cd.kiBarrage = 4 * kiCm;
+      const count = hasNode(world.purchased, 'K_J') ? 12 : 6;
+      const baseAng = world.player.aimAngle;
+      const spread = 0.8;
+      const dmg = (10 + world.level * 0.5) * spellDamageMult(world) * (hasNode(world.purchased, 'K_L') ? 2 : 1);
+      for (let i = 0; i < count; i++) {
+        const a = baseAng + (i / (count - 1) - 0.5) * spread;
+        fireProjectile(world, world.player.x, world.player.y, Math.cos(a), Math.sin(a), 350, dmg, '#ffd966', 0, {});
+      }
+    }
+  }
+  // Spirit Bomb (K_D): gather energy then explode every 10s.
+  if (hasNode(world.purchased, 'K_D')) {
+    if (world.cd.spiritBomb > 0) world.cd.spiritBomb -= dt;
+    else {
+      world.cd.spiritBomb = 10 * kiCm;
+      const radius = hasNode(world.purchased, 'K_J') ? 180 : 120;
+      const dmg = (30 + world.level * 1.0) * spellDamageMult(world) * (hasNode(world.purchased, 'K_L') ? 2 : 1);
+      world.effects.push({ type: 'ring', x: world.player.x, y: world.player.y, r: 0, maxR: radius, color: '#ffd966', life: 0.5, t: 0 });
+      forEachTargetInRange(world, world.player.x, world.player.y, radius,
+        (e) => damageEnemy(world, e, dmg, { color: '#ffd966' }),
+        () => { if (world.bossFight) damageBoss(world, world.bossFight.boss, dmg, { color: '#ffd966' }); }
+      );
+    }
+  }
+  // Kaio-ken (K_E1): every 12s, enter for 5s — +60% dmg, +40% speed, -2 HP/sec (unless Perfect K_L).
+  if (hasNode(world.purchased, 'K_E1')) {
+    if (world.cd.kaioken > 0) {
+      world.cd.kaioken -= dt;
+    } else {
+      world.cd.kaioken = 12; // 12s cooldown total (7s downtime + 5s active)
+    }
+  }
+  // Kamehameha (K_F): continuous beam — handled as a beam state.
+  // The beam is active while cd.kamehameha > 0 (set by holding a key in GameScene).
+  // Here we just handle the passive drain/recharge.
+  if (hasNode(world.purchased, 'K_F') && !hasNode(world.purchased, 'K_L')) {
+    // Perfect (K_L) removes the recharge requirement
+    if (world.cd.kamehameha < 0) {
+      // Recharging
+      world.cd.kamehameha += dt * 0.3; // slow recharge
+      if (world.cd.kamehameha > 0) world.cd.kamehameha = 0;
+    }
+  }
 
   updateWisps(world, dt);
 }

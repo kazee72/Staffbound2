@@ -8,7 +8,7 @@ import { ENEMY_TEXTURE_KEYS, BOSS_TEXTURE_KEYS } from '../game/enemySprites';
 import { enemyVisualScale, SKEL_ANIM, SLIME_ANIM } from '../game/enemySpriteAssets';
 import { createWorld } from '../game/types';
 import type { World, NetPlayer, NetPlayerState, EnemyType } from '../game/types';
-import { xpForLevel, gainXP, maxHP, damageReduction } from '../game/player';
+import { xpForLevel, gainXP, maxHP, damageReduction, healPlayer } from '../game/player';
 import { updateSpellTimers } from '../game/spells';
 import { updateSpawns } from '../game/waves';
 import { damageEnemy, damageBoss, killEnemy } from '../game/combat';
@@ -24,7 +24,7 @@ import {
   tryDash,
   type InputState,
 } from '../game/simulation';
-import { buySkill } from '../game/skillTree';
+import { buySkill, hasNode } from '../game/skillTree';
 import { UIManager } from '../ui/UIManager';
 import { attachMeta, bankRunEssence, loadMeta, metaStartLevel, metaStartHP, type MetaState } from '../game/metaProgression';
 import { netManager } from '../net/netManager';
@@ -59,6 +59,7 @@ export class GameScene extends Phaser.Scene {
   private keyEsc!: Phaser.Input.Keyboard.Key;
   private keyQ!: Phaser.Input.Keyboard.Key;
   private keyShift!: Phaser.Input.Keyboard.Key;
+  private keyE!: Phaser.Input.Keyboard.Key;
   private showHitbox = false;
   // UHJK alternative movement keys (vi-style)
   private keyU!: Phaser.Input.Keyboard.Key;
@@ -177,6 +178,7 @@ export class GameScene extends Phaser.Scene {
     this.keyQ = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.Q);
     this.keyShift = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
     this.keyShift.on('down', () => { this.showHitbox = !this.showHitbox; });
+    this.keyE = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     this.keyU = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.U);
     this.keyH = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.H);
     this.keyJ = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.J);
@@ -419,7 +421,7 @@ export class GameScene extends Phaser.Scene {
         stormCall: 0, thunderclap: 0, lightningStorm: 0, stormLord: 0, thunderStrike: 0,
         windGust: 0, vortex: 0, cataclysm: 0,
         tidalWave: 0, healingTide: 0, whirlpool: 0, tsunami: 0, flood: 0,
-        boulder: 0, earthWall: 0, earthquakeRk: 0, meteor: 0, blessing: 0, divineShield: 0, judgement: 0, summonBone: 0, summonHound: 0, conjureArmy: 0, summonDeathKnight: 0, apocalypse: 0,
+        boulder: 0, earthWall: 0, earthquakeRk: 0, meteor: 0, blessing: 0, divineShield: 0, judgement: 0, summonBone: 0, summonHound: 0, conjureArmy: 0, summonDeathKnight: 0, apocalypse: 0, kiBarrage: 0, spiritBomb: 0, kaioken: 0, kamehameha: 0,
       },
       wisps: [],
       decoys: [],
@@ -781,6 +783,48 @@ export class GameScene extends Phaser.Scene {
       const dy = pointer.worldY - p.y;
       if (Math.hypot(dx, dy) > 2) p.aimAngle = Math.atan2(dy, dx);
       updateSpellTimers(this.world, dt);
+
+      // Kamehameha (K_F): hold E to fire a continuous beam.
+      if (hasNode(this.world.purchased, 'K_F')) {
+        const canFire = hasNode(this.world.purchased, 'K_L') || this.world.cd.kamehameha >= 0;
+        if (this.keyE.isDown && canFire) {
+          // Fire beam — set a negative drain
+          if (this.world.cd.kamehameha >= 0) this.world.cd.kamehameha = -0.1; // active
+          // Beam damage: tick all enemies in a line from player toward aim
+          const beamRange = 600;
+          const beamWidth = hasNode(this.world.purchased, 'K_I') ? 40 : 25;
+          const beamDmg = (20 + this.world.level * 0.8) * (hasNode(this.world.purchased, 'K_I') ? 1.5 : 1) * (hasNode(this.world.purchased, 'K_L') ? 2 : 1) * dt * 8;
+          const ang = p.aimAngle;
+          const perpX = -Math.sin(ang), perpY = Math.cos(ang);
+          for (const e of this.world.enemies) {
+            if (e.dead) continue;
+            const dx = e.x - p.x, dy = e.y - p.y;
+            const along = dx * Math.cos(ang) + dy * Math.sin(ang);
+            const across = Math.abs(dx * perpX + dy * perpY);
+            if (along > 0 && along < beamRange && across < beamWidth + e.r) {
+              damageEnemy(this.world, e, beamDmg, { color: '#ffd966', allowCrit: false });
+            }
+          }
+          if (this.world.bossFight) {
+            const boss = this.world.bossFight.boss;
+            const dx = boss.x - p.x, dy = boss.y - p.y;
+            const along = dx * Math.cos(ang) + dy * Math.sin(ang);
+            const across = Math.abs(dx * perpX + dy * perpY);
+            if (along > 0 && along < beamRange && across < beamWidth + boss.r) {
+              damageBoss(this.world, boss, beamDmg, { color: '#ffd966' });
+            }
+          }
+          // Drain if not Perfect
+          if (!hasNode(this.world.purchased, 'K_L')) {
+            this.world.cd.kamehameha -= dt * 0.5; // drain the "charge"
+          }
+        }
+      }
+      // Kaio-ken (K_E1): active state — drain HP, boost damage (passive in player.ts checks cd.kaioken)
+      if (hasNode(this.world.purchased, 'K_E1') && this.world.cd.kaioken > 7 && !hasNode(this.world.purchased, 'K_L')) {
+        // Kaio-ken active (cd > 7 means first 5s of 12s cycle)
+        healPlayer(this.world, -2 * dt); // drain 2 HP/sec
+      }
       // Track enemy HP before projectiles hit, so guests can send enemyHit to host
       const hpBefore: number[] = this.netMode === 'guest' ? this.world.enemies.map((e) => e.hp) : [];
       updateProjectiles(this.world, dt);
@@ -1231,6 +1275,31 @@ export class GameScene extends Phaser.Scene {
           g.fillRect(s.x - 12, s.y - s.r - 8, 24 * (s.hp / s.maxHp), 3);
         }
       }
+    }
+
+    // Kamehameha beam rendering
+    if (world.cd.kamehameha < 0 && hasNode(world.purchased, 'K_F')) {
+      const p = world.player;
+      const ang = p.aimAngle;
+      const beamRange = 600;
+      const beamWidth = hasNode(world.purchased, 'K_I') ? 40 : 25;
+      const ex = p.x + Math.cos(ang) * beamRange;
+      const ey = p.y + Math.sin(ang) * beamRange;
+      // Outer glow
+      g.fillStyle(0xffe866, 0.15);
+      g.fillRect(p.x, p.y - beamWidth, beamRange, beamWidth * 2);
+      // Inner beam (rotated)
+      g.lineStyle(beamWidth, 0xffd966, 0.4);
+      g.beginPath();
+      g.moveTo(p.x, p.y);
+      g.lineTo(ex, ey);
+      g.strokePath();
+      // Core
+      g.lineStyle(beamWidth * 0.4, 0xffffff, 0.8);
+      g.beginPath();
+      g.moveTo(p.x, p.y);
+      g.lineTo(ex, ey);
+      g.strokePath();
     }
 
     // effects (rings/ground)

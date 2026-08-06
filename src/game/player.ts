@@ -40,6 +40,8 @@ export function critChance(world: World): number {
     (hasNode(world.purchased, 'P_I') && world.cd.apexSurge > 0.5 ? 0.2 : 0) +
     // Perfection (P_J): +10% crit chance (part of "all stats +10%")
     (hasNode(world.purchased, 'P_J') ? 0.1 : 0) +
+    // Ki Sense (K_C1): +15% crit chance
+    (hasNode(world.purchased, 'K_C1') ? 0.15 : 0) +
     metaCritChance(world)
   );
 }
@@ -74,6 +76,8 @@ export function maxHP(world: World): number {
     (hasNode(p, 'H_H') ? 0.2 : 0) +    // Blessed Vitality (H_H): +20% max HP
     (hasNode(p, 'Sm_G') ? 0.1 : 0) +   // Spirit Link (Sm_G): +10% max HP
     (hasNode(p, 'Sm_H') ? 0.15 : 0) +  // Soul Harvest (Sm_H): +15% max HP
+    (hasNode(p, 'K_G') ? 0.25 : 0) +   // Saiyan Spirit (K_G): +25% max HP
+    (hasNode(p, 'K_H') ? 0.20 : 0) +   // Endurance (K_H): +20% max HP
     (hasNode(p, 'P_J') ? 0.1 : 0);     // Perfection (P_J): +10% all stats (HP portion)
   return 100 * grim * metaHpMult(world);
 }

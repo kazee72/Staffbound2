@@ -23,17 +23,18 @@ export interface Branch {
 
 export const BRANCHES: Branch[] = [
   { code: 'F', name: 'Fire',      color: '#e2793d', angle: -90,                          icon: '🔥' },
-  { code: 'R', name: 'Ice',       color: '#8ec9e8', angle: -90 + 30,                     icon: '❄' },
-  { code: 'V', name: 'Void',      color: '#9d8ce0', angle: -90 + 2 * 30,                 icon: '✦' },
-  { code: 'S', name: 'Shadow',    color: '#c4728f', angle: -90 + 3 * 30,                icon: '☾' },
-  { code: 'N', name: 'Nature',    color: '#8bc48a', angle: -90 + 4 * 30,                icon: '☘' },
-  { code: 'P', name: 'Potency',   color: '#4fd6c0', angle: -90 + 5 * 30,                icon: '⚔' },
-  { code: 'T', name: 'Lightning', color: '#c4e842', angle: -90 + 6 * 30,                icon: '⚡' },
-  { code: 'W', name: 'Wind',      color: '#a8d4e8', angle: -90 + 7 * 30,               icon: '🌪' },
-  { code: 'Wa',name: 'Water',     color: '#4a9eff', angle: -90 + 8 * 30,                icon: '💧' },
-  { code: 'Rk',name: 'Rock',      color: '#9a8b7a', angle: -90 + 9 * 30,                icon: '🪨' },
-  { code: 'H', name: 'Holy',      color: '#c9a869', angle: -90 + 10 * 30,               icon: '✨' },
-  { code: 'Sm',name: 'Summons',  color: '#e0a070', angle: -90 + 11 * 30,               icon: '🦴' },
+  { code: 'R', name: 'Ice',       color: '#8ec9e8', angle: -90 + 27.7,                   icon: '❄' },
+  { code: 'V', name: 'Void',      color: '#9d8ce0', angle: -90 + 2 * 27.7,               icon: '✦' },
+  { code: 'S', name: 'Shadow',    color: '#c4728f', angle: -90 + 3 * 27.7,              icon: '☾' },
+  { code: 'N', name: 'Nature',    color: '#8bc48a', angle: -90 + 4 * 27.7,              icon: '☘' },
+  { code: 'P', name: 'Potency',   color: '#4fd6c0', angle: -90 + 5 * 27.7,                icon: '⚔' },
+  { code: 'T', name: 'Lightning', color: '#c4e842', angle: -90 + 6 * 27.7,              icon: '⚡' },
+  { code: 'W', name: 'Wind',      color: '#a8d4e8', angle: -90 + 7 * 27.7,             icon: '🌪' },
+  { code: 'Wa',name: 'Water',     color: '#4a9eff', angle: -90 + 8 * 27.7,              icon: '💧' },
+  { code: 'Rk',name: 'Rock',      color: '#9a8b7a', angle: -90 + 9 * 27.7,              icon: '🪨' },
+  { code: 'H', name: 'Holy',      color: '#c9a869', angle: -90 + 10 * 27.7,               icon: '✨' },
+  { code: 'Sm',name: 'Summons',  color: '#e0a070', angle: -90 + 11 * 27.7,               icon: '🦴' },
+  { code: 'K', name: 'Ki',        color: '#ffd966', angle: -90 + 12 * 27.7,              icon: '🐲' },
 ];
 
 interface LocalNode {
@@ -275,6 +276,22 @@ export const CONTENT: Record<string, Record<string, ContentEntry>> = {
     J: { name: 'Soul Cache', desc: 'Summons have +50% HP. Bone Warrior explosions are 50% larger.' },
     K: { name: 'Swarm Lord', desc: 'Familiar orbit speed +50%. Shadow Hound charges 2x as often.' },
     L: { name: 'Apocalypse', desc: 'Every 30s, summon a wave of 8 skeletons that sweep across the screen damaging all enemies.' },
+  },
+  K: {
+    A: { name: 'Ki Charge', desc: 'Your auto-attack becomes a ki blast — golden energy projectiles that deal +20% damage.' },
+    B: { name: 'Zanzoken', desc: 'Dash leaves an after-image. Dash cooldown halved. Brief invuln after dashing.' },
+    C1: { name: 'Ki Sense', desc: '+15% crit chance. Crits deal +50% more damage.' },
+    G: { name: 'Saiyan Spirit', desc: '+25% max HP. Below 30% HP, deal +40% damage (Saiyan rage).' },
+    C2: { name: 'Energy Barrage', desc: 'Unlocks Ki Barrage — fire 6 ki blasts in a rapid spread every 4s.' },
+    D: { name: 'Spirit Bomb', desc: 'Unlocks Spirit Bomb — gather energy for 1.5s, then unleash a massive AoE explosion every 10s.' },
+    H: { name: 'Endurance', desc: '+20% max HP. Take 15% less damage while charging an attack.' },
+    E1: { name: 'Kaio-ken', desc: 'Every 12s, enter Kaio-ken for 5s: +60% damage and +40% move speed, but lose 2 HP/sec.' },
+    E2: { name: 'Instant Transmission', desc: 'Zanzoken now teleports you to the nearest enemy instead of dashing. 3s cooldown.' },
+    F: { name: 'Kamehameha', desc: 'Capstone. Unlocks Kamehameha — a continuous beam of ki energy you channel forward, dealing massive damage to all enemies in its path. Hold to fire.' },
+    I: { name: 'Super Kamehameha', desc: 'Kamehameha beam is 50% wider and deals 50% more damage.' },
+    J: { name: 'Full Power', desc: 'Ki Barrage fires 12 blasts. Spirit Bomb radius +50%.' },
+    K: { name: 'Ultra Instinct', desc: 'Auto-dodge: 30% chance to phase through enemy attacks unharmed. +20% move speed.' },
+    L: { name: 'Perfect', desc: 'Achieve perfect form. ALL ki damage doubled. Kamehameha never needs to recharge. Kaio-ken has no HP drain.' },
   },
 };
 
