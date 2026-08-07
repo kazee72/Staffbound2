@@ -86,6 +86,7 @@ export class GameScene extends Phaser.Scene {
   // is simplest — unused sprites are hidden+recycled, not destroyed, to
   // avoid texture-manager churn during heavy spawn bursts).
   private enemySpritePool: Phaser.GameObjects.Sprite[] = [];
+  private projectileSpritePool: Phaser.GameObjects.Sprite[] = [];
   /**
    * Per-enemy render state (host only — guests render from index-pooled
    * snapshot sprites with no stable per-enemy identity, see
@@ -1360,10 +1361,37 @@ export class GameScene extends Phaser.Scene {
     // boss fight (sprite, telegraphs, bullet-hell projectiles, healthbar)
     this.renderBossFight(g);
 
-    // projectiles
-    world.projectiles.forEach((pr) => {
+    // projectiles — render as animated sprites per element
+    const tintMap: Record<string, number> = {
+      holy: 0xffe8a0, lightning: 0xffff00, ki: 0xffd966,
+    };
+    while (this.projectileSpritePool.length < world.projectiles.length) {
+      const spr = this.add.sprite(0, 0, 'bullets_blue').setDepth(99);
+      spr.setVisible(false);
+      spr.setScale(1.5);
+      this.projectileSpritePool.push(spr);
+    }
+    world.projectiles.forEach((pr, i) => {
+      const spr = this.projectileSpritePool[i];
+      const el = pr.element || 'void';
+      const animKey = `bullet_${el}`;
+      if (this.anims.exists(animKey) && spr.anims.currentAnim?.key !== animKey) {
+        spr.play(animKey);
+      }
+      spr.setPosition(Math.round(pr.x), Math.round(pr.y));
+      spr.setVisible(true);
+      spr.setRotation(Math.atan2(pr.vy, pr.vx));
+      // Apply tint for elements that need recoloring
+      const tint = tintMap[el];
+      if (tint !== undefined) spr.setTint(tint);
+      else spr.clearTint();
+      // Glow effect via graphics
       this.drawProjectileGlow(g, pr.x, pr.y, pr.mini ? 3 : pr.r, pr.color);
     });
+    // Hide unused sprites
+    for (let i = world.projectiles.length; i < this.projectileSpritePool.length; i++) {
+      this.projectileSpritePool[i].setVisible(false);
+    }
 
     // player sprite
     this.drawPlayer();

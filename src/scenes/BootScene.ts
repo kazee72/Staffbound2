@@ -25,6 +25,11 @@ export class BootScene extends Phaser.Scene {
   preload(): void {
     loadCharacterGif(this);
     loadEnemySpriteAssets(this);
+    // Bullet sprite sheets: 576x208, 16x16 cells = 36 cols x 13 rows
+    this.load.spritesheet('bullets_red', 'assets/bullets_red.png', { frameWidth: 16, frameHeight: 16 });
+    this.load.spritesheet('bullets_blue', 'assets/bullets_blue.png', { frameWidth: 16, frameHeight: 16 });
+    this.load.spritesheet('bullets_green', 'assets/bullets_green.png', { frameWidth: 16, frameHeight: 16 });
+    this.load.spritesheet('bullets_purple', 'assets/bullets_purple.png', { frameWidth: 16, frameHeight: 16 });
   }
 
   create(): void {
@@ -33,6 +38,34 @@ export class BootScene extends Phaser.Scene {
     }
     buildEnemySpriteAssets(this);
     generateEnemyTextures(this);
+    // Create bullet animations for each element (3 frames each, rows from the sheet)
+    // Sheet layout: 36 cols x 13 rows. Use first 3 cols of each row as animation frames.
+    const elementMap: Record<string, { sheet: string; row: number; tint?: number }> = {
+      fire:      { sheet: 'bullets_red',    row: 0 },
+      ice:       { sheet: 'bullets_blue',   row: 1 },
+      void:      { sheet: 'bullets_purple', row: 0 },
+      shadow:    { sheet: 'bullets_purple', row: 2 },
+      nature:    { sheet: 'bullets_green',  row: 0 },
+      holy:      { sheet: 'bullets_blue',   row: 3, tint: 0xffe8a0 },
+      lightning: { sheet: 'bullets_green',  row: 1, tint: 0xffff00 },
+      wind:      { sheet: 'bullets_blue',   row: 2 },
+      water:     { sheet: 'bullets_blue',   row: 0 },
+      rock:      { sheet: 'bullets_red',    row: 1 },
+      ki:        { sheet: 'bullets_red',    row: 2, tint: 0xffd966 },
+    };
+    for (const [el, def] of Object.entries(elementMap)) {
+      const start = def.row * 36; // 36 cols per row
+      const frames: number[] = [start, start + 1, start + 2];
+      const animKey = `bullet_${el}`;
+      if (!this.anims.exists(animKey)) {
+        this.anims.create({
+          key: animKey,
+          frames: frames.map((f) => ({ key: def.sheet, frame: f })),
+          frameRate: 12,
+          repeat: -1,
+        });
+      }
+    }
     this.scene.start('Lobby');
   }
 }

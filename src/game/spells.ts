@@ -375,6 +375,7 @@ export function castBolt(world: World): void {
     (pr as Projectile & { knockback?: number; healOnHit?: number; splashRadius?: number; chain?: number; windTrail?: boolean; splashFrac?: number; groundCrack?: boolean; faultLine?: boolean; holyBolt?: boolean }).healOnHit = projHealOnHit;
     (pr as Projectile & { knockback?: number; healOnHit?: number; splashRadius?: number; chain?: number; windTrail?: boolean; splashFrac?: number; groundCrack?: boolean; faultLine?: boolean; holyBolt?: boolean }).splashRadius = projSplashRadius;
     (pr as Projectile & { knockback?: number; healOnHit?: number; splashRadius?: number; chain?: number; windTrail?: boolean; splashFrac?: number; groundCrack?: boolean; faultLine?: boolean; holyBolt?: boolean }).chain = projChain;
+    pr.element = el; // Store element for sprite rendering
     // Shrapnel (Rk_C1): splash damage 60% instead of 50%.
     if (el === 'rock' && hasNode(world.purchased, 'Rk_C1')) (pr as Projectile & { splashFrac?: number }).splashFrac = 0.6;
     // Crater (Rk_C2): bolt impact creates a ground crack.

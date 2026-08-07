@@ -198,6 +198,8 @@ export interface Projectile {
   splashRadius?: number;
   /** Leaves a wind trail behind (Wind). */
   windTrail?: boolean;
+  /** Element type for sprite rendering. */
+  element?: string;
 }
 
 export interface RingEffect {
