@@ -20,7 +20,7 @@ const STORAGE_KEY = 'staffbound2_meta';
 
 // ---------------- Element definitions ----------------
 
-export type ElementId = 'fire' | 'ice' | 'void' | 'shadow' | 'nature' | 'holy' | 'lightning' | 'wind' | 'water';
+export type ElementId = 'fire' | 'ice' | 'void' | 'shadow' | 'nature' | 'potency' | 'holy' | 'lightning' | 'wind' | 'water' | 'rock' | 'summons' | 'ki';
 
 export interface ElementBranchDef {
   id: ElementId;
@@ -36,10 +36,14 @@ export const ELEMENT_BRANCHES: ElementBranchDef[] = [
   { id: 'void',      name: 'Void',      color: '#9d8ce0', short: 'V' },
   { id: 'shadow',    name: 'Shadow',    color: '#c4728f', short: 'S' },
   { id: 'nature',    name: 'Nature',    color: '#8bc48a', short: 'N' },
-  { id: 'holy',      name: 'Holy',      color: '#c9a869', short: 'B' },
+  { id: 'potency',   name: 'Potency',   color: '#4fd6c0', short: 'P' },
   { id: 'lightning', name: 'Lightning', color: '#c4e842', short: 'T' },
   { id: 'wind',      name: 'Wind',      color: '#a8d4e8', short: 'W' },
   { id: 'water',     name: 'Water',    color: '#4a9eff', short: 'Wa' },
+  { id: 'rock',      name: 'Rock',     color: '#9a8b7a', short: 'Rk' },
+  { id: 'holy',      name: 'Holy',      color: '#c9a869', short: 'H' },
+  { id: 'summons',   name: 'Summons',  color: '#e0a070', short: 'Sm' },
+  { id: 'ki',        name: 'Ki',        color: '#ffd966', short: 'K' },
 ];
 
 export const ELEMENT_BY_ID: Record<string, ElementBranchDef> = {};
@@ -164,6 +168,34 @@ const WATER_UPGRADES: MetaUpgradeDef[] = [
   { id: 'water_pull',  name: 'Whirlpool Pull',     desc: '+10% whirlpool pull force per rank.',   maxRank: 8,  costAt: expCost(16, 1.30), perRank: 0.10,  element: 'water' },
   { id: 'water_dmg',   name: 'Crushing Depth',     desc: '+4% water damage per rank.',            maxRank: 10, costAt: expCost(12, 1.30), perRank: 0.04,  element: 'water' },
   { id: 'water_cleanse',name: 'Purifying Flow',    desc: '+10% cleanse frequency per rank.',      maxRank: 8,  costAt: expCost(18, 1.32), perRank: 0.10,  element: 'water' },
+
+  // Potency
+  { id: 'pot_dmg',      name: 'Pure Power',       desc: '+5% all damage per rank.',              maxRank: 10, costAt: expCost(14, 1.30), perRank: 0.05,  element: 'potency' },
+  { id: 'pot_crit',     name: 'Lethal Focus',     desc: '+3% crit chance per rank.',            maxRank: 8,  costAt: expCost(18, 1.32), perRank: 0.03,  element: 'potency' },
+  { id: 'pot_critdmg',  name: 'Brutal Strikes',   desc: '+12% crit damage per rank.',          maxRank: 8,  costAt: expCost(16, 1.30), perRank: 0.12,  element: 'potency' },
+  { id: 'pot_cd',       name: 'Rapid Cast',       desc: '+4% cooldown reduction per rank.',    maxRank: 8,  costAt: expCost(15, 1.30), perRank: 0.04,  element: 'potency' },
+  { id: 'pot_dr',       name: 'Iron Will',        desc: '+3% damage reduction per rank.',      maxRank: 6,  costAt: expCost(20, 1.33), perRank: 0.03,  element: 'potency' },
+
+  // Rock
+  { id: 'rock_dmg',     name: 'Tectonic Power',   desc: '+4% rock damage per rank.',            maxRank: 10, costAt: expCost(12, 1.30), perRank: 0.04,  element: 'rock' },
+  { id: 'rock_splash',  name: 'Shrapnel Storm',   desc: '+8% splash radius per rank.',         maxRank: 8,  costAt: expCost(16, 1.30), perRank: 0.08,  element: 'rock' },
+  { id: 'rock_armor',   name: 'Stone Skin',      desc: '+3% damage reduction per rank.',      maxRank: 8,  costAt: expCost(18, 1.32), perRank: 0.03,  element: 'rock' },
+  { id: 'rock_hp',      name: 'Mountain Heart',   desc: '+5% max HP per rank.',               maxRank: 8,  costAt: expCost(14, 1.28), perRank: 0.05,  element: 'rock' },
+  { id: 'rock_boulder', name: 'Avalanche',        desc: '+10% boulder size per rank.',        maxRank: 6,  costAt: expCost(20, 1.33), perRank: 0.10,  element: 'rock' },
+
+  // Summons
+  { id: 'summon_dmg',   name: 'Soul Power',      desc: '+5% summon damage per rank.',          maxRank: 10, costAt: expCost(12, 1.30), perRank: 0.05,  element: 'summons' },
+  { id: 'summon_hp',    name: 'Soul Cache',      desc: '+10% summon HP per rank.',            maxRank: 8,  costAt: expCost(14, 1.28), perRank: 0.10,  element: 'summons' },
+  { id: 'summon_duration',name: 'Eternal Bond',  desc: '+15% summon duration per rank.',       maxRank: 6,  costAt: expCost(16, 1.30), perRank: 0.15,  element: 'summons' },
+  { id: 'summon_count', name: 'Pack Leader',     desc: '+0.5 max summons per rank.',           maxRank: 4,  costAt: expCost(25, 1.35), perRank: 0.5,   element: 'summons' },
+  { id: 'summon_heal',  name: 'Spirit Link',     desc: '+0.5 HP/sec healed by summons per rank.',maxRank: 8, costAt: expCost(18, 1.30), perRank: 0.5,   element: 'summons' },
+
+  // Ki
+  { id: 'ki_dmg',       name: 'Inner Strength',  desc: '+5% ki damage per rank.',              maxRank: 10, costAt: expCost(12, 1.30), perRank: 0.05,  element: 'ki' },
+  { id: 'ki_beam',      name: 'Beam Mastery',    desc: '+10% kamehameha damage per rank.',     maxRank: 8,  costAt: expCost(18, 1.32), perRank: 0.10,  element: 'ki' },
+  { id: 'ki_beamdur',   name: 'Extended Charge', desc: '+0.3s kamehameha duration per rank.', maxRank: 6,  costAt: expCost(20, 1.33), perRank: 0.3,   element: 'ki' },
+  { id: 'ki_kaioken',   name: 'Kaio-ken Mastery',desc: '+5% kaio-ken damage boost per rank.', maxRank: 8,  costAt: expCost(16, 1.30), perRank: 0.05,  element: 'ki' },
+  { id: 'ki_speed',     name: 'Ki Speed',        desc: '+4% ki attack speed per rank.',       maxRank: 8,  costAt: expCost(15, 1.30), perRank: 0.04,  element: 'ki' },
 ];
 
 // ===== All upgrades combined =====
@@ -186,7 +218,7 @@ META_UPGRADES.forEach((m) => (META_BY_ID[m.id] = m));
 
 /** Upgrades grouped by element — used by the UI to render element branches. */
 export function metaUpgradesByElement(): Record<string, MetaUpgradeDef[]> {
-  const groups: Record<string, MetaUpgradeDef[]> = { general: [], fire: [], ice: [], void: [], shadow: [], nature: [], holy: [], lightning: [], wind: [], water: [] };
+  const groups: Record<string, MetaUpgradeDef[]> = { general: [], fire: [], ice: [], void: [], shadow: [], nature: [], potency: [], holy: [], lightning: [], wind: [], water: [], rock: [], summons: [], ki: [] };
   for (const m of META_UPGRADES) {
     (groups[m.element] ?? (groups[m.element] = [])).push(m);
   }
