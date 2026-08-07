@@ -790,42 +790,36 @@ export class GameScene extends Phaser.Scene {
         if (this.world.cd.kamehameha > 0) {
           // On cooldown — tick down
           this.world.cd.kamehameha -= dt;
-        } else {
+        } else if (hasPerfect || this.world.cd.kamehameha > -3) {
           // Beam is active — fire continuously toward aim direction
-          const beamDuration = hasPerfect ? 0 : 3; // 3s beam, then 6s cooldown (or permanent with Perfect)
-          const beamCooldown = hasPerfect ? 0 : 6;
-          // Check if we've been firing long enough (track via a separate timer)
-          // Use kamehameha cd as: 0 = ready, negative = firing (drain), positive = recharging
-          if (this.world.cd.kamehameha > -beamDuration) {
-            // Still firing
-            this.world.cd.kamehameha -= dt;
-            const beamRange = 600;
-            const beamWidth = hasNode(this.world.purchased, 'K_I') ? 40 : 25;
-            const beamDmg = (20 + this.world.level * 0.8) * (hasNode(this.world.purchased, 'K_I') ? 1.5 : 1) * (hasPerfect ? 2 : 1) * dt * 8;
-            const ang = p.aimAngle;
-            const perpX = -Math.sin(ang), perpY = Math.cos(ang);
-            for (const e of this.world.enemies) {
-              if (e.dead) continue;
-              const dx = e.x - p.x, dy = e.y - p.y;
-              const along = dx * Math.cos(ang) + dy * Math.sin(ang);
-              const across = Math.abs(dx * perpX + dy * perpY);
-              if (along > 0 && along < beamRange && across < beamWidth + e.r) {
-                damageEnemy(this.world, e, beamDmg, { color: '#ffd966', allowCrit: false });
-              }
+          // With Perfect: always fires (no duration limit). Without: fires for 3s then 6s cooldown.
+          if (!hasPerfect) this.world.cd.kamehameha -= dt;
+          const beamRange = 600;
+          const beamWidth = hasNode(this.world.purchased, 'K_I') ? 40 : 25;
+          const beamDmg = (20 + this.world.level * 0.8) * (hasNode(this.world.purchased, 'K_I') ? 1.5 : 1) * (hasPerfect ? 2 : 1) * dt * 8;
+          const ang = p.aimAngle;
+          const perpX = -Math.sin(ang), perpY = Math.cos(ang);
+          for (const e of this.world.enemies) {
+            if (e.dead) continue;
+            const dx = e.x - p.x, dy = e.y - p.y;
+            const along = dx * Math.cos(ang) + dy * Math.sin(ang);
+            const across = Math.abs(dx * perpX + dy * perpY);
+            if (along > 0 && along < beamRange && across < beamWidth + e.r) {
+              damageEnemy(this.world, e, beamDmg, { color: '#ffd966', allowCrit: false });
             }
-            if (this.world.bossFight) {
-              const boss = this.world.bossFight.boss;
-              const dx = boss.x - p.x, dy = boss.y - p.y;
-              const along = dx * Math.cos(ang) + dy * Math.sin(ang);
-              const across = Math.abs(dx * perpX + dy * perpY);
-              if (along > 0 && along < beamRange && across < beamWidth + boss.r) {
-                damageBoss(this.world, boss, beamDmg, { color: '#ffd966' });
-              }
-            }
-          } else {
-            // Beam ended — go on cooldown
-            this.world.cd.kamehameha = beamCooldown;
           }
+          if (this.world.bossFight) {
+            const boss = this.world.bossFight.boss;
+            const dx = boss.x - p.x, dy = boss.y - p.y;
+            const along = dx * Math.cos(ang) + dy * Math.sin(ang);
+            const across = Math.abs(dx * perpX + dy * perpY);
+            if (along > 0 && along < beamRange && across < beamWidth + boss.r) {
+              damageBoss(this.world, boss, beamDmg, { color: '#ffd966' });
+            }
+          }
+        } else {
+          // Beam ended — go on cooldown (only without Perfect)
+          this.world.cd.kamehameha = 6;
         }
       }
       // Kaio-ken (K_E1): active state — drain HP, boost damage (passive in player.ts checks cd.kaioken)
@@ -1293,10 +1287,13 @@ export class GameScene extends Phaser.Scene {
       const beamWidth = hasNode(world.purchased, 'K_I') ? 40 : 25;
       const ex = p.x + Math.cos(ang) * beamRange;
       const ey = p.y + Math.sin(ang) * beamRange;
-      // Outer glow
-      g.fillStyle(0xffe866, 0.15);
-      g.fillRect(p.x, p.y - beamWidth, beamRange, beamWidth * 2);
-      // Inner beam (rotated)
+      // Outer glow (wide, low alpha)
+      g.lineStyle(beamWidth * 2, 0xffe866, 0.12);
+      g.beginPath();
+      g.moveTo(p.x, p.y);
+      g.lineTo(ex, ey);
+      g.strokePath();
+      // Inner beam
       g.lineStyle(beamWidth, 0xffd966, 0.4);
       g.beginPath();
       g.moveTo(p.x, p.y);
