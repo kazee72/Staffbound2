@@ -1380,7 +1380,7 @@ export class GameScene extends Phaser.Scene {
       }
       spr.setPosition(Math.round(pr.x), Math.round(pr.y));
       spr.setVisible(true);
-      spr.setRotation(Math.atan2(pr.vy, pr.vx));
+      spr.setRotation(Math.atan2(pr.vy, pr.vx) + Math.PI / 2); // +90deg because sprites point up in the sheet
       // Apply tint for elements that need recoloring
       const tint = tintMap[el];
       if (tint !== undefined) spr.setTint(tint);

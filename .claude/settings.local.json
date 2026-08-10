@@ -3,7 +3,17 @@
     "allow": [
       "Bash(git remote add origin git@github.com:kazee72/Staffbound2.git)",
       "Bash(git push -u origin master)",
-      "Bash(git remote set-url origin https://github.com/kazee72/Staffbound2.git)"
+      "Bash(git remote set-url origin https://github.com/kazee72/Staffbound2.git)",
+      "Bash(node -e \"require.resolve\\('playwright'\\)\")",
+      "Bash(npx --yes playwright install chromium --with-deps)",
+      "Bash(npx --yes playwright@1.62.1 install chromium)",
+      "Bash(cp \"C:\\\\Users\\\\kaze\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-kaze-hollowmere\\\\877c9589-d0d4-4aba-9f14-46d2829126e3\\\\scratchpad\\\\levelup_smoke.js\" \"C:\\\\Users\\\\kaze\\\\hollowmere\\\\_smoke_levelup.js\")",
+      "Bash(node _smoke_levelup.js)",
+      "Bash(mv _smoke_levelup.js _smoke_levelup.cjs)",
+      "Bash(node _smoke_levelup.cjs)",
+      "Bash(npm run *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ],
     "deny": [],
     "ask": []

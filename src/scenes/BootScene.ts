@@ -38,20 +38,21 @@ export class BootScene extends Phaser.Scene {
     }
     buildEnemySpriteAssets(this);
     generateEnemyTextures(this);
-    // Create bullet animations for each element (3 frames each, rows from the sheet)
-    // Sheet layout: 36 cols x 13 rows. Use first 3 cols of each row as animation frames.
+    // Create bullet animations for each element — each uses a DIFFERENT row from a DIFFERENT color sheet
+    // Sheet layout: 36 cols x 13 rows of 16x16 cells. Use first 3 cols of each row as animation frames.
+    // Rows 0-10 have distinct bullet shapes. Rows 11-12 are empty in first 3 cols.
     const elementMap: Record<string, { sheet: string; row: number; tint?: number }> = {
-      fire:      { sheet: 'bullets_red',    row: 0 },
-      ice:       { sheet: 'bullets_blue',   row: 1 },
-      void:      { sheet: 'bullets_purple', row: 0 },
-      shadow:    { sheet: 'bullets_purple', row: 2 },
-      nature:    { sheet: 'bullets_green',  row: 0 },
-      holy:      { sheet: 'bullets_blue',   row: 3, tint: 0xffe8a0 },
-      lightning: { sheet: 'bullets_green',  row: 1, tint: 0xffff00 },
-      wind:      { sheet: 'bullets_blue',   row: 2 },
-      water:     { sheet: 'bullets_blue',   row: 0 },
-      rock:      { sheet: 'bullets_red',    row: 1 },
-      ki:        { sheet: 'bullets_red',    row: 2, tint: 0xffd966 },
+      fire:      { sheet: 'bullets_red',    row: 0 },  // small fireball
+      ice:       { sheet: 'bullets_blue',   row: 1 },  // ice shard
+      void:      { sheet: 'bullets_purple', row: 0 },  // void orb
+      shadow:    { sheet: 'bullets_purple', row: 4 },  // shadow dart
+      nature:    { sheet: 'bullets_green',  row: 2 },  // thorn spike
+      holy:      { sheet: 'bullets_red',    row: 5, tint: 0xffe8a0 },  // holy bolt (gold tint)
+      lightning: { sheet: 'bullets_green',  row: 7, tint: 0xffff00 },  // lightning bolt (yellow tint)
+      wind:      { sheet: 'bullets_blue',   row: 3 },  // wind blade
+      water:     { sheet: 'bullets_blue',   row: 6 },  // water droplet
+      rock:      { sheet: 'bullets_red',    row: 1 },  // rock chunk
+      ki:        { sheet: 'bullets_red',    row: 8, tint: 0xffd966 },  // ki blast (gold tint)
     };
     for (const [el, def] of Object.entries(elementMap)) {
       const start = def.row * 36; // 36 cols per row
